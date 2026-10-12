@@ -511,6 +511,7 @@
         <li>行ごとに確認・修正する
           <ul>
             <li><b>実施項目</b>：カイポケでチェックする項目が青く選ばれている。押すと外れ、「＋項目」でカイポケと同じ並びの一覧から足せる</li>
+            <li><b>記録の日時</b>：その月のカイポケのシフト（業務日誌ツールに取り込んだ分）がある利用者は、<b>シフトの実際の日時</b>で記録を作る。予定表に無い訪問も「予定表に無い訪問（シフトから）」として作り、予定表にあってシフトに無い予定はチェックを外して出す（出力しない）。シフトの無い月は週間予定表の曜日・時刻で作る。文章の時間帯は 朝5〜10時台／昼11〜15時台／夕方16〜17時台／夜18時〜 に揃えている（19時以降の薬は「眠前薬」）</li>
             <li><b>担当者</b>：記録を作ると、カイポケのシフト（業務日誌ツールに取り込んだ月）から、利用者・日付・開始時刻（30分以内）が合うヘルパーが自動で入る。シフトが無い月は「📋 シフトCSVを取り込む」でカイポケのシフト予定表CSVを入れる。手で選び直した担当者はそのまま残る。「🔄 シフトから担当者を入れ直す」で入れ直せる</li>
             <li><b>チェック欄</b>：記録の右の「チェック」列に、記録欄の値（顔色・発汗・体温・血圧…）と、チェックした実施項目をカイポケと同じ並びで ☑ 表示（PDF・印刷・Wordにも出る。Wordでは各記録の下に小さい灰色の1行「チェック：…」。いらないときは「Word・PDFにチェック項目も入れる」を外す）。選び方：①予定表 ②アセスメント（洗髪介助・口腔清潔など）③文章に書いてある支援 ④記録欄の値 ⑤関連してセットで行う支援（入浴→更衣介助、通院→外出準備・帰宅受入、車いす→移乗介助、障害の声掛け→場面の小項目）。チェックにマウスを乗せると理由が出る（点線の下線＝関連で選んだ物）。調理の訪問は献立欄に料理名。「✎ 項目」で選び直し、「📝 記録欄」で数字を入れる。「📋」でカイポケ用にコピー</li>
             <li><b>📝記録欄</b>：カイポケの欄（顔色・発汗・体温・血圧・排尿／排便の回数・量・食事量・水分cc・部分浴・清拭・整容・買物の金額と内訳・その他・予定の変更・加算）。入れた数字は文章に自動で書き足され、消すと文章からも消える。文章に書いた体温・血圧・排尿／排便・食事量・水分cc・清拭・整容・金額なども自動で欄に入る（点線。文章を打っている途中でも反映）。押せば選び直せる</li>
@@ -2419,7 +2420,9 @@ const SG = {
   },
   mood: ['支援中も穏やかに会話されていた。', '終始穏やかな様子で過ごされていた。', '会話を交えながら、落ち着いて支援を進めた。'],
 };
-function shogaiTod(h) { return h < 12 ? '朝' : h < 16 ? '昼' : h < 17 ? '夕方' : '夜'; }
+// 時間帯の区切り（記録の見出し・書き出し・食事・薬・発言すべてこれに合わせる）：朝 5〜10時台／昼 11〜15時台／夕方 16〜17時台／夜 18時〜
+function shogaiTod(h) { return h < 5 ? '夜' : h < 11 ? '朝' : h < 16 ? '昼' : h < 18 ? '夕方' : '夜'; }
+const medWord = (h, tod) => h >= 19 || h < 5 ? '眠前' : tod === '朝' ? '朝' : tod === '昼' ? '昼' : '夕';
 // ---- アセスメントを基にした文（文の流れの決まった位置に入れる）。取り込んでいない人は空 ----
 function assessHints(row, who) {
   const a = assessOf((state.name || '').trim()); const H = { observe: '', care: '', med: '', life: '' }; if (!a) return H;
@@ -2469,7 +2472,7 @@ function assessHints(row, who) {
   return H;
 }
 // ---- 1日の流れ：同じ日のそれより前の訪問を見て、書き出しや起床の文を合わせる ----
-function mealOf(r) { const h = parseInt(r.e.start || '12', 10); return ((r.e.detail || '').match(/朝食|昼食|夕食/) || [h < 11 ? '朝食' : h < 16 ? '昼食' : '夕食'])[0]; }
+function mealOf(r) { const h = parseInt(r.e.start || '12', 10); return ((r.e.detail || '').match(/朝食|昼食|夕食/) || [h >= 5 && h < 11 ? '朝食' : h >= 11 && h < 16 ? '昼食' : '夕食'])[0]; }
 function prevSum(r) {
   const kp = kpOf(r), c = x => kp.some(k => k.startsWith(x + '|')), parts = [];
   if (/入浴/.test(r.e.type || '') || c('入浴・清拭')) return '入浴の支援';
@@ -2485,7 +2488,7 @@ function prevSum(r) {
 }
 function dayCtx(row) {
   const k = ymd(row.date), st = row.e.start || '';
-  const prev = recRows.filter(r => r !== row && ymd(r.date) === k && (r.e.start || '') < st);
+  const prev = recRows.filter(r => r !== row && r.on !== false && ymd(r.date) === k && (r.e.start || '') < st);
   const todOf = r => shogaiTod(parseInt(r.e.start || '12', 10)), t = todOf(row);
   // 前の予定とのつながり：直前の訪問が何だったか・どれだけ間が空いたか
   const last = prev.slice().sort((a, b) => (a.e.start || '').localeCompare(b.e.start || '')).pop();
@@ -2518,7 +2521,7 @@ const MEAN = [/体調|気分|表情|訴え/, /穏やか|落ち着/, /本人が�
 let _opt = new Set();
 function fitSay(arr, kp) {
   const hasC = c => kp.some(k => k.startsWith(c + '|'));
-  return arr.filter(x => !((/きれい|部屋/.test(x) && !/洗濯/.test(x) && !hasC('清掃')) || (/おいし|食/.test(x) && !hasC('調理')) || (/洗濯|服/.test(x) && !hasC('洗濯')) || (/揃っ|必要な/.test(x) && !hasC('買物等'))));
+  return arr.filter(x => !((/きれい|部屋/.test(x) && !/洗濯/.test(x) && !(hasC('清掃') && (!/部屋/.test(x) || kp.includes('清掃|居室')))) || (/おいし|食/.test(x) && !hasC('調理')) || (/洗濯|服/.test(x) && !hasC('洗濯')) || (/揃っ|必要な/.test(x) && !hasC('買物等'))));
 }
 const o = x => { if (x) x.split('。').filter(Boolean).forEach(y => _opt.add(y)); return x; };
 function tidy(arr) {
@@ -2546,7 +2549,8 @@ const SG_SAY = {
 const TK_OPEN = {
   朝: ['朝の訪問時、利用者様へ挨拶し体調を確認した。', '訪問時、利用者様の起床状況と体調を確認した。', '訪問時、利用者様へ声掛けし体調を確認した。'],
   昼: ['訪問時、利用者様へ挨拶し体調を確認した。', '訪問時、利用者様の表情や顔色を確認した。'],
-  夜: ['夜の訪問時、利用者様の体調と表情を確認した。', '夕方の訪問時、利用者様へ声掛けし体調を確認した。'],
+  夕方: ['夕方の訪問時、利用者様へ声掛けし体調を確認した。', '夕方の訪問時、利用者様の体調と表情を確認した。'],
+  夜: ['夜の訪問時、利用者様の体調と表情を確認した。', '夜の訪問時、利用者様へ声掛けし体調を確認した。'],
 };
 const TK_FOLLOW = { 昼: ['午前中の様子を伺い、利用者様の体調を確認した。'], 夜: ['日中の過ごし方を伺い、利用者様の体調を確認した。', '夜の訪問時、日中の様子を伺い体調を確認した。'] };
 function genShogai(row) {
@@ -2554,7 +2558,7 @@ function genShogai(row) {
   const AH = assessHints(row, '本人'); AH.care = freshDay(AH.care); AH.life = freshDay(AH.life); AH.observe = freshDay(AH.observe);
   const kp = kpOf(row), has = k => kp.includes(k), hasC = c => kp.some(k => k.startsWith(c + '|'));
   const h = parseInt(row.e.start || '12', 10), tod = shogaiTod(h);
-  const meal = ((row.e.detail || '').match(/朝食|昼食|夕食/) || [h < 11 ? '朝食' : h < 16 ? '昼食' : '夕食'])[0];
+  const meal = mealOf(row);
   const sayOn = document.getElementById('recSay') ? document.getElementById('recSay').checked : true;
   const s = [];
   let cat = '身体';
@@ -2610,8 +2614,8 @@ function genTokki(row) {
   if (kubunOf((state.name || '').trim()) !== '介護') return genShogai(row);
   const kubun = kubunOf((state.name || '').trim()) === '介護' ? '介護' : '障害', K = kubun === '介護';
   const kp = kpOf(row), has = k => kp.includes(k), hasC = c => kp.some(k => k.startsWith(c + '|'));
-  const label = recLabel(row), h = parseInt(row.e.start || '12', 10), tod = h < 11 ? '朝' : h < 16 ? '昼' : '夜';
-  const meal = ((row.e.detail || '').match(/朝食|昼食|夕食/) || [tod === '朝' ? '朝食' : tod === '昼' ? '昼食' : '夕食'])[0];
+  const label = recLabel(row), h = parseInt(row.e.start || '12', 10), tod = shogaiTod(h);
+  const meal = mealOf(row);
   const a = assessOf((state.name || '').trim()), dent = a && a.dentures;
   const sayOn = document.getElementById('recSay') ? document.getElementById('recSay').checked : true;
   const ctx = dayCtx(row);
@@ -2657,7 +2661,7 @@ function genTokki(row) {
     if (hasC('排泄')) s.push(K ? pickF(['排泄後は清潔保持を行い、身だしなみを整えた。', 'トイレへの移動時は転倒に注意し、必要な部分を支えながら介助した。', '排泄後の陰部の清潔を確認し、衣類を整えた。', 'トイレまでの移動は足元に注意しながら付き添った。', '排泄の状態を確認し、後始末まで行った。'])
                                : pickF(['トイレまでの移動は見守り、必要な場面のみ介助した。', '排泄はご自身で行っていただき、後始末を声掛けで確認した。']));
     if (AH.care) s.push(o(AH.care));
-    if (!ctx.med && has('服薬・医療|服薬介助・確認')) s.push(K ? (AH.med && !seen(AH.med) ? AH.med : pickF([`${tod === '朝' ? '朝' : tod === '昼' ? '昼' : '夕'}の薬を確認し、飲み忘れがないようにした。`, `${tod === '朝' ? '朝食後' : tod === '昼' ? '昼食後' : '夕食後'}の服薬を確認した。`, `${tod === '朝' ? '朝' : tod === '昼' ? '昼' : '夜'}の服薬について確認し、飲み忘れのないようにした。`])) : '服薬はご自身で行っていただき、飲んだことを一緒に確認した。');
+    if (!ctx.med && has('服薬・医療|服薬介助・確認')) s.push(K ? (AH.med && !seen(AH.med) ? AH.med : pickF(medWord(h, tod) === '眠前' ? ['眠前薬を確認し、飲み忘れがないようにした。', '眠前の服薬を確認した。'] : [`${medWord(h, tod)}の薬を確認し、飲み忘れがないようにした。`, `${medWord(h, tod) === '朝' ? '朝食後' : medWord(h, tod) === '昼' ? '昼食後' : '夕食後'}の服薬を確認した。`, `${medWord(h, tod)}の服薬について確認し、飲み忘れのないようにした。`])) : '服薬はご自身で行っていただき、飲んだことを一緒に確認した。');
     // 共に行う（自立支援）
     if (hasC('自立支援')) {
       const it = kp.filter(k => k.startsWith('自立支援|')).map(k => k.split('|')[1]);
@@ -2673,7 +2677,7 @@ function genTokki(row) {
   if (label === '入浴' && AH.care) s.push(o(AH.care));
   if (AH.life && label !== '入浴' && !seen(AH.life)) s.push(o(AH.life));
   // ⑥ 様子・言葉
-  s.push(o(sayOn && Math.random() < 0.7 ? `利用者様は「${pickF(cat === '家事' ? fitSay(TK.say[kubun].家事, kp) : (TK.say[kubun][cat] || TK.say[kubun][tod]))}」と話されていた。` : pickF(TK.mood[kubun])));
+  s.push(o(sayOn && Math.random() < 0.7 ? `利用者様は「${pickF(cat === '家事' ? fitSay(TK.say[kubun].家事, kp) : (TK.say[kubun][cat] || TK.say[kubun][tod] || TK.say[kubun].夜))}」と話されていた。` : pickF(TK.mood[kubun])));
   return tidy(s);
 }
 function genText(row) {
@@ -2694,25 +2698,74 @@ function fmtKaipoke(d, e) {
   const mm = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0');
   return `${mm} / ${dd} ${e.start || '--:--'} - ${e.end || '--:--'}`;
 }
-function buildRecords() {
+// 記録の作り方：シフト（カイポケの実際の訪問日時）がある月はシフトの日時で作る。無い月は週間予定表の曜日・時刻で作る
+function shiftRowsFor(rows, name, day) {
+  const n = normName(name), sur = String(name || '').trim().split(/[\s　]+/)[0], given = String(name || '').trim().split(/[\s　]+/)[1] || '';
+  let c = rows.filter(r => r.d === day && normName(r.c) === n);
+  if (!c.length && !rows.some(r => normName(r.c) === n)) { const sim = x => { const [a, b = ''] = String(x).trim().split(/[\s　]+/); return a === sur && b[0] && b[0] === given[0]; }; if (new Set(rows.filter(r => sim(r.c)).map(r => r.c)).size === 1) c = rows.filter(r => r.d === day && sim(r.c)); }
+  // 同じ時間に2人入っているときは1件にまとめる
+  const g = new Map(); c.forEach(r => { const k = r.s + '-' + r.e; if (!g.has(k)) g.set(k, { s: r.s, e: r.e, v: r.v || '', helpers: [] }); if (!g.get(k).helpers.includes(r.h)) g.get(k).helpers.push(r.h); });
+  return [...g.values()].sort((a, b) => a.s.localeCompare(b.s));
+}
+const z2h = x => String(x || '').replace(/[０-９：]/g, c => c === '：' ? ':' : String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+function entryTime(e) { // 開始時刻の欄が空で、内容欄に「７：00～7：30」と書いてある予定も時刻として読む
+  if (e.start) return { s: e.start, e: e.end };
+  const m = z2h(e.detail).match(/(\d{1,2}):(\d{2})\s*[～~〜-]\s*(\d{1,2}):(\d{2})/) || z2h(e.detail).match(/(\d{1,2}):(\d{2})/);
+  return m ? { s: m[1].padStart(2, '0') + ':' + m[2], e: m[3] ? m[3].padStart(2, '0') + ':' + m[4] : '' } : { s: '', e: '' };
+}
+const svcFam = v => /通院/.test(v) ? '通院' : /^家事|生活援助/.test(v) ? '家事' : '身体';
+const entFam = e => /通院/.test(e.type || '') ? '通院' : /家事|生活/.test(e.type || '') && !/身体/.test(e.type || '') ? '家事' : '身体';
+async function buildRecords() {
   const from = document.getElementById('recFrom').value, to = document.getElementById('recTo').value;
   if (!from || !to) { alert('期間を入力してください'); return; }
   if (!hasContent()) { alert('先に予定表を作成（または保存済み利用者を選択）してください'); return; }
-  const staff = document.getElementById('recStaff').value;
+  const staff = document.getElementById('recStaff').value, name = (state.name || '').trim();
   const includeNote = document.getElementById('recIncludeNote').checked;
-  recRows = [];
+  const info = document.getElementById('shiftInfo'); if (info) info.textContent = 'シフトを確認しています…';
+  const yms = []; for (let d = new Date(from + 'T00:00:00'); d <= new Date(to + 'T00:00:00'); d.setMonth(d.getMonth() + 1, 1)) yms.push(ymd(d).slice(0, 7));
+  const shift = {}; for (const ym of [...new Set(yms)]) shift[ym] = await loadShift(ym);
+  const hasShift = ym => { const rows = shift[ym] || []; for (let dd = 1; dd <= 31; dd++) if (shiftRowsFor(rows, name, dd).length) return true; return false; };
+  const useShift = {}; Object.keys(shift).forEach(ym => { useShift[ym] = hasShift(ym); });
+  const allEntries = [0, 1, 2, 3, 4, 5, 6].flatMap(w => dayEntries(state.days[w]) || []).filter(e => entryTime(e).s);
+  const fam = x => /入浴/.test(x) ? '入浴' : /通院/.test(x) ? '通院' : /家事|生活援助|^生活/.test(x) ? '家事' : '身体';
+  recRows = []; let nShift = 0, nAdd = 0, nMiss = 0;
   for (let d = new Date(from + 'T00:00:00'); d <= new Date(to + 'T00:00:00'); d.setDate(d.getDate() + 1)) {
-    const day = state.days[d.getDay()];
-    for (const e of dayEntries(day).slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''))) {  // 時間順に作る（前の予定とのつながり用）
-      if (e.note && !includeNote) continue;
-      const kind = kindOf(e.type);
-      const row = { date: new Date(d), e: { ...e }, kind, staff, on: !e.note, flag: e.note || '' }; row.kp = autoKPFor(e, (state.name || '').trim());
-      row.text = uniqueText(row, recRows);
+    const ym = ymd(d).slice(0, 7), entries = dayEntries(state.days[d.getDay()]).slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    const plan = [];
+    if (useShift[ym]) {
+      const used = new Set();
+      for (const g of shiftRowsFor(shift[ym], name, d.getDate())) {
+        const st = hm(g.s), tOf = e => hm(entryTime(e).s), fam = svcFam(g.v), near = (lim, same) => entries.filter(e => entryTime(e).s && !used.has(e) && Math.abs(tOf(e) - st) <= lim && (!same || !g.v || entFam(e) === fam)).sort((a, b) => Math.abs(tOf(a) - st) - Math.abs(tOf(b) - st));
+        const cand = near(45, true).length ? near(45, true) : near(30, false); // サービス内容（身体・家事・通院）が合う予定を優先
+        let e = cand[0], flag = '';
+        if (e) used.add(e);
+        else { // 予定表に無い訪問：ほかの曜日の、時間が近い予定を手本にする
+          const tpl = allEntries.filter(x => !g.v || entFam(x) === svcFam(g.v)).sort((a, b) => Math.abs(hm(entryTime(a).s) - st) - Math.abs(hm(entryTime(b).s) - st))[0];
+          e = tpl && Math.abs(hm(entryTime(tpl).s) - st) <= 60 ? tpl : { ...emptyEntry(), type: svcFam(g.v) === '家事' ? '家事' : svcFam(g.v) === '通院' ? '通院介助' : '身体', detail: '' }; flag = '予定表に無い訪問（シフトから）'; nAdd++;
+        }
+        plan.push({ e: { ...e, start: g.s, end: g.e || e.end }, staff: g.helpers.join('・'), fromShift: true, on: true, flag }); nShift++;
+      }
+      entries.filter(e => entryTime(e).s && !used.has(e) && !(e.note && !includeNote)).forEach(e => { plan.push({ e: { ...e, start: entryTime(e).s, end: e.end || entryTime(e).e }, staff: '', on: false, flag: 'シフトに無い予定（出力しない）' }); nMiss++; });
+    } else {
+      entries.forEach(e => { if (e.note && !includeNote) return; plan.push({ e: { ...e }, staff, on: !e.note, flag: e.note || '' }); });
+    }
+    plan.sort((a, b) => (a.e.start || '').localeCompare(b.e.start || '')); // 時間順に作る（前の予定とのつながり用）
+    for (const p of plan) {
+      const row = { date: new Date(d), e: p.e, kind: kindOf(p.e.type), staff: p.staff || (p.fromShift ? '' : staff), on: p.on, flag: p.flag };
+      if (p.fromShift) { row.staffFromShift = true; row.staffEdited = true; }
+      row.kp = autoKPFor(row.e, name);
+      if (p.on) { row.text = uniqueText(row, recRows.filter(r => r.on)); } else row.text = '';
       recRows.push(row);
     }
   }
+  // 出力しない行（シフトに無い予定）は文章を作っておく（チェックを入れたら使えるように）
+  recRows.filter(r => !r.on && !r.text).forEach(r => { r.text = uniqueText(r, recRows.filter(x => x.on)); });
   recRows.sort((a, b) => (b.date - a.date) || ((b.e.start || '') > (a.e.start || '') ? 1 : -1));
-  renderRecordView(); markRecDirty(); fillStaffFromShift();
+  if (info) info.textContent = Object.values(useShift).some(Boolean)
+    ? `シフトの日時で作りました（${nShift}件${nAdd ? `・うち予定表に無い訪問${nAdd}件` : ''}）。${nMiss ? `シフトに無い予定${nMiss}件はチェックを外しています。` : ''}`
+    : 'この期間のシフトが無いので、週間予定表の曜日・時刻で作りました。';
+  renderRecordView(); markRecDirty();
+  if (!Object.values(useShift).every(Boolean)) fillStaffFromShift();
 }
 
 // ===== 担当者：カイポケのシフト（業務日誌ツールに取り込んだ月＋このツールで取り込んだCSV）から自動で入れる =====
@@ -2721,13 +2774,13 @@ const shiftCache = {};
 const normName = x => String(x || '').replace(/[\s　]/g, '');
 function parseShiftCsv(text) {
   const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/).filter(Boolean), head = lines.shift().split(',').map(x => x.replace(/"/g, '').trim());
-  const ix = k => head.findIndex(h => h.includes(k)), H = ix('ヘルパー'), D = ix('日付'), C = ix('利用者'), S = ix('開始'), E = ix('終了');
+  const ix = k => head.findIndex(h => h.includes(k)), H = ix('ヘルパー'), D = ix('日付'), C = ix('利用者'), S = ix('開始'), E = ix('終了'), V = ix('サービス');
   if (H < 0 || C < 0 || S < 0) return [];
-  return lines.map(l => l.split(',').map(x => x.replace(/"/g, '').trim())).filter(a => a[C] && a[H]).map(a => ({ h: a[H], d: parseInt(String(a[D]).replace(/^.*[\/月-]/, ''), 10), c: a[C], s: a[S], e: a[E] || '' }));
+  return lines.map(l => l.split(',').map(x => x.replace(/"/g, '').trim())).filter(a => a[C] && a[H]).map(a => ({ h: a[H], d: parseInt(String(a[D]).replace(/^.*[\/月-]/, ''), 10), c: a[C], s: a[S], e: a[E] || '', v: V >= 0 ? a[V] : '' }));
 }
 async function loadShift(ym) {
   if (shiftCache[ym]) return shiftCache[ym];
-  let rows = (getSetting('shift_' + ym, 'smilewan_shift_' + ym, []) || []).map(a => ({ h: a[0], d: +a[1], c: a[2], s: a[3], e: a[4] || '' }));
+  let rows = (getSetting('shift_' + ym, 'smilewan_shift_' + ym, []) || []).map(a => ({ h: a[0], d: +a[1], c: a[2], s: a[3], e: a[4] || '', v: a[5] || '' }));
   const src = (getSetting('shiftSource', 'smilewan_shift_src', []) || [])[0];
   let ok = true;
   if (src) { ok = false; for (let k = 0; k < 2 && !ok; k++) { try { const j = await (await fetch(src + '?json=1&run=shiftcsv&ym=' + ym)).json(); if (j && j.ok) { ok = true; if (j.csv) rows = rows.concat(parseShiftCsv(j.csv)); } } catch {} } }
@@ -2767,7 +2820,7 @@ async function importShiftCsv(input) {
   const from = document.getElementById('recFrom').value || ymd(new Date()), ym = from.slice(0, 7);
   if (!confirm(`${rows.length}件のシフトを ${+ym.slice(5)}月分として取り込みますか？\n（違う月なら、先に「期間」をその月にしてください）`)) return;
   const prev = getSetting('shift_' + ym, 'smilewan_shift_' + ym, []) || [], key = a => a.slice(0, 4).join('|');
-  const merged = new Map(prev.map(a => [key(a), a])); rows.forEach(r => { const a = [r.h, r.d, r.c, r.s, r.e]; merged.set(key(a), a); });
+  const merged = new Map(prev.map(a => [key(a), a])); rows.forEach(r => { const a = [r.h, r.d, r.c, r.s, r.e, r.v]; merged.set(key(a), a); });
   await setSetting('shift_' + ym, 'smilewan_shift_' + ym, [...merged.values()]); delete shiftCache[ym];
   await fillStaffFromShift(true); alert(`シフトを取り込みました（${+ym.slice(5)}月・${rows.length}件）`);
 }
@@ -3085,7 +3138,7 @@ function recLabel(r) {
     const w = detailLines(r.e.detail).flatMap(x => x.split(/[・、]/)).map(x => x.replace(/^買い物$/, '買い物代行').replace(/[（）()]/g, '').trim()).filter(x => x && !/^生活\d*$/.test(x));
     return [...new Set(w)].join('・') || '家事';
   }
-  const h = parseInt(r.e.start || '12', 10), tod = h < 11 ? '朝' : h < 16 ? '昼' : '夜';
+  const h = parseInt(r.e.start || '12', 10), tod = shogaiTod(h);
   const parts = [tod, '身体'];
   if (/生活|家事/.test(r.e.type || '') || ['調理', '清掃', '洗濯', '買物等', '衣類・寝具'].some(has)) parts.push('生活');
   if (has('排泄')) parts.push('排泄');
