@@ -2275,7 +2275,7 @@ function kpFromText(r) {
   // 移動介助：居室内・外出の移動だけ（トイレ・浴室・起床時の移動はそれぞれの介助に含む 1-1-1/1-2-3/1-4-1）
   if (body) sents.forEach(x => { if (/移動|歩行|付き添|手引き/.test(x) && !/動線|トイレ|浴室|浴槽|脱衣|ベッド|起き上が|洗面所|院内/.test(x)) add('移動|移動介助', '文章から（居室内・外出の移動）'); });
   // 服薬の見守り（1-6：直接介助せず側で見守り服薬を促す）
-  if (sents.some(x => /服薬|薬/.test(x) && /見守|促|本人が確認|自身で|一緒に確認/.test(x))) add('服薬・医療|見守り', '文章から（服薬を見守り・促す）');
+  if (sents.some(x => /服薬|薬/.test(x) && /見守|促|本人が確認|本人と(一緒に)?確認|自身で|一緒に確認/.test(x))) add('服薬・医療|見守り', '文章から（服薬を見守り・促す）');
   // ② 記録欄
   if (m.水分) add('食事|水分補給', '記録欄（水分）'); if (m.摂食) add('食事|摂食介助', '記録欄（摂食介助）'); if (m.部分浴) add('入浴・清拭|部分浴', '記録欄（部分浴）'); if (m.清拭) add('入浴・清拭|清拭', '記録欄（清拭）');
   if ((m.整容 || []).length) add('身体整容|整容', '記録欄（整容）');
@@ -2729,8 +2729,10 @@ async function loadShift(ym) {
   if (shiftCache[ym]) return shiftCache[ym];
   let rows = (getSetting('shift_' + ym, 'smilewan_shift_' + ym, []) || []).map(a => ({ h: a[0], d: +a[1], c: a[2], s: a[3], e: a[4] || '' }));
   const src = (getSetting('shiftSource', 'smilewan_shift_src', []) || [])[0];
-  if (src) { try { const j = await (await fetch(src + '?json=1&run=shiftcsv&ym=' + ym)).json(); if (j && j.ok && j.csv) rows = rows.concat(parseShiftCsv(j.csv)); } catch {} }
-  return (shiftCache[ym] = rows);
+  let ok = true;
+  if (src) { ok = false; for (let k = 0; k < 2 && !ok; k++) { try { const j = await (await fetch(src + '?json=1&run=shiftcsv&ym=' + ym)).json(); if (j && j.ok) { ok = true; if (j.csv) rows = rows.concat(parseShiftCsv(j.csv)); } } catch {} } }
+  if (ok) shiftCache[ym] = rows; // 読めなかったときは覚えず、次に作るときに読み直す
+  return rows;
 }
 const hm = x => { const m = String(x || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
 function shiftStaffFor(rows, name, date, start) {
