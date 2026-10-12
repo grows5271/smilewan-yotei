@@ -168,6 +168,22 @@
   @media print { .kp-act { display: none; } .kpg .chip:not(.on) { display: none; } }
   .rec-table td.txt { width: 45%; min-width: 17em; }
   #recordView { overflow-x: auto; }
+  .view-sw { display: flex; gap: 6px; margin: 0 0 8px; }
+  .cl-day { margin: 0 0 18px; }
+  .cl-day h3 { margin: 6px 0; font-size: 15px; }
+  .cl-table { border-collapse: collapse; font-size: 12px; min-width: 360px; }
+  .cl-table th, .cl-table td { border: 1px solid var(--line); padding: 2px 8px; text-align: left; }
+  .cl-table th small { color: var(--muted); font-weight: normal; }
+  .cl-table tr.cat th { background: var(--th-bg); font-size: 11px; color: var(--muted); }
+  .cl-table tr.fld td { color: var(--muted); }
+  .cl-table td.ck { text-align: center; cursor: pointer; font-size: 15px; color: var(--muted); min-width: 6em; }
+  .cl-table td.ck.on { color: var(--accent); font-weight: bold; background: var(--accent-soft); }
+  .cl-table td.ck.warn { color: var(--danger); }
+  .cl-table td.ck:hover { outline: 2px solid var(--accent); }
+  .cl-table th.off { opacity: .5; }
+  .cl-texts { font-size: 12px; line-height: 1.6; margin-top: 6px; }
+  .cl-texts div { margin: 3px 0; } .cl-texts div.off { opacity: .45; }
+  @media print { .view-sw { display: none; } .cl-day { break-inside: avoid; } }
   .rec-table td.chkcol { width: 17em; min-width: 14em; max-width: 19em; font-size: 12px; line-height: 1.55; }
   .chkcol .kpf span, .chkcol .kpl i { white-space: nowrap; font-style: normal; display: inline-block; margin-right: 6px; }
   .chkcol .kpf { display: block; color: var(--muted); margin-bottom: 3px; }
@@ -515,6 +531,7 @@
             <li><b>文章の作り方</b>：① 予定表（またはシフト）・アセスメントから、その訪問のカイポケの項目（チェック）を決める → ② チェックを材料に文章を作る。<b>チェックされている項目は必ず文章に書く</b>（老計第10号の流れに沿った言い方）→ ③ 文章に書いた支援もチェック欄に足す。「✎ 項目」でチェックを足す・外すと、文章もそれに合わせて作り直される</li>
             <li><b>記録の日時</b>：その月のカイポケのシフト（業務日誌ツールに取り込んだ分）がある利用者は、<b>シフトの実際の日時</b>で記録を作る。予定表に無い訪問も「予定表に無い訪問（シフトから）」として作り、予定表にあってシフトに無い予定はチェックを外して出す（出力しない）。シフトの無い月は週間予定表の曜日・時刻で作る。文章の時間帯は 朝5〜10時台／昼11〜15時台／夕方16〜17時台／夜18時〜 に揃えている（19時以降の薬は「眠前薬」）</li>
             <li><b>担当者</b>：記録を作ると、カイポケのシフト（業務日誌ツールに取り込んだ月）から、利用者・日付・開始時刻（30分以内）が合うヘルパーが自動で入る。シフトが無い月は「📋 シフトCSVを取り込む」でカイポケのシフト予定表CSVを入れる。手で選び直した担当者はそのまま残る。「🔄 シフトから担当者を入れ直す」で入れ直せる</li>
+            <li><b>📋 チェック一覧</b>：記録の表の上の「📋 チェック一覧」に切り替えると、1日ごとにカイポケと同じ並びの一覧（縦＝全項目、横＝その日の訪問）が出る。☐☑を押すと付け外しでき、文章も作り直される。「チェックがある項目だけ」で短くできる。下にその日の文章も並ぶ。印刷にも使える</li>
             <li><b>チェック欄</b>：記録の右の「チェック」列に、記録欄の値（顔色・発汗・体温・血圧…）と、チェックした実施項目をカイポケと同じ並びで ☑ 表示（PDF・印刷・Wordにも出る。Wordでは各記録の下に小さい灰色の1行「チェック：…」。いらないときは「Word・PDFにチェック項目も入れる」を外す）。選び方：①予定表 ②アセスメント（洗髪介助・口腔清潔など）③文章に書いてある支援 ④記録欄の値 ⑤関連してセットで行う支援（入浴→更衣介助、通院→外出準備・帰宅受入、車いす→移乗介助、障害の声掛け→場面の小項目）。チェックにマウスを乗せると理由が出る（点線の下線＝関連で選んだ物）。調理の訪問は献立欄に料理名。「✎ 項目」で選び直し、「📝 記録欄」で数字を入れる。「📋」でカイポケ用にコピー</li>
             <li><b>📝記録欄</b>：カイポケの欄（顔色・発汗・体温・血圧・排尿／排便の回数・量・食事量・水分cc・部分浴・清拭・整容・買物の金額と内訳・その他・予定の変更・加算）。入れた数字は文章に自動で書き足され、消すと文章からも消える。文章に書いた体温・血圧・排尿／排便・食事量・水分cc・清拭・整容・金額なども自動で欄に入る（点線。文章を打っている途中でも反映）。押せば選び直せる</li>
             <li><b>🛒 買い物タブ</b>：利用者を選んで「🍱 献立と買い物リストを作る」。買い物リストはチェックしながら使える（チェックは保存され、他の端末でも同じ）。日用品にチェックすると「今日買った」になる。周期の設定は下の「⚙ 日用品の買う周期」を開く。「LINE用にコピー」「印刷」もある。</li>
@@ -3033,18 +3050,43 @@ function renderRecSteps() {
   const name = (state.name || '').trim(), st = !name ? 0 : !recRows.length ? 1 : 2;
   li.forEach((x, i) => { x.className = i < st ? 'done' : i === st ? 'now' : ''; });
 }
+let recView = (() => { try { return lsGet('smilewan_recview') || 'table'; } catch { return 'table'; } })(), ckOnlyOn = false;
+function setRecView(m) { recView = m; try { lsSet('smilewan_recview', m); } catch {} renderRecordView(); }
+// チェック一覧（カイポケと同じ並び）：1日ごとに、縦＝項目、横＝その日の訪問。☐☑を押すと付け外し
+function renderCheckList(v) {
+  const days = []; recRows.forEach((r, i) => { const k = ymd(r.date); let d = days.find(x => x.k === k); if (!d) days.push(d = { k, date: r.date, rows: [] }); d.rows.push(i); });
+  days.sort((a, b) => a.k.localeCompare(b.k)); days.forEach(d => d.rows.sort((a, b) => (recRows[a].e.start || '').localeCompare(recRows[b].e.start || '')));
+  const cell = (i, k) => { const r = recRows[i], on = kpAll(r).includes(k), w = (r.kpSrc || {})[k] || ''; return `<td class="ck ${on ? 'on' : ''} ${/要確認/.test(w) ? 'warn' : ''}" title="${esc((w ? w + '\n' : '') + (ROKEI[k] ? '基準：' + ROKEI[k] : ''))}" data-k="${esc(k)}" onclick="toggleKP(${i},this.dataset.k)">${on ? '☑' : '☐'}</td>`; };
+  v.innerHTML = `<h2><span>チェック一覧　${esc(state.name)} 様</span><small><label style="font-weight:normal"><input type="checkbox" ${ckOnlyOn ? 'checked' : ''} onchange="ckOnlyOn=this.checked;renderRecordView()" style="width:auto"> チェックがある項目だけ</label></small></h2>` +
+    days.map(d => {
+      const ix = d.rows, Vs = ix.map(i => vOf(recRows[i]));
+      const fld = (label, f) => `<tr class="fld"><th>${label}</th>${ix.map((i, n) => `<td>${esc(f(Vs[n], recRows[i]) || '—')}</td>`).join('')}</tr>`;
+      const body = KP.map(([c, items]) => {
+        const rows = items.filter(it => !ckOnlyOn || ix.some(i => kpAll(recRows[i]).includes(c + '|' + it)));
+        if (!rows.length) return '';
+        return `<tr class="cat"><th colspan="${ix.length + 1}">${c}</th></tr>` + rows.map(it => `<tr><th>${esc(it)}</th>${ix.map(i => cell(i, c + '|' + it)).join('')}</tr>`).join('');
+      }).join('');
+      return `<div class="cl-day"><h3>${d.date.getMonth() + 1}月${d.date.getDate()}日（${DAYS[d.date.getDay()]}）</h3>
+        <table class="cl-table"><tr><th>項目</th>${ix.map(i => `<th class="${recRows[i].on ? '' : 'off'}">${esc(recRows[i].e.start || '')}〜${esc(recRows[i].e.end || '')}<br><small>${esc(recLabel(recRows[i]))}${recRows[i].on ? '' : '（出力しない）'}</small></th>`).join('')}</tr>
+        ${fld('担当者', (v, r) => r.staff)}${fld('顔色', v => v.顔色)}${fld('発汗', v => v.発汗)}${fld('体温・血圧', v => [v.体温 && v.体温 + '℃', v.血圧上 && v.血圧上 + '/' + (v.血圧下 || '')].filter(Boolean).join(' '))}${fld('その他', v => (v.その他 || []).join('・'))}
+        ${body}${fld('献立', v => v.献立)}</table>
+        <div class="cl-texts">${ix.map(i => `<div class="${recRows[i].on ? '' : 'off'}"><b>${esc(recRows[i].e.start || '')}【${esc(recLabel(recRows[i]))}】</b>${esc(recRows[i].text || '')}</div>`).join('')}</div></div>`;
+    }).join('');
+}
 function renderRecordView() {
   renderRecSteps();
   document.getElementById('statePop').style.display = 'none';
   const v = document.getElementById('recordView');
   if (!recRows.length) { v.innerHTML = '<div class="rec-empty">利用者と期間を選んで「記録を生成」を押してください</div>'; return; }
+  const sw = `<div class="view-sw"><button class="small ${recView === 'table' ? 'primary' : ''}" onclick="setRecView('table')">📝 記録の表</button><button class="small ${recView === 'list' ? 'primary' : ''}" onclick="setRecView('list')">📋 チェック一覧</button></div>`;
+  if (recView === 'list') { renderCheckList(v); v.insertAdjacentHTML('afterbegin', sw); return; }
   const n = recRows.filter(r => r.on).length;
   const groups = dupGroups();
   const dupIdx = new Map(); groups.forEach((g, gi) => g.forEach(i => dupIdx.set(i, gi + 1)));
   const dupCount = dupIdx.size;
   const ngIdx = new Set(ngRows());
   v.innerHTML = (ngIdx.size ? `<div class="ng-alert">⚠ NG表現（「変化なし」「お変わりない」など）を含む行が ${ngIdx.size}行あります。橙色の行を「↻」で作り直すか、具体的な様子に書き換えてください。</div>` : '') + (groups.length ? `<div class="dup-alert">⚠ 同じ文章の行が ${groups.length}組（${dupCount}行）あります。赤い行の「↻」で言い換えるか、文章を編集してください。</div>` : '') + `<h2><span>訪問記録　${esc(state.name)} 様</span><small>${recRows.length}件中 ${n}件を出力　<a href="#" onclick="recRows.forEach(r=>r.on=true);renderRecordView();return false">全選択</a>／<a href="#" onclick="recRows.forEach(r=>r.on=false);renderRecordView();return false">全解除</a></small></h2>
-  <table class="rec-table"><tr><th class="chk"></th><th>日時</th><th>担当</th><th>種別</th><th>記録</th><th>チェック</th><th class="act"></th></tr>
+  ${sw}<table class="rec-table"><tr><th class="chk"></th><th>日時</th><th>担当</th><th>種別</th><th>記録</th><th>チェック</th><th class="act"></th></tr>
   ${recRows.map((r, i) => `<tr class="main ${r.on ? '' : 'off'} ${dupIdx.has(i) ? 'dup' : ''} ${ngIdx.has(i) ? 'ng' : ''}">
     <td class="chk"><input type="checkbox" ${r.on ? 'checked' : ''} onchange="recRows[${i}].on=this.checked;renderRecordView()"></td>
     <td class="dt">${String(r.date.getMonth() + 1).padStart(2, '0')} / ${String(r.date.getDate()).padStart(2, '0')}（${DAYS[r.date.getDay()]}）<br>
