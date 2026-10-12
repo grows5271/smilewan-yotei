@@ -174,6 +174,7 @@
   .chkcol .kpf .warn { color: var(--danger); font-weight: bold; }
   .chkcol .kpl div { margin: 1px 0; }
   .chkcol .kpl b { color: var(--muted); font-weight: normal; font-size: 11px; }
+  .chkcol .kpl i.chkwarn { color: var(--danger); font-weight: bold; }
   .chkcol .kpl i.rel { text-decoration: underline dotted; text-underline-offset: 3px; }
   .chkcol .kpl i[title] { cursor: help; }
   .chkcol .kp-act { margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; }
@@ -550,7 +551,7 @@
         <tr><td>1-2 清拭・入浴・身体整容</td><td>全身浴（排泄の確認・脱衣・洗体・洗髪・着衣・整髪・水分補給を含む）／部分浴／清拭／洗面等（歯磨き・うがい）／身体整容（爪・耳・髭・髪・化粧）／更衣介助</td><td>入浴の訪問では、脱衣・着衣を更衣介助に、入浴前の排泄確認をトイレ介助にしない</td></tr>
         <tr><td>1-3 移動・移乗・通院</td><td>体位変換／移乗（車いす・歩行器・杖）／移動（居室内）／通院・外出（準備・乗降・受診手続き・院内移動）</td><td>移動介助は居室内・外出の移動だけ。通院→外出準備・帰宅受入、車いすの人→移乗介助</td></tr>
         <tr><td>1-4 起床・就寝</td><td>覚醒確認→起きあがり→ベッドからの移動／ベッドの準備→臥位→掛け物の調整</td><td>起床・就寝時のベッドまわりの移動はここに含める</td></tr>
-        <tr><td>1-5 服薬介助</td><td>水の準備→配剤された薬の確認→服薬を手伝う→確認</td><td>服薬介助・確認。本人が飲むのを側で見守り促したときは「見守り」も</td></tr>
+        <tr><td>1-5 服薬介助／医療</td><td>水の準備→配剤された薬の確認→服薬を手伝う→確認</td><td>服薬介助・確認（「確認が必要」もここ）。<b>服薬の見守り</b>は、アセスメントの服用支援に「声掛け・促し・見守り」が必要と書いてある人に毎回付ける（文章に「見守った」と書いたときも）。痰の吸引・浣腸・経管栄養・点眼・塗布は予定表か文章に書いたときに付け、アセスメントに記載が無ければ赤い⚠「要確認」</td></tr>
         <tr><td>1-6 見守り的援助（自立支援）</td><td>本人が自分でできるよう、安全を確保しつつ見守り・声かけ／一緒に行う掃除・洗濯・調理・買い物など</td><td>本人が行うのを見守り・声かけで支えた文があるとき「声掛け・見守り」＋場面の小項目（入浴・身支度／起床就寝／排泄食事／服薬／通院外出）。介助前の声かけは含めない</td></tr>
         <tr><td>2-1〜2-6 生活援助</td><td>掃除（居室・トイレ・卓上・ゴミ出し）／洗濯（干す・取り入れ・収納・アイロン）／ベッドメイク／衣類の整理・補修／調理・配下膳／買い物（品物・釣り銭の確認）・薬の受け取り</td><td>場所・作業ごとに選ぶ。お風呂掃除は浴室だけ</td></tr>
       </table>
@@ -1480,6 +1481,10 @@ function recommendedStates(name) {
   return [...new Set(r)].filter(k => Object.values(STATES).some(g => g[k]));
 }
 // 4. カイポケの実施項目：アセスメントの要援助から足す
+// アセスメントの服用支援の備考が「本人が飲むのを声掛け・促し・確認・見守りで支える」型か（介助・管理だけの型は含めない）
+function medWatchNote(a) { const n = Object.entries((a && a.itemNotes) || {}).find(([k]) => /服用|服薬/.test(k)); return n && /声掛け|声かけ|促し|見守/.test(n[1]) && !/^[^。]*介助必要$/.test(n[1]) ? n[1] : ''; } // 「確認」だけは服薬介助・確認（1-5）に含む
+// 医療的な項目がアセスメントに書かれているか
+const MED_AS = { '服薬・医療|痰の吸引': /吸引|痰/, '服薬・医療|浣腸': /浣腸|便秘/, '服薬・医療|経管栄養': /経管|胃ろう|胃瘻|経鼻/, '服薬・医療|点眼': /点眼|目薬|眼/, '服薬・医療|薬の塗布': /塗布|軟膏|塗り薬|湿布|皮膚|かゆみ|褥瘡/ };
 function autoKPFor(e, name) {
   const kp = autoKP(e), a = assessOf(name); if (!a) return kp;
   const t = (e.type || '') + '\n' + (e.detail || ''), add = k => { if (!kp.includes(k)) kp.push(k); };
@@ -1490,6 +1495,7 @@ function autoKPFor(e, name) {
   if (morningNight && a.needs.includes('整容介助') && /起床/.test(t)) add('身体整容|整容');
   if (morningNight && a.needs.includes('更衣介助')) add('身体整容|更衣介助');
   if (a.notes.includes('服薬忘れ') && /服薬|薬/.test(t)) add('服薬・医療|服薬介助・確認');
+  if (kp.includes('服薬・医療|服薬介助・確認') && medWatchNote(a)) add('服薬・医療|見守り');
   return kp;
 }
 function refreshUserPick() {
@@ -1943,6 +1949,8 @@ const KP = [
   ['買物等', ['日常品等の買物', '薬の受取り']],
 ];
 // 予定表の種別・内容 → カイポケの項目（'分類|項目'）
+const TOGETHER_RE = /^自立支援\|(掃除|洗濯|ベッドメイク|衣類の整理・被服の補修|一般的な調理・配下膳|買い物・薬の受け取り)$/;
+const isTogether = kp => kp.some(k => TOGETHER_RE.test(k));
 function autoKP(e) {
   const t = (e.type || '') + '\n' + (e.detail || ''), has = re => re.test(t), out = new Set(), add = (c, i) => out.add(c + '|' + i);
   const together = has(/共に|一緒/);
@@ -1951,7 +1959,20 @@ function autoKP(e) {
   if (has(/服薬|眠前薬|薬の準備|薬のセット|服薬セット/)) add('服薬・医療', '服薬介助・確認');
   if (has(/塗布|軟膏/)) add('服薬・医療', '薬の塗布');
   if (has(/点眼/)) add('服薬・医療', '点眼');
-  if (has(/見守り/) && !together) add('服薬・医療', '見守り');
+  String(e.detail || '').split(/\n/).forEach(line => {
+    if (!/見守り/.test(line) || together) return;
+    if (/服薬|薬/.test(line)) { add('服薬・医療', '見守り'); return; }
+    add('自立支援', '声掛け・見守り');
+    if (/入浴|更衣|着替|洗面|整容|身支度/.test(line)) add('自立支援', '清拭・入浴・身体整容');
+    if (/起床|就寝/.test(line)) add('自立支援', '起床就寝介助');
+    if (/排泄|トイレ|食事/.test(line)) add('自立支援', '排泄・食事');
+    if (/通院|外出|買い物/.test(line)) add('自立支援', '通院・外出介助');
+  });
+  if (has(/吸引|喀痰/)) add('服薬・医療', '痰の吸引');
+  if (has(/浣腸/)) add('服薬・医療', '浣腸');
+  if (has(/経管|胃ろう|胃瘻|経鼻栄養/)) add('服薬・医療', '経管栄養');
+  if (has(/目薬/)) add('服薬・医療', '点眼');
+  if (has(/湿布|塗り薬|保湿剤/)) add('服薬・医療', '薬の塗布');
   if (has(/院内/)) add('服薬・医療', '院内介助');
   if (has(/トイレ介助|排泄/)) add('排泄', 'トイレ介助');
   if (has(/ポータブル/)) add('排泄', 'ポータブルトイレ介助');
@@ -2046,7 +2067,7 @@ function kpGroupsHtml(r, i) {
 }
 function kpLinesHtml(r) {
   const kp = kpAll(r);
-  return KP.map(([c, items]) => { const on = items.filter(it => kp.includes(c + '|' + it)); return on.length ? `<div><b>${c}</b> ${on.map(x => { const w = (r.kpSrc || {})[c + '|' + x] || ''; return `<i title="${esc(w + (ROKEI[c + '|' + x] ? '\n基準：' + ROKEI[c + '|' + x] : ''))}"${/^関連/.test(w) ? ' class="rel"' : ''}>☑${esc(x)}</i>`; }).join('')}</div>` : ''; }).join('');
+  return KP.map(([c, items]) => { const on = items.filter(it => kp.includes(c + '|' + it)); return on.length ? `<div><b>${c}</b> ${on.map(x => { const w = (r.kpSrc || {})[c + '|' + x] || ''; return `<i title="${esc(w + (ROKEI[c + '|' + x] ? '\n基準：' + ROKEI[c + '|' + x] : ''))}"${/要確認/.test(w) ? ' class="chkwarn"' : /^関連/.test(w) ? ' class="rel"' : ''}>☑${esc(x)}${/要確認/.test(w) ? '⚠' : ''}</i>`; }).join('')}</div>` : ''; }).join('');
 }
 function kpFieldsLine(r) {
   const v = vOf(r), x = [], f = (k, val, warn) => x.push(`<span${warn ? ' class="warn"' : ''}>${k} ${esc(val)}</span>`);
@@ -2258,8 +2279,9 @@ function kpFromText(r) {
   const det = (r.e.type || '') + ' ' + (r.e.detail || '');
   const base = autoKP(r.e), withAs = autoKPFor(r.e, name);
   kp.forEach(k => { src[k] = base.includes(k) ? '予定表から' : withAs.includes(k) ? 'アセスメントから' : '手で選択'; });
+  if (kp.includes('服薬・医療|見守り') && src['服薬・医療|見守り'] === 'アセスメントから') src['服薬・医療|見守り'] = `アセスメントから（服用支援：${medWatchNote(a)}）`;
   const add = (k, why) => { if (!kp.includes(k) && !off.includes(k) && !out.has(k)) { out.add(k); src[k] = why; } };
-  const together = kp.some(k => k.startsWith('自立支援|')) && r.kind !== '家事援助';
+  const together = isTogether(kp) && r.kind !== '家事援助';
   const body = r.kind !== '家事援助';
   const bath = kp.includes('入浴・清拭|入浴介助') || kp.includes('入浴・清拭|シャワー浴');
   // ① 文章に書いてある支援
@@ -2277,7 +2299,7 @@ function kpFromText(r) {
   // 移動介助：居室内・外出の移動だけ（トイレ・浴室・起床時の移動はそれぞれの介助に含む 1-1-1/1-2-3/1-4-1）
   if (body) sents.forEach(x => { if (/移動|歩行|付き添|手引き/.test(x) && !/動線|トイレ|浴室|浴槽|脱衣|ベッド|起き上が|洗面所|院内/.test(x)) add('移動|移動介助', '文章から（居室内・外出の移動）'); });
   // 服薬の見守り（1-6：直接介助せず側で見守り服薬を促す）
-  if (sents.some(x => /服薬|薬/.test(x) && /見守|促|本人が確認|本人と(一緒に)?確認|自身で|一緒に確認/.test(x))) add('服薬・医療|見守り', '文章から（服薬を見守り・促す）');
+  if (sents.some(x => /服薬|薬/.test(x) && /見守/.test(x))) add('服薬・医療|見守り', '文章から（服薬を見守った）'); // 服薬の見守りは主にアセスメントで決める（autoKPFor）
   // ② 記録欄
   if (m.水分) add('食事|水分補給', '記録欄（水分）'); if (m.摂食) add('食事|摂食介助', '記録欄（摂食介助）'); if (m.部分浴) add('入浴・清拭|部分浴', '記録欄（部分浴）'); if (m.清拭) add('入浴・清拭|清拭', '記録欄（清拭）');
   if ((m.整容 || []).length) add('身体整容|整容', '記録欄（整容）');
@@ -2304,6 +2326,9 @@ function kpFromText(r) {
     if (watch.some(x => /通院|外出|買い物|店/.test(x))) sub.push(['自立支援|通院・外出介助', '通院・外出の見守り']);
     if (sub.length || together) { add('自立支援|声掛け・見守り', '文章から（1-6 見守り的援助）'); sub.forEach(([k, w]) => add(k, `関連（1-6 ${w}）`)); }
   }
+  // 医療的な項目は、アセスメントに書かれていなければ「要確認」
+  const asText = JSON.stringify(a);
+  Object.entries(MED_AS).forEach(([k, re]) => { if ((kp.includes(k) || out.has(k)) && Object.keys(a).length && !re.test(asText)) src[k] = (src[k] || '') + '（アセスメントに記載なし・要確認）'; });
   r.kpText = [...out]; r.kpSrc = src;
 }
 // 10/7〜10/9 の版で文章から材料に混ざった項目（声掛け→自立支援 など）を外す。予定表から出る項目・手で選んだ物は残す
@@ -2594,7 +2619,7 @@ function genShogai(row) {
     else if (has('身体整容|整容') || has('身体整容|洗面') || (has('起床・就寝|起床介助') && etc)) s.push(oral ? `洗面・${dentS ? '義歯の洗浄・' : ''}口腔ケアについても声掛けを行い、本人のペースで実施された。` : pickF(SG.wash));
     else if (oral) s.push(dentS ? '義歯の洗浄・口腔ケアについて声掛けし、本人ができる部分は自身で行っていただいた。' : '口腔ケアについて声掛けし、本人のペースで実施された。');
     if (hasC('排泄')) s.push(pickF(SG.toilet));
-    if (hasC('自立支援')) {
+    if (isTogether(kp)) {
       const it = kp.filter(k => k.startsWith('自立支援|')).map(k => k.split('|')[1]);
       const what = it.includes('一般的な調理・配下膳') || /調理/.test(det) ? '調理' : it.includes('洗濯') ? '洗濯' : it.includes('買い物・薬の受け取り') ? '買い物' : it.includes('掃除') ? (/片付/.test(det) ? '片付け' : '掃除') : '身の回りのこと';
       s.push(pickF([`${what}は本人と一緒に行い、できるところは自身で取り組んでいただいた。`, `${what}の手順を声掛けで確認しながら、本人と一緒に行った。`]));
@@ -2656,7 +2681,7 @@ function genTokki(row) {
     if (!washAH && (has('身体整容|整容') || has('身体整容|洗面'))) acts.push(K ? '整容' : '洗面・整容');
     if (!washAH && has('身体整容|口腔ケア')) acts.push(dent ? '義歯の洗浄・口腔ケア' : '口腔ケア');
     if (has('起床・就寝|就寝介助')) acts.push('就寝の準備');
-    if (acts.length || !hasC('自立支援')) s.push(K
+    if (acts.length || !isTogether(kp)) s.push(K
       ? (acts.length ? `ヘルパーが${acts.join('、')}を行った。` : 'ヘルパーが必要な身体介助を行った。')
       : (acts.length ? `${acts.join('、')}は、利用者様ができる部分はご自身で行っていただき、難しい部分のみ支援した。` : '利用者様ができることはご自身で行っていただき、必要な部分のみ支援した。'));
     if (hasC('排泄')) s.push(K ? pickF(['排泄後は清潔保持を行い、身だしなみを整えた。', 'トイレへの移動時は転倒に注意し、必要な部分を支えながら介助した。', '排泄後の陰部の清潔を確認し、衣類を整えた。', 'トイレまでの移動は足元に注意しながら付き添った。', '排泄の状態を確認し、後始末まで行った。'])
@@ -2664,7 +2689,7 @@ function genTokki(row) {
     if (AH.care) s.push(o(AH.care));
     if (!ctx.med && has('服薬・医療|服薬介助・確認')) s.push(K ? (AH.med && !seen(AH.med) ? AH.med : pickF(medWord(h, tod) === '眠前' ? ['眠前薬を確認し、飲み忘れがないようにした。', '眠前の服薬を確認した。'] : [`${medWord(h, tod)}の薬を確認し、飲み忘れがないようにした。`, `${medWord(h, tod) === '朝' ? '朝食後' : medWord(h, tod) === '昼' ? '昼食後' : '夕食後'}の服薬を確認した。`, `${medWord(h, tod)}の服薬について確認し、飲み忘れのないようにした。`])) : '服薬はご自身で行っていただき、飲んだことを一緒に確認した。');
     // 共に行う（自立支援）
-    if (hasC('自立支援')) {
+    if (isTogether(kp)) {
       const it = kp.filter(k => k.startsWith('自立支援|')).map(k => k.split('|')[1]);
       const what = it.includes('掃除') ? (/片付/.test(row.e.detail || '') ? '片付け' : '掃除') : it.includes('洗濯') ? '洗濯' : it.includes('一般的な調理・配下膳') ? '調理' : it.includes('買い物・薬の受け取り') ? '買い物' : '身の回りのこと';
       s.push(pickF([`${what}は利用者様と一緒に行い、できるところはご自身で取り組んでいただいた。`, `${what}の手順を声掛けで確認しながら、利用者様と一緒に行った。`]));
