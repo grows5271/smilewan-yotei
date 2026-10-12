@@ -528,7 +528,7 @@
         <li>行ごとに確認・修正する
           <ul>
             <li><b>実施項目</b>：カイポケでチェックする項目が青く選ばれている。押すと外れ、「＋項目」でカイポケと同じ並びの一覧から足せる</li>
-            <li><b>文章の作り方</b>：① 予定表（またはシフト）・アセスメントから、その訪問のカイポケの項目（チェック）を決める → ② チェックを材料に文章を作る。<b>チェックされている項目は必ず文章に書く</b>（老計第10号の流れに沿った言い方）→ ③ 文章に書いた支援もチェック欄に足す。「✎ 項目」でチェックを足す・外すと、文章もそれに合わせて作り直される</li>
+            <li><b>文章とチェック</b>：① 予定表（シフト）・アセスメントからチェックを決める → ② 文章を作る → ③ <b>文章に書いてある支援は必ずチェックに入る</b>（チェックした物を全部文章に書く必要はない）。「✎ 項目」でチェックを足しても文章はそのまま、予定から付いたチェックを外すと文章を作り直す</li>
             <li><b>記録の日時</b>：その月のカイポケのシフト（業務日誌ツールに取り込んだ分）がある利用者は、<b>シフトの実際の日時</b>で記録を作る。予定表に無い訪問も「予定表に無い訪問（シフトから）」として作り、予定表にあってシフトに無い予定はチェックを外して出す（出力しない）。シフトの無い月は週間予定表の曜日・時刻で作る。文章の時間帯は 朝5〜10時台／昼11〜15時台／夕方16〜17時台／夜18時〜 に揃えている（19時以降の薬は「眠前薬」）</li>
             <li><b>担当者</b>：記録を作ると、カイポケのシフト（業務日誌ツールに取り込んだ月）から、利用者・日付・開始時刻（30分以内）が合うヘルパーが自動で入る。シフトが無い月は「📋 シフトCSVを取り込む」でカイポケのシフト予定表CSVを入れる。手で選び直した担当者はそのまま残る。「🔄 シフトから担当者を入れ直す」で入れ直せる</li>
             <li><b>📋 チェック一覧</b>：記録の表の上の「📋 チェック一覧」に切り替えると、1日ごとにカイポケと同じ並びの一覧（縦＝全項目、横＝その日の訪問）が出る。☐☑を押すと付け外しでき、文章も作り直される。「チェックがある項目だけ」で短くできる。下にその日の文章も並ぶ。印刷にも使える</li>
@@ -2059,7 +2059,7 @@ function itemUnmapped(v) { if (/^[（(].*[）)]$/.test(v) && /生活|身体|\d/.
 function toggleKP(i, key) {
   const r = recRows[i], kp = kpOf(r), k = kp.indexOf(key), shown = kpAll(r).includes(key);
   if (shown) { if (k >= 0) kp.splice(k, 1); r.kpOff = [...new Set([...(r.kpOff || []), key])]; } else { kp.push(key); r.kpOff = (r.kpOff || []).filter(x => x !== key); }
-  if (k < 0 && shown) { kpFromText(r); renderRecordView(); markRecDirty(); if (kpPopRow === i) renderKpPop(i); return; } // 読み取りだけの項目なら文章はそのまま
+  if (!shown || (k < 0 && shown)) { kpFromText(r); renderRecordView(); markRecDirty(); if (kpPopRow === i) renderKpPop(i); return; } // チェックを足したとき・文章からの読み取りだけの項目を外したときは、文章はそのまま（チェックした物を必ず文章に書く必要はない）
   r.text = uniqueText(r, recRows.filter((_, j) => j !== i)); // 選び直したら文章も作り直す
   renderRecordView(); markRecDirty();
   if (kpPopRow === i) renderKpPop(i);
@@ -3036,7 +3036,6 @@ function uniqueText(row, others) {
     const bank = document.querySelector('input[name=recStyle]:checked').value === 'short' ? SHORT : PB;
     for (const c of [...bank.締め].sort(() => Math.random() - .5)) { if (c && !used.has(normText(t + c))) { t += c; break; } }
   }
-  t = coverText(row, t); // チェックされている項目は必ず文章に書く
   t = withVin(row, t); const keep = row.text; row.text = t; kpFromText(row); row.text = keep;
   return t;
 }
