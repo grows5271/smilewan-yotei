@@ -1482,6 +1482,9 @@ function recommendedStates(name) {
 }
 // 4. カイポケの実施項目：アセスメントの要援助から足す
 // アセスメントの服用支援の備考が「本人が飲むのを声掛け・促し・確認・見守りで支える」型か（介助・管理だけの型は含めない）
+// 予定に「飲む場面」があるか（「服薬セット」「眠前薬の準備」など、薬をそろえるだけの予定は含めない）
+const MED_SET = /セット|の準備|準備|受け?取/;
+function medTaking(t) { const ls = String(t || '').split(/[\n・、\s]+/).filter(x => /服薬|服用|内服|薬/.test(x)); return ls.some(x => !MED_SET.test(x)); }
 function medWatchNote(a) { const n = Object.entries((a && a.itemNotes) || {}).find(([k]) => /服用|服薬/.test(k)); return n && /声掛け|声かけ|促し|見守/.test(n[1]) && !/^[^。]*介助必要$/.test(n[1]) ? n[1] : ''; } // 「確認」だけは服薬介助・確認（1-5）に含む
 // 医療的な項目がアセスメントに書かれているか
 const MED_AS = { '服薬・医療|痰の吸引': /吸引|痰/, '服薬・医療|浣腸': /浣腸|便秘/, '服薬・医療|経管栄養': /経管|胃ろう|胃瘻|経鼻/, '服薬・医療|点眼': /点眼|目薬|眼/, '服薬・医療|薬の塗布': /塗布|軟膏|塗り薬|湿布|皮膚|かゆみ|褥瘡/ };
@@ -1495,7 +1498,7 @@ function autoKPFor(e, name) {
   if (morningNight && a.needs.includes('整容介助') && /起床/.test(t)) add('身体整容|整容');
   if (morningNight && a.needs.includes('更衣介助')) add('身体整容|更衣介助');
   if (a.notes.includes('服薬忘れ') && /服薬|薬/.test(t)) add('服薬・医療|服薬介助・確認');
-  if (kp.includes('服薬・医療|服薬介助・確認') && medWatchNote(a)) add('服薬・医療|見守り');
+  if (kp.includes('服薬・医療|服薬介助・確認') && medWatchNote(a) && medTaking(t)) add('服薬・医療|見守り');
   return kp;
 }
 function refreshUserPick() {
@@ -2231,7 +2234,7 @@ const TEXT_KP = [
   [/起床|起き上が|目覚め/, '起床・就寝|起床介助', 'body'],
   [/就寝|ベッドへ(誘導|移動)|布団を敷|寝る(前|準備)/, '起床・就寝|就寝介助', 'body'],
   // 服薬・医療（見守りは文ごとに別で判断）
-  [/服薬|服用|内服|薬を(確認|準備|飲|渡|セット)|飲み忘れ|眠前薬|お薬/, '服薬・医療|服薬介助・確認'],
+  [/服薬|服用|内服|薬を(確認|準備|飲|渡|セット)|薬を[^。]{0,12}セット|薬(の)?(セット|準備)|飲み忘れ|眠前薬|お薬/, '服薬・医療|服薬介助・確認'],
   [/塗布|軟膏|塗り薬|湿布(を)?(貼|交換)|保湿剤/, '服薬・医療|薬の塗布', 'body'],
   [/点眼|目薬/, '服薬・医療|点眼', 'body'],
   [/吸引|痰/, '服薬・医療|痰の吸引', 'body'],
@@ -2510,6 +2513,8 @@ function prevSum(r) {
   if (c('買物等')) parts.push('買い物');
   if (c('自立支援')) parts.push('一緒に行う家事');
   if (!parts.length && c('排泄')) parts.push('排泄介助');
+  if (!parts.length && c('身体整容')) parts.push('身支度');
+  if (!parts.length && kp.includes('服薬・医療|服薬介助・確認')) parts.push(/セット/.test(r.e.detail || '') ? '服薬セット' : '服薬確認');
   return parts.slice(0, 2).join('・');
 }
 function dayCtx(row) {
@@ -2601,7 +2606,9 @@ function genShogai(row) {
     if (hasC('洗濯')) s.push(pickF(SG.laundry));
     if (hasC('買物等')) s.push(pickF(SG.shopping));
     if (!s.length) s.push(pickF(SG.clean), pickF(SG.cleanMore));
-    if (!ctx.med && (has('服薬・医療|服薬介助・確認') || /服薬/.test(row.e.detail || ''))) s.push(pickF(SG.med));
+    if (/薬の準備|眠前薬の準備/.test(row.e.detail || '')) s.push(pickF([`${/眠前/.test(row.e.detail) ? '眠前薬' : '薬'}を準備し、飲む時間を本人と確認した。`, `${/眠前/.test(row.e.detail) ? '眠前薬' : '薬'}の準備を行い、飲み忘れがないよう本人と確認した。`]));
+    else if (/セット/.test(row.e.detail || '')) s.push(pickF([`服薬カレンダーに薬のセットを行い、飲む時間を本人と確認した。`, `数日分の薬をカレンダーにセットし、内容を本人と一緒に確認した。`])); // 薬のセットは別の行為として書く
+    else if (!ctx.med && (has('服薬・医療|服薬介助・確認') || /服薬/.test(row.e.detail || ''))) s.push(pickF(SG.med));
   } else {
     const late = tod === '夕方' || tod === '夜';
     if (ctx.cont) s.push(ctx.link('本人')); else { const op = pickF((SG_OPEN[tod] || SG.open).filter(x => !/起床/.test(x) || has('起床・就寝|起床介助'))); s.push(op); if (!AH.observe) s.push(pickF(SG.health.filter(x => !(/穏やか|落ち着/.test(op) && /穏やか|落ち着/.test(x))))); }
@@ -2625,7 +2632,9 @@ function genShogai(row) {
       s.push(pickF([`${what}は本人と一緒に行い、できるところは自身で取り組んでいただいた。`, `${what}の手順を声掛けで確認しながら、本人と一緒に行った。`]));
     }
     if (AH.care) s.push(o(AH.care));
-    if (!ctx.med && has('服薬・医療|服薬介助・確認')) s.push(AH.med && !seen(AH.med) ? AH.med : pickF(SG.med));
+    if (/薬の準備|眠前薬の準備/.test(row.e.detail || '')) s.push(pickF([`${/眠前/.test(row.e.detail) ? '眠前薬' : '薬'}を準備し、飲む時間を本人と確認した。`, `${/眠前/.test(row.e.detail) ? '眠前薬' : '薬'}の準備を行い、飲み忘れがないよう本人と確認した。`]));
+    else if (/セット/.test(row.e.detail || '')) s.push(pickF([`服薬カレンダーに薬のセットを行い、飲む時間を本人と確認した。`, `数日分の薬をカレンダーにセットし、内容を本人と一緒に確認した。`]));
+    else if (!ctx.med && has('服薬・医療|服薬介助・確認')) s.push(AH.med && !seen(AH.med) ? AH.med : pickF(SG.med));
     if (!(AH.life && !seen(AH.life)) && !/急が|ペース|ゆっくり/.test(AH.care)) s.push(o(pickF(SG.respect)));  // 同じ意味の文は重ねない  // 自立の希望の文と同じ意味なので片方だけ
   }
   const AL = AH;
@@ -2979,15 +2988,25 @@ function mentionedKp(row, t) { const tmp = { ...row, text: t, kp: [], kpOff: [] 
 function coverText(row, t) {
   const K = kubunOf((state.name || '').trim()) === '介護', said = mentionedKp(row, t), add = [];
   const h = parseInt(row.e.start || '12', 10), meal = mealOf(row);
+  let tt = t;
   kpOf(row).forEach(k => {
     if (said.has(k) || !ITEM_SENT[k]) return;
+    if (k === '服薬・医療|見守り') { // 既に服薬の文があれば、その文を「見守り」を含む1文に書き換える
+      const ss = tt.split('。'), i = ss.findIndex(x => /服薬|服用|薬/.test(x) && !/セット|準備|副作用/.test(x));
+      if (i >= 0) { ss[i] = K ? '服薬について声掛けを行い、利用者様が飲まれるのを側で見守り、飲み忘れがないことを確認した' : '服薬について声掛けを行い、本人が飲むのを側で見守り、飲み忘れがないことを確認した'; tt = ss.join('。'); return; }
+      const j = add.findIndex(x => /服薬|薬/.test(x) && !/セット|準備/.test(x)); // これから足す服薬の文とも1つにまとめる
+      if (j >= 0) { add[j] = K ? '服薬について声掛けを行い、利用者様が飲まれるのを側で見守り、飲み忘れがないことを確認した。' : '服薬について声掛けを行い、本人が飲むのを側で見守り、飲み忘れがないことを確認した。'; return; }
+    }
     if (k === '身体整容|更衣介助' && /入浴|シャワー/.test(t)) return; // 入浴の着脱は全身浴の流れの中で書いてある
     let x = ITEM_SENT[k][K ? 0 : 1];
     if (k === '調理|調理') x = `${meal}の調理を行った。`;
     if (k === '入浴・清拭|部分浴' && row.vin && row.vin.部分浴) x = x.replace('部分浴', row.vin.部分浴 === '手' ? '手浴' : '足浴');
-    if (k === '服薬・医療|服薬介助・確認' && (h >= 19 || h < 5)) x = K ? '眠前薬を確認し、飲み忘れのないようにした。' : '眠前薬について声掛けし、本人と一緒に確認した。';
+    if (k === '服薬・医療|服薬介助・確認' && /薬の準備|眠前薬の準備/.test(row.e.detail || '')) x = `${/眠前/.test(row.e.detail) ? '眠前薬' : '薬'}を準備し、飲む時間を${K ? '確認した' : '本人と確認した'}。`;
+    else if (k === '服薬・医療|服薬介助・確認' && /セット/.test(row.e.detail || '')) x = K ? '服薬カレンダーに薬のセットを行った。' : '服薬カレンダーに薬のセットを行い、本人と確認した。';
+    else if (k === '服薬・医療|服薬介助・確認' && (h >= 19 || h < 5)) x = K ? '眠前薬を確認し、飲み忘れのないようにした。' : '眠前薬について声掛けし、本人と一緒に確認した。';
     if (!add.includes(x)) add.push(x);
   });
+  t = tt;
   if (!add.length) return t;
   const ss = t.split('。').filter(Boolean), last = ss[ss.length - 1] || '', ins = add.join('');
   return ss.length > 1 && /「|過ごされ|様子|取り組まれ|発言あり|話があった|話されて|会話/.test(last) ? ss.slice(0, -1).map(x => x + '。').join('') + ins + last + '。' : t + ins;
