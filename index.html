@@ -564,7 +564,7 @@
       <table class="help-table">
         <tr><th>区分</th><th>含まれる流れ（要点）</th><th>ツールの選び方</th></tr>
         <tr><td>1-0 サービス準備・記録（その他）</td><td>健康チェック（顔色・発汗・体温）／環境整備（換気・室温・日あたり・ベッドまわりの整頓）／相談援助・情報収集提供／記録</td><td>記録は毎回。環境整備は清掃・換気・整頓の文があるとき。相談援助は傾聴・相談、情報収集提供は責任者・家族などへの報告</td></tr>
-        <tr><td>1-1 排泄・食事介助</td><td>トイレ利用（トイレへの移動・見守りを含む）／ポータブルトイレ／おむつ交換（陰部・臀部洗浄を含む）／食事介助（食事姿勢の確保・服薬介助を含む）</td><td>トイレへの移動は移動介助にしない。おむつ交換→陰部清潔介助、摂食介助→姿勢の確保も付ける</td></tr>
+        <tr><td>1-1 排泄・食事介助</td><td>トイレ利用（トイレへの移動・見守りを含む）／ポータブルトイレ／おむつ交換（陰部・臀部洗浄を含む）／食事介助（食事姿勢の確保・服薬介助を含む）</td><td>トイレ介助は<b>介護の利用者だけ</b>（障害は自立支援「声掛け・見守り＋排泄・食事」）。トイレへの移動は移動介助にしない。おむつ交換→陰部清潔介助、摂食介助→姿勢の確保も付ける</td></tr>
         <tr><td>1-2 清拭・入浴・身体整容</td><td>全身浴（排泄の確認・脱衣・洗体・洗髪・着衣・整髪・水分補給を含む）／部分浴／清拭／洗面等（歯磨き・うがい）／身体整容（爪・耳・髭・髪・化粧）／更衣介助</td><td>入浴の訪問では、脱衣・着衣を更衣介助に、入浴前の排泄確認をトイレ介助にしない</td></tr>
         <tr><td>1-3 移動・移乗・通院</td><td>体位変換／移乗（車いす・歩行器・杖）／移動（居室内）／通院・外出（準備・乗降・受診手続き・院内移動）</td><td>移動介助は居室内・外出の移動だけ。通院→外出準備・帰宅受入、車いすの人→移乗介助</td></tr>
         <tr><td>1-4 起床・就寝</td><td>覚醒確認→起きあがり→ベッドからの移動／ベッドの準備→臥位→掛け物の調整</td><td>起床・就寝時のベッドまわりの移動はここに含める</td></tr>
@@ -1505,8 +1505,15 @@ function medTaking(t) { const ls = String(t || '').split(/[\n・、\s]+/).filter
 function medWatchNote(a) { const n = Object.entries((a && a.itemNotes) || {}).find(([k]) => /服用|服薬/.test(k)); return n && /声掛け|声かけ|促し|見守/.test(n[1]) && !/^[^。]*介助必要$/.test(n[1]) ? n[1] : ''; } // 「確認」だけは服薬介助・確認（1-5）に含む
 // 医療的な項目がアセスメントに書かれているか
 const MED_AS = { '服薬・医療|痰の吸引': /吸引|痰/, '服薬・医療|浣腸': /浣腸|便秘/, '服薬・医療|経管栄養': /経管|胃ろう|胃瘻|経鼻/, '服薬・医療|点眼': /点眼|目薬|眼/, '服薬・医療|薬の塗布': /塗布|軟膏|塗り薬|湿布|皮膚|かゆみ|褥瘡/ };
+// トイレ介助は介護の利用者だけ。障害の利用者は自立支援（声掛け・見守り＋排泄・食事）にする
+function toiletByKubun(kp, name) {
+  if (kubunOf(name) === '介護' || !kp.includes('排泄|トイレ介助')) return kp;
+  const out = kp.filter(k => k !== '排泄|トイレ介助');
+  ['自立支援|声掛け・見守り', '自立支援|排泄・食事'].forEach(k => { if (!out.includes(k)) out.push(k); });
+  return out;
+}
 function autoKPFor(e, name) {
-  const kp = autoKP(e), a = assessOf(name); if (!a) return kp;
+  const kp = autoKP(e), a = assessOf(name); if (!a) return toiletByKubun(kp, name);
   const t = (e.type || '') + '\n' + (e.detail || ''), add = k => { if (!kp.includes(k)) kp.push(k); };
   const morningNight = /起床|就寝|整容|身支度/.test(t);
   if (kp.includes('入浴・清拭|入浴介助') && a.needs.includes('洗髪介助')) add('入浴・清拭|洗髪');
@@ -1516,7 +1523,7 @@ function autoKPFor(e, name) {
   if (morningNight && a.needs.includes('更衣介助')) add('身体整容|更衣介助');
   if (a.notes.includes('服薬忘れ') && /服薬|薬/.test(t)) add('服薬・医療|服薬介助・確認');
   if (kp.includes('服薬・医療|服薬介助・確認') && medWatchNote(a) && medTaking(t)) add('服薬・医療|見守り');
-  return kp;
+  return toiletByKubun(kp, name);
 }
 function refreshUserPick() {
   const sel = document.getElementById('userPick'); const master = getUserMaster(); const store = getStore();
@@ -2310,6 +2317,7 @@ function kpFromText(r) {
     if (together && /^(調理|清掃|洗濯|買物等|衣類・寝具)\|/.test(k)) return; // 共に行う訪問の家事は自立支援で（下）
     if (bath && k === '身体整容|更衣介助') return; // 入浴時の脱衣・着衣は全身浴に含む（1-2-3）
     if (bath && k === '入浴・清拭|清拭' && !/清拭/.test(t)) return; // 入浴で体を拭くのは全身浴に含む
+    if (k === '排泄|トイレ介助' && kubunOf(name) !== '介護') return; // トイレ介助は介護の利用者だけ
     const tt = bath && k === '排泄|トイレ介助' ? sents.filter(x => !/入浴/.test(x)).join('。') : t; // 入浴前の排泄の確認は全身浴に含む
     if (k === '移動|移乗介助' && /ポータブル/.test(tt) && !/(車いす|車椅子)/.test(tt)) return; // ポータブルトイレへの移乗は 1-1-1-2 に含む
     const x = tt.match(re); if (x) add(k, `文章から（「${x[0]}」）`);
@@ -2323,7 +2331,7 @@ function kpFromText(r) {
   // ② 記録欄
   if (m.水分) add('食事|水分補給', '記録欄（水分）'); if (m.摂食) add('食事|摂食介助', '記録欄（摂食介助）'); if (m.部分浴) add('入浴・清拭|部分浴', '記録欄（部分浴）'); if (m.清拭) add('入浴・清拭|清拭', '記録欄（清拭）');
   if ((m.整容 || []).length) add('身体整容|整容', '記録欄（整容）');
-  if ((m.排尿回数 || m.排便回数) && ![...kp, ...out].some(x => x.startsWith('排泄|'))) add('排泄|トイレ介助', '記録欄（排尿・排便）');
+  if ((m.排尿回数 || m.排便回数) && ![...kp, ...out].some(x => x.startsWith('排泄|'))) { if (kubunOf(name) === '介護') add('排泄|トイレ介助', '記録欄（排尿・排便）'); else { add('自立支援|声掛け・見守り', '記録欄（排尿・排便）'); add('自立支援|排泄・食事', '記録欄（排尿・排便）'); } }
   // ③ 一連の流れでセットになる物（老計第10号）
   const now = () => [...kp, ...out], has = k => now().includes(k), hasC = c => now().some(k => k.startsWith(c + '|'));
   if (has('食事|摂食介助')) add('食事|姿勢の確保', '関連（1-1-2 食事姿勢の確保）');
@@ -2642,7 +2650,7 @@ function genShogai(row) {
     if (washAH) {}
     else if (has('身体整容|整容') || has('身体整容|洗面') || (has('起床・就寝|起床介助') && etc)) s.push(oral ? `洗面・${dentS ? '義歯の洗浄・' : ''}口腔ケアについても声掛けを行い、本人のペースで実施された。` : pickF(SG.wash));
     else if (oral) s.push(dentS ? '義歯の洗浄・口腔ケアについて声掛けし、本人ができる部分は自身で行っていただいた。' : '口腔ケアについて声掛けし、本人のペースで実施された。');
-    if (hasC('排泄')) s.push(pickF(SG.toilet));
+    if (hasC('排泄') || /排泄|トイレ(?!の?(掃除|清掃))/.test(row.e.detail || '')) s.push(pickF(SG.toilet));
     if (isTogether(kp)) {
       const it = kp.filter(k => k.startsWith('自立支援|')).map(k => k.split('|')[1]);
       const what = it.includes('一般的な調理・配下膳') || /調理/.test(det) ? '調理' : it.includes('洗濯') ? '洗濯' : it.includes('買い物・薬の受け取り') ? '買い物' : it.includes('掃除') ? (/片付/.test(det) ? '片付け' : '掃除') : '身の回りのこと';
