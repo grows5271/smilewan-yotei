@@ -3441,7 +3441,7 @@ async function exportRecordsDocx() {
       const firstLine = kubun === '介護' ? `　　　　　　　${flat}　介護` : `　${flat}`;
       children.push(new D.Paragraph({ children: [run(head, true), ...(i === 0 ? [run(firstLine, true)] : [])] }));
       d.rows.forEach(r => {
-        children.push(new D.Paragraph({ children: [run(`【${recLabel(r)}】${docxTime(r)}　${docxKind(r)}　${docxWhat(r)}`, true), run(String(r.text || '').replace(/\n/g, ''), false, true)] }));
+        children.push(new D.Paragraph({ children: [run(`【${recLabel(r)}】${docxTime(r)}　${docxWhat(r)}`, true), run(String(r.text || '').replace(/\n/g, ''), false, true)] }));
       });
       if (i < days.length - 1) children.push(new D.Paragraph({ children: [] }));
     });
