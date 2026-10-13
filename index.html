@@ -528,6 +528,7 @@
         <li>行ごとに確認・修正する
           <ul>
             <li><b>実施項目</b>：カイポケでチェックする項目が青く選ばれている。押すと外れ、「＋項目」でカイポケと同じ並びの一覧から足せる</li>
+            <li><b>業務手順書からチェック</b>：計画書（居宅介護等計画書など）を「アセスメント・計画書取込」で入れると、【サービス内容】の表（所要時間・サービスの内容・手順・留意事項）を業務手順書として読み込む。記録を作るとき、訪問の種類（身体・家事）・時間・内容が合うサービスの手順から、カイポケのチェック項目を付ける（例：サービス3 全身浴→入浴介助・洗髪・更衣介助・水分補給・見守り）。手順書に無く予定表にだけある支援は「予定表から（業務手順書に無い）」として付く。手順書が無い人は、予定表とアセスメントから付ける</li>
             <li><b>文章とチェック</b>：① 予定表（シフト）・アセスメントからチェックを決める → ② 文章を作る → ③ <b>文章に書いてある支援は必ずチェックに入る</b>（チェックした物を全部文章に書く必要はない）。「✎ 項目」でチェックを足しても文章はそのまま、予定から付いたチェックを外すと文章を作り直す</li>
             <li><b>記録の日時</b>：その月のカイポケのシフト（業務日誌ツールに取り込んだ分）がある利用者は、<b>シフトの実際の日時</b>で記録を作る。予定表に無い訪問も「予定表に無い訪問（シフトから）」として作り、予定表にあってシフトに無い予定はチェックを外して出す（出力しない）。シフトの無い月は週間予定表の曜日・時刻で作る。文章の時間帯は 朝5〜10時台／昼11〜15時台／夕方16〜17時台／夜18時〜 に揃えている（19時以降の薬は「眠前薬」）</li>
             <li><b>担当者</b>：記録を作ると、カイポケのシフト（業務日誌ツールに取り込んだ月）から、利用者・日付・開始時刻（30分以内）が合うヘルパーが自動で入る。シフトが無い月は「📋 シフトCSVを取り込む」でカイポケのシフト予定表CSVを入れる。手で選び直した担当者はそのまま残る。「🔄 シフトから担当者を入れ直す」で入れ直せる</li>
@@ -1354,6 +1355,32 @@ function parseShogaiSheet(pages) {
     ng: [], address: '', phone: '', emergency: '',
   };
 }
+// 計画書の【サービス内容】＝業務手順書：サービスごとに「所要時間／サービスの内容／手順・留意事項・観察ポイント／本人・家族にやっていただくこと」
+function parseProcedures(pages) {
+  const procs = [];
+  pages.forEach(ws => {
+    const rows = []; ws.forEach(w => { let r = rows.find(r => Math.abs(r.y - w.y) < 3); if (!r) rows.push(r = { y: w.y, ws: [] }); r.ws.push(w); });
+    rows.sort((a, b) => a.y - b.y).forEach(r => r.ws.sort((a, b) => a.x - b.x));
+    const heads = rows.filter(r => r.ws.some(w => /所要時間/.test(w.s)) && r.ws.some(w => /手順/.test(w.s)));
+    heads.forEach((h, hi) => {
+      const hx = re => (h.ws.find(w => re.test(w.s)) || {}).x, cL = (hx(/サービスの内容/) ?? 124) - 15, cT = (hx(/手順/) ?? 248) - 50, cP = (hx(/本人/) ?? 437) - 10;
+      const next = heads[hi + 1] ? heads[hi + 1].y : 1e9;
+      const typeRow = rows.find(r => r.y > h.y && r.y < next && r.ws.some(w => /■/.test(w.s)));
+      const end = typeRow ? typeRow.y : next, steps = [];
+      rows.filter(r => r.y > h.y + 2 && r.y < end - 2).forEach(r => {
+        const items = r.ws.filter(w => w.x > 45 && !/^(サ|｜|ビ|ス|\d|種|類|等)$/.test(w.s));
+        const min = items.find(w => w.x < cL && /^\d+分$/.test(w.s));
+        if (min) steps.push({ min: parseInt(min.s, 10), label: '', text: '', self: '' });
+        const st = steps[steps.length - 1]; if (!st) return;
+        items.forEach(w => { if (w === min) return; if (w.x >= cP) st.self += w.s; else if (w.x >= cT) st.text += w.s; else if (w.x >= cL) st.label += w.s; });
+      });
+      let type = '', minutes = 0;
+      if (typeRow) { const t = typeRow.ws.map(w => w.s).join(''), m = t.match(/■(身体介護|家事援助|重度訪問介護|通院介助[^（]*|通院等乗降介助|行動援護|同行援護[^（]*)（(?:(\d+)時間)?(?:(\d+)分)?/); if (m) { type = m[1]; minutes = (+m[2] || 0) * 60 + (+m[3] || 0); } }
+      if (steps.length) procs.push({ no: procs.length + 1, type, minutes, steps });
+    });
+  });
+  return procs;
+}
 function parsePlan(pages) {
   // 行にまとめる（y が近い文字を1行に）
   const rows = []; pages[0].forEach(w => { let r = rows.find(r => Math.abs(r.y - w.y) < 3); if (!r) rows.push(r = { y: w.y, ws: [] }); r.ws.push(w); });
@@ -1370,7 +1397,7 @@ function parsePlan(pages) {
     (dW <= dG ? wish : goal).push(t);
   });
   const W = wish.join(''), G = goal.join('');
-  return { form: 'plan', name: nm ? (nm[1] + ' ' + nm[2]).trim() : '', wish: W, goal: G, notes: noteKeysOf(W + G) };
+  return { form: 'plan', name: nm ? (nm[1] + ' ' + nm[2]).trim() : '', wish: W, goal: G, notes: noteKeysOf(W + G), procs: parseProcedures(pages) };
 }
 async function pdfLines(file) {
   await loadLib('pdfIn');
@@ -1438,7 +1465,7 @@ async function importAssessment(input, opt = {}) {
     const name = (!multi && (state.name || '').trim() && (!A.name || matched.replace(/\s/g, '') === state.name.replace(/\s/g, ''))) ? state.name.trim() : (how ? matched : (multi ? '' : (matched || state.name || '').trim()));
     if (!name || !getStore()[name] && multi) { skipped.push(`${f.name}（${A.name || '名前不明'}：予定表に登録がありません）`); continue; }
     if (!multi && !opt.quiet) {
-      const sum = A.form === 'plan' ? [`本人(家族)の希望：${A.wish || 'なし'}`, `援助目標：${A.goal || 'なし'}`]
+      const sum = A.form === 'plan' ? [`本人(家族)の希望：${A.wish || 'なし'}`, `援助目標：${A.goal || 'なし'}`, `業務手順書：${(A.procs || []).map(p => `サービス${p.no}（${p.type}${p.minutes ? ' ' + p.minutes + '分' : ''}）`).join('・') || 'なし'}`]
         : [`病名・症状：${A.diseases.join('・') || 'なし'}`, `要援助：${A.needs.join('・') || 'なし'}`, `特記の要点：${A.notes.join('・') || 'なし'}`, A.itemNotes ? `項目の備考：${Object.entries(A.itemNotes).map(([k, v]) => k + '＝' + v).join('／') || 'なし'}` : '', A.goals && A.goals.length ? '本人の目標：自分のことは自分で' : ''].filter(Boolean);
       if (!confirm(`「${name}」様の${A.form === 'plan' ? '計画書' : 'アセスメント'}として取り込みます。\n\n${sum.join('\n')}\n\nよろしいですか？`)) { paperMsg(''); return; }
     }
@@ -1446,6 +1473,7 @@ async function importAssessment(input, opt = {}) {
     const doc = { ...prev, name, updatedAt: new Date().toISOString() };
     if (A.form === 'plan') {
       doc.plan = { wish: A.wish, goal: A.goal, importedAt: new Date().toISOString() };
+      if (A.procs && A.procs.length) doc.procedures = A.procs; // 業務手順書（チェック項目の元）
       if (doc.assessment) doc.assessment = { ...doc.assessment, notes: [...new Set([...(doc.assessment.notes || []), ...A.notes])], goals: [...new Set([...(doc.assessment.goals || []), ...(/苦手|減らし|自分で|できるように/.test(A.wish + A.goal) ? ['自分のことは自分で'] : [])])] };
       else doc.assessment = { form: 'plan', diseases: [], dentures: false, glasses: false, walkAid: '', needs: [], notes: A.notes, itemNotes: {}, cannot: [], goals: /苦手|減らし|自分で|できるように/.test(A.wish + A.goal) ? ['自分のことは自分で'] : [], importedAt: new Date().toISOString() };
     } else {
@@ -1512,8 +1540,40 @@ function toiletByKubun(kp, name) {
   ['自立支援|声掛け・見守り', '自立支援|排泄・食事'].forEach(k => { if (!out.includes(k)) out.push(k); });
   return out;
 }
+function proceduresOf(name) { const c = getColl('clients')[docId(name || ' ')]; return (c && c.procedures) || []; }
+function procedureFor(e, name) {
+  const ps = proceduresOf(name); if (!ps.length) return null;
+  const t = (e.type || '') + ' ' + (e.detail || ''), body = kindOf(e.type) !== '家事援助', mins = e.start && e.end ? hm(e.end) - hm(e.start) : 0;
+  const words = ['調理', '掃除', '洗濯', '入浴', '浴', '衣類', '片付', '片づけ', '風呂', '買い物', '通院', '起床', '就寝', '服薬', '整理'];
+  const score = p => { const all = p.steps.map(s => s.label + s.text).join(''); return words.filter(w => t.includes(w) && all.includes(w)).length; };
+  const cand = ps.filter(p => !p.type || (/家事/.test(p.type) ? !body : body));
+  if (!cand.length) return null;
+  return cand.slice().sort((a, b) => (score(b) - score(a)) || (Math.abs(a.minutes - mins) - Math.abs(b.minutes - mins)))[0];
+}
+// 業務手順書のサービス内容と手順から、カイポケの項目を作る（[項目, 理由] の一覧）
+const PROC_LABEL = { '更衣介助': ['身体整容|更衣介助'], '全身浴': ['入浴・清拭|入浴介助'], '入浴': ['入浴・清拭|入浴介助'], 'シャワー浴': ['入浴・清拭|シャワー浴'], '洗髪': ['入浴・清拭|洗髪'], '清拭': ['入浴・清拭|清拭'], '洗面': ['身体整容|洗面'], '口腔ケア': ['身体整容|口腔ケア'], '整容': ['身体整容|整容'],
+  'トイレ介助': ['排泄|トイレ介助'], '排泄介助': ['排泄|トイレ介助'], 'おむつ交換': ['排泄|おむつ交換'], '起床介助': ['起床・就寝|起床介助'], '就寝介助': ['起床・就寝|就寝介助'], '服薬介助': ['服薬・医療|服薬介助・確認'], '通院介助': ['移動|通院介助'], '移動介助': ['移動|移動介助'], '移乗介助': ['移動|移乗介助'], '体位変換': ['移動|体位変換'],
+  '一般的な調理・配下膳': ['調理|調理', '調理|配・下膳'], '調理': ['調理|調理'], '洗濯': ['洗濯|洗濯'], '掃除': ['清掃|居室'], '掃除、整理整頓': ['清掃|居室'], '買い物': ['買物等|日常品等の買物'], 'ベッドメイク': ['衣類・寝具|ベッドメイク'], '衣類の整理': ['衣類・寝具|衣類の整理'] };
+const TO_TOGETHER = k => /^清掃\|/.test(k) ? '自立支援|掃除' : /^洗濯\|/.test(k) ? '自立支援|洗濯' : /^衣類・寝具\|(衣類|被服)/.test(k) ? '自立支援|衣類の整理・被服の補修' : /^衣類・寝具\|/.test(k) ? '自立支援|ベッドメイク' : /^調理\|/.test(k) ? '自立支援|一般的な調理・配下膳' : /^買物等\|/.test(k) ? '自立支援|買い物・薬の受け取り' : k;
+function procKP(p) {
+  const out = new Map(), body = !/家事/.test(p.type || ''), add = (k, why) => { if (!out.has(k)) out.set(k, why); };
+  const bath = p.steps.some(s => /全身浴|入浴|浴/.test(s.label + s.text));
+  p.steps.forEach(s => {
+    const why = `業務手順書から（サービス${p.no}：${s.label || '手順'}「${(s.text || '').slice(0, 30)}」）`, txt = s.label + '。' + s.text;
+    (PROC_LABEL[s.label.replace(/\s/g, '')] || []).forEach(k => add(k, why));
+    TEXT_KP.forEach(([re, k, sc]) => { if ((sc === 'body' && !body) || (sc === 'house' && body)) return; if (bath && /更衣介助|入浴・清拭\|清拭|トイレ介助/.test(k) && !PROC_LABEL[s.label]) return; if (re.test(txt)) add(k, why); });
+    if (/お風呂|浴室/.test(s.text) && /掃除|清掃/.test(s.text)) add('清掃|浴室', why);
+    if (/トイレ/.test(s.text) && /掃除|清掃/.test(s.text)) add('清掃|トイレ', why);
+    if (/片付|片づけ|整理/.test(txt) && !bath) add('清掃|居室', why);
+    if (/見守|声掛け|声かけ|促し/.test(s.text) && body) { add('自立支援|声掛け・見守り', why); if (bath) add('自立支援|清拭・入浴・身体整容', why); }
+  });
+  // 身体介護の手順に家事がある＝本人と一緒に行う（自立支援の共に行う）
+  const res = new Map(); out.forEach((why, k) => res.set(body ? TO_TOGETHER(k) : k, why));
+  return res;
+}
 function autoKPFor(e, name) {
-  const kp = autoKP(e), a = assessOf(name); if (!a) return toiletByKubun(kp, name);
+  const proc = procedureFor(e, name), pk = proc ? procKP(proc) : null;
+  const kp = pk ? [...new Set([...pk.keys(), ...autoKP(e)])] : autoKP(e), a = assessOf(name); if (!a) return toiletByKubun(kp, name);
   const t = (e.type || '') + '\n' + (e.detail || ''), add = k => { if (!kp.includes(k)) kp.push(k); };
   const morningNight = /起床|就寝|整容|身支度/.test(t);
   if (kp.includes('入浴・清拭|入浴介助') && a.needs.includes('洗髪介助')) add('入浴・清拭|洗髪');
@@ -2305,7 +2365,8 @@ function kpFromText(r) {
   const m = r.vin || {}, out = new Set(), src = {}, a = assessOf(name) || {};
   const det = (r.e.type || '') + ' ' + (r.e.detail || '');
   const base = autoKP(r.e), withAs = autoKPFor(r.e, name);
-  kp.forEach(k => { src[k] = base.includes(k) ? '予定表から' : withAs.includes(k) ? 'アセスメントから' : '手で選択'; });
+  const proc = procedureFor(r.e, name), pk = proc ? procKP(proc) : new Map();
+  kp.forEach(k => { src[k] = pk.has(k) ? pk.get(k) : base.includes(k) ? (proc ? '予定表から（業務手順書に無い）' : '予定表から') : withAs.includes(k) ? 'アセスメントから' : '手で選択'; });
   if (kp.includes('服薬・医療|見守り') && src['服薬・医療|見守り'] === 'アセスメントから') src['服薬・医療|見守り'] = `アセスメントから（服用支援：${medWatchNote(a)}）`;
   const add = (k, why) => { if (!kp.includes(k) && !off.includes(k) && !out.has(k)) { out.add(k); src[k] = why; } };
   const together = isTogether(kp) && r.kind !== '家事援助';
@@ -2653,7 +2714,7 @@ function genShogai(row) {
     if (hasC('排泄') || /排泄|トイレ(?!の?(掃除|清掃))/.test(row.e.detail || '')) s.push(pickF(SG.toilet));
     if (isTogether(kp)) {
       const it = kp.filter(k => k.startsWith('自立支援|')).map(k => k.split('|')[1]);
-      const what = it.includes('一般的な調理・配下膳') || /調理/.test(det) ? '調理' : it.includes('洗濯') ? '洗濯' : it.includes('買い物・薬の受け取り') ? '買い物' : it.includes('掃除') ? (/片付/.test(det) ? '片付け' : '掃除') : '身の回りのこと';
+      const what = /片付/.test(det) && !/掃除/.test(det) ? '片付け' : /掃除/.test(det) ? '掃除' : /調理/.test(det) || it.includes('一般的な調理・配下膳') ? '調理' : /洗濯/.test(det) || it.includes('洗濯') ? '洗濯' : /買い物|買物/.test(det) || it.includes('買い物・薬の受け取り') ? '買い物' : it.includes('掃除') ? '掃除' : '身の回りのこと'; // 予定に書いてある順で選ぶ
       s.push(pickF([`${what}は本人と一緒に行い、できるところは自身で取り組んでいただいた。`, `${what}の手順を声掛けで確認しながら、本人と一緒に行った。`]));
     }
     if (AH.care) s.push(o(AH.care));
