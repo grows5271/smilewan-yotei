@@ -400,7 +400,7 @@
         <button onclick="if(dupConfirm()){saveRecords({quiet:true});window.print()}">🖨 印刷</button>
         <button onclick="if(event.shiftKey)paperSelfTest();else document.getElementById('paperFile').click()">📄 紙(PDF)から取込</button>
       </div>
-      <div class="hint" style="margin:2px 0 4px">文章（特記事項）とチェックリスト（顔色・実施項目など）は別々に書き出します。</div>
+      <div class="hint" style="margin:2px 0 4px">Wordは、訪問ごとに文章の下へチェック欄（記録欄と全項目の☑／☐）を入れます。チェックリストだけが欲しいときは「✅ チェックリスト」から。</div>
       <input type="file" id="paperFile" accept="application/pdf,image/*" style="display:none" onchange="importPaper(this)">
       <div id="paperStatus" class="hint" style="display:none"></div>
       <label>利用者（保存済みから選択）</label>
@@ -3419,6 +3419,17 @@ function docxWhat(r) {
   const kp = kpAll(r).filter(k => !/^(自立支援|その他)\|/.test(k)).map(k => k.split('|')[1]);
   return [...new Set(kp)].slice(0, 4).join('・') || r.kind || '';
 }
+// 特記事項の下に入れるチェック欄（カイポケと同じ並び。全項目を ☑／☐ で出す）
+function docxCheckTable(D, r, FONT) {
+  const kp = kpAll(r), f = { eastAsia: FONT, ascii: FONT, hAnsi: FONT };
+  const t = (text, o = {}) => new D.TextRun({ text, font: f, size: 17, ...o });
+  const line = { style: D.BorderStyle.SINGLE, size: 4, color: '999999' }, borders = { top: line, bottom: line, left: line, right: line };
+  const cell = (children, w, shade) => new D.TableCell({ children: [new D.Paragraph({ children })], width: { size: w, type: D.WidthType.DXA }, borders, margins: { top: 30, bottom: 30, left: 80, right: 80 }, ...(shade ? { shading: { fill: 'F2F2F2', type: D.ShadingType.CLEAR, color: 'auto' } } : {}) });
+  const rows = [new D.TableRow({ children: [cell([t('記録欄', { bold: true })], 1800, 1), cell([t(vSummary(r).replace(/:/g, '：').replace(/ /g, '　'))], 6704)] })];
+  KP.forEach(([c, items]) => rows.push(new D.TableRow({ children: [cell([t(c, { bold: true })], 1800, 1),
+    cell(items.flatMap((it, j) => { const on = kp.includes(c + '|' + it); return [t((j ? '　' : '') + (on ? '☑' : '☐') + it, on ? { bold: true } : { color: '777777' })]; }), 6704)] })));
+  return new D.Table({ rows, width: { size: 8504, type: D.WidthType.DXA }, columnWidths: [1800, 6704] });
+}
 async function exportRecordsDocx() {
   const rows = recRows.filter(r => r.on);
   if (!rows.length) { alert('出力する行がありません'); return; }
@@ -3442,7 +3453,8 @@ async function exportRecordsDocx() {
       const firstLine = kubun === '介護' ? `　　　　　　　${flat}　介護` : `　${flat}`;
       children.push(new D.Paragraph({ children: [run(head, true), ...(i === 0 ? [run(firstLine, true)] : [])] }));
       d.rows.forEach(r => {
-        children.push(new D.Paragraph({ children: [run(`【${recLabel(r)}】${docxTime(r)}　${[docxKind(r), docxWhat(r)].filter(Boolean).join('　')}`, true), run(String(r.text || '').replace(/\n/g, ''), false, true)] }));
+        children.push(new D.Paragraph({ children: [run(`【${recLabel(r)}】${docxTime(r)}　${docxKind(r)}`, true), run(String(r.text || '').replace(/\n/g, ''), false, true)] }));
+        children.push(docxCheckTable(D, r, FONT), new D.Paragraph({ children: [] }));
       });
       if (i < days.length - 1) children.push(new D.Paragraph({ children: [] }));
     });
