@@ -1556,7 +1556,12 @@ function procedureFor(e, name) {
     const vm = (t.match(/朝食|昼食|夕食/) || [])[0], pm = all.match(/朝食|昼食|夕食/g) || [];
     const mealNg = vm && pm.length && !pm.includes(vm); // 朝食の訪問に昼食の手順を合わせない
     return { p, score: vf.filter(f => pf.includes(f)).length, timeNg: timeNg || mealNg };
-  }).filter(x => !x.timeNg && (vf.length ? x.score > 0 : true));
+  }).filter(x => !x.timeNg && (vf.length ? x.score > 0 : true))
+    .filter(x => { const all = x.p.steps.map(s => s.label + s.text).join(''), pf = featOf(all);
+      if (/入浴/.test(e.type || '') && !pf.includes('入浴')) return false; // 入浴の訪問は入浴の手順だけ
+      if (pf.includes('起床') && !vf.includes('起床') && h >= 11) return false; // 起床の手順は昼以降の起床の無い訪問に合わせない
+      if (pf.includes('入浴') && !vf.includes('入浴') && !/入浴/.test(e.type || '')) return false; // 入浴の無い訪問に入浴の手順を合わせない
+      return true; });
   if (!scored.length) return null; // 合う手順が無ければ、予定表とアセスメントで付ける
   return scored.sort((a, b) => (b.score - a.score) || (Math.abs(a.p.minutes - mins) - Math.abs(b.p.minutes - mins)))[0].p;
 }
