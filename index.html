@@ -1365,8 +1365,9 @@ function parseProcedures(pages) {
     heads.forEach((h, hi) => {
       const hx = re => (h.ws.find(w => re.test(w.s)) || {}).x, cL = (hx(/サービスの内容/) ?? 124) - 15, cT = (hx(/手順/) ?? 248) - 50, cP = (hx(/本人/) ?? 437) - 10;
       const next = heads[hi + 1] ? heads[hi + 1].y : 1e9;
-      const typeRow = rows.find(r => r.y > h.y && r.y < next && r.ws.some(w => /■/.test(w.s)));
-      const end = typeRow ? typeRow.y : next, steps = [];
+      const typeRows = rows.filter(r => r.y > h.y && r.y < next && /[■□](身体介護|家事援助|重度訪問介護|通院|行動援護|同行援護)/.test(r.ws.map(w => w.s).join('')));
+      const typeRow = typeRows.find(r => r.ws.some(w => /■/.test(w.s)));
+      const end = typeRows.length ? typeRows[0].y : next, steps = []; // 種類の欄（□■の行）より上が手順
       rows.filter(r => r.y > h.y + 2 && r.y < end - 2).forEach(r => {
         const items = r.ws.filter(w => w.x > 45 && !/^(サ|｜|ビ|ス|\d|種|類|等)$/.test(w.s));
         const min = items.find(w => w.x < cL && /^\d+分$/.test(w.s));
@@ -1541,19 +1542,29 @@ function toiletByKubun(kp, name) {
   return out;
 }
 function proceduresOf(name) { const c = getColl('clients')[docId(name || ' ')]; return (c && c.procedures) || []; }
+// 訪問・手順の「中身の種類」（調理・掃除・洗濯・入浴…）で合わせる
+const PROC_FEAT = { 調理: /調理|朝食|昼食|夕食|食事|配膳|メニュー/, 掃除: /掃除|清掃|片付|片づけ|整理整頓/, 洗濯: /洗濯|シーツ/, 入浴: /入浴|全身浴|洗身|湯舟|湯船|シャワー/, 買物: /買い物|買物|代行|スーパ/, 起床: /起床|起き/, 就寝: /就寝|眠前|寝る/, 服薬: /服薬|薬/, 衣類: /衣類|タンス/, 通院: /通院|受診|病院|クリニック/, 洗面: /洗面|歯磨き|口腔/ };
+const featOf = t => Object.keys(PROC_FEAT).filter(k => PROC_FEAT[k].test(t));
 function procedureFor(e, name) {
   const ps = proceduresOf(name); if (!ps.length) return null;
-  const t = (e.type || '') + ' ' + (e.detail || ''), body = kindOf(e.type) !== '家事援助', mins = e.start && e.end ? hm(e.end) - hm(e.start) : 0;
-  const words = ['調理', '掃除', '洗濯', '入浴', '浴', '衣類', '片付', '片づけ', '風呂', '買い物', '通院', '起床', '就寝', '服薬', '整理'];
-  const score = p => { const all = p.steps.map(s => s.label + s.text).join(''); return words.filter(w => t.includes(w) && all.includes(w)).length; };
-  const cand = ps.filter(p => !p.type || (/家事/.test(p.type) ? !body : body));
-  if (!cand.length) return null;
-  return cand.slice().sort((a, b) => (score(b) - score(a)) || (Math.abs(a.minutes - mins) - Math.abs(b.minutes - mins)))[0];
+  const t = (e.type || '') + ' ' + (e.detail || ''), body = kindOf(e.type) !== '家事援助', mins = e.start && e.end ? hm(e.end) - hm(e.start) : 0, h = parseInt(e.start || '12', 10);
+  const vf = featOf(t.replace(/入浴後の片付け|お風呂掃除/g, '掃除')), night = h >= 16, morning = h < 11;
+  const scored = ps.filter(p => !p.type || (/家事/.test(p.type) ? !body : body)).map(p => {
+    const all = p.steps.map(s => s.label + s.text).join(''), pf = featOf(all.replace(/お風呂の掃除|お風呂掃除|浴室の掃除/g, '掃除'));
+    // 朝の手順（起床・朝食）は夕方以降の訪問に、夜の手順（就寝・眠前）は朝の訪問に合わせない
+    const timeNg = (night && /起床|朝食/.test(all) && !/就寝|眠前|夕食/.test(all)) || (morning && /就寝|眠前|夕食/.test(all) && !/起床|朝食/.test(all));
+    const vm = (t.match(/朝食|昼食|夕食/) || [])[0], pm = all.match(/朝食|昼食|夕食/g) || [];
+    const mealNg = vm && pm.length && !pm.includes(vm); // 朝食の訪問に昼食の手順を合わせない
+    return { p, score: vf.filter(f => pf.includes(f)).length, timeNg: timeNg || mealNg };
+  }).filter(x => !x.timeNg && (vf.length ? x.score > 0 : true));
+  if (!scored.length) return null; // 合う手順が無ければ、予定表とアセスメントで付ける
+  return scored.sort((a, b) => (b.score - a.score) || (Math.abs(a.p.minutes - mins) - Math.abs(b.p.minutes - mins)))[0].p;
 }
 // 業務手順書のサービス内容と手順から、カイポケの項目を作る（[項目, 理由] の一覧）
 const PROC_LABEL = { '更衣介助': ['身体整容|更衣介助'], '全身浴': ['入浴・清拭|入浴介助'], '入浴': ['入浴・清拭|入浴介助'], 'シャワー浴': ['入浴・清拭|シャワー浴'], '洗髪': ['入浴・清拭|洗髪'], '清拭': ['入浴・清拭|清拭'], '洗面': ['身体整容|洗面'], '口腔ケア': ['身体整容|口腔ケア'], '整容': ['身体整容|整容'],
   'トイレ介助': ['排泄|トイレ介助'], '排泄介助': ['排泄|トイレ介助'], 'おむつ交換': ['排泄|おむつ交換'], '起床介助': ['起床・就寝|起床介助'], '就寝介助': ['起床・就寝|就寝介助'], '服薬介助': ['服薬・医療|服薬介助・確認'], '通院介助': ['移動|通院介助'], '移動介助': ['移動|移動介助'], '移乗介助': ['移動|移乗介助'], '体位変換': ['移動|体位変換'],
-  '一般的な調理・配下膳': ['調理|調理', '調理|配・下膳'], '調理': ['調理|調理'], '洗濯': ['洗濯|洗濯'], '掃除': ['清掃|居室'], '掃除、整理整頓': ['清掃|居室'], '買い物': ['買物等|日常品等の買物'], 'ベッドメイク': ['衣類・寝具|ベッドメイク'], '衣類の整理': ['衣類・寝具|衣類の整理'] };
+  '洗面等': ['身体整容|洗面'], '食事介助': ['食事|摂食介助'], '衣類の整理・被服の補修': ['衣類・寝具|衣類の整理'], '掃除、整理整頓': ['清掃|居室'],
+  '一般的な調理・配下膳': ['調理|調理', '調理|配・下膳'], '調理': ['調理|調理'], '洗濯': ['洗濯|洗濯'], '掃除': ['清掃|居室'], '買い物': ['買物等|日常品等の買物'], 'ベッドメイク': ['衣類・寝具|ベッドメイク'], '衣類の整理': ['衣類・寝具|衣類の整理'] };
 const TO_TOGETHER = k => /^清掃\|/.test(k) ? '自立支援|掃除' : /^洗濯\|/.test(k) ? '自立支援|洗濯' : /^衣類・寝具\|(衣類|被服)/.test(k) ? '自立支援|衣類の整理・被服の補修' : /^衣類・寝具\|/.test(k) ? '自立支援|ベッドメイク' : /^調理\|/.test(k) ? '自立支援|一般的な調理・配下膳' : /^買物等\|/.test(k) ? '自立支援|買い物・薬の受け取り' : k;
 function procKP(p) {
   const out = new Map(), body = !/家事/.test(p.type || ''), add = (k, why) => { if (!out.has(k)) out.set(k, why); };
