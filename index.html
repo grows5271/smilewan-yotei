@@ -1543,12 +1543,13 @@ function toiletByKubun(kp, name) {
 }
 function proceduresOf(name) { const c = getColl('clients')[docId(name || ' ')]; return (c && c.procedures) || []; }
 // 訪問・手順の「中身の種類」（調理・掃除・洗濯・入浴…）で合わせる
-const PROC_FEAT = { 調理: /調理|朝食|昼食|夕食|食事|配膳|メニュー/, 掃除: /掃除|清掃|片付|片づけ|整理整頓/, 洗濯: /洗濯|シーツ/, 入浴: /入浴|全身浴|洗身|湯舟|湯船|シャワー/, 買物: /買い物|買物|代行|スーパ/, 起床: /起床|起き/, 就寝: /就寝|眠前|寝る/, 服薬: /服薬|薬/, 衣類: /衣類|タンス/, 通院: /通院|受診|病院|クリニック/, 洗面: /洗面|歯磨き|口腔/ };
+const PROC_FEAT = { 調理: /調理|朝食|昼食|夕食|食事|配膳|メニュー/, 掃除: /掃除|清掃|片付|片づけ|整理整頓/, 洗濯: /洗濯|シーツ/, 入浴: /入浴|全身浴|洗身|湯舟|湯船|シャワー/, 買物: /買い物|買物|代行|スーパ/, 起床: /起床|起き/, 就寝: /就寝|眠前|寝る/, 服薬: /服薬|薬/, 衣類: /衣類|タンス/, 通院: /通院|受診|病院|クリニック/, 洗面: /洗面|洗顔|顔洗い|顔を(洗|拭)|歯磨き|口腔/, 身支度: /身支度|更衣|着替|洗面|洗顔|顔洗い|顔を(洗|拭)|歯磨き|口腔/ };
 const featOf = t => Object.keys(PROC_FEAT).filter(k => PROC_FEAT[k].test(t));
 function procedureFor(e, name) {
   const ps = proceduresOf(name); if (!ps.length) return null;
   const t = (e.type || '') + ' ' + (e.detail || ''), body = kindOf(e.type) !== '家事援助', mins = e.start && e.end ? hm(e.end) - hm(e.start) : 0, h = parseInt(e.start || '12', 10);
   const vf = featOf(t.replace(/入浴後の片付け|お風呂掃除/g, '掃除')), night = h >= 16, morning = h < 11;
+  if (body && /起床|就寝/.test(t) && !vf.includes('身支度')) vf.push('身支度'); // 起床・就寝の訪問は身支度（着替え・洗面・歯磨き）の手順とも合わせる
   const scored = ps.filter(p => !p.type || (/家事/.test(p.type) ? !body : body)).map(p => {
     const all = p.steps.map(s => s.label + s.text).join(''), pf = featOf(all.replace(/お風呂の掃除|お風呂掃除|浴室の掃除/g, '掃除'));
     // 朝の手順（起床・朝食）は夕方以降の訪問に、夜の手順（就寝・眠前）は朝の訪問に合わせない
@@ -2319,7 +2320,7 @@ const TEXT_KP = [
   [/部分浴|手浴|足浴/, '入浴・清拭|部分浴', 'body'],
   [/清拭|(体|身体|からだ|背中)を(拭|清拭)/, '入浴・清拭|清拭', 'body'],
   // 身体整容
-  [/洗面|洗顔|顔を(洗|拭)/, '身体整容|洗面', 'body'],
+  [/洗面|洗顔|顔洗い|顔を(洗|拭)|顔拭き/, '身体整容|洗面', 'body'],
   [/口腔|歯磨き|歯みがき|うがい|義歯|入れ歯/, '身体整容|口腔ケア', 'body'],
   [/更衣|着替|着脱|寝間着|寝衣|パジャマ/, '身体整容|更衣介助', 'body'],
   [/整容|整髪|髪を(とか|整|梳)|ブラッシング|爪(切り|を切)|耳(掃除|そうじ)|髭|ひげ(剃|そ)|化粧|身だしなみ/, '身体整容|整容', 'body'],
