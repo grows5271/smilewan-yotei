@@ -3410,8 +3410,7 @@ function recLabel(r) {
 }
 // 特記事項の見出し：時刻（7:00〜7:30）と、何をしたか（予定の内容。無ければ主なチェック項目）
 const docxTime = r => { const f = t => String(t || '').replace(/^0(\d)/, '$1'), t = entryTime(r.e); return t.s ? `${f(t.s)}〜${f(t.e)}` : ''; };
-// 種別（身体介護・家事援助・通院介助・身体1生活1 など）
-const docxKind = r => /通院/.test(r.e.type || '') ? '通院介助' : (String(r.e.type || '').match(/身体\d+生活\d+/) || [])[0] || r.kind || '';
+const docxKind = r => String(r.e.type || '').trim(); // 予定表の「種別」欄に書いてあるまま（身体・家事・入浴…）
 function docxWhat(r) {
   const w = detailLines(r.e.detail).join('・').replace(/[０-９\d]{1,2}[：:][０-９\d]{2}\s*[～〜~-]\s*[０-９\d]{1,2}[：:][０-９\d]{2}・?/g, '').replace(/^・|・$/g, '').trim();
   if (w) return w;
@@ -3441,7 +3440,7 @@ async function exportRecordsDocx() {
       const firstLine = kubun === '介護' ? `　　　　　　　${flat}　介護` : `　${flat}`;
       children.push(new D.Paragraph({ children: [run(head, true), ...(i === 0 ? [run(firstLine, true)] : [])] }));
       d.rows.forEach(r => {
-        children.push(new D.Paragraph({ children: [run(`【${recLabel(r)}】${docxTime(r)}　${docxWhat(r)}`, true), run(String(r.text || '').replace(/\n/g, ''), false, true)] }));
+        children.push(new D.Paragraph({ children: [run(`【${recLabel(r)}】${docxTime(r)}　${[docxKind(r), docxWhat(r)].filter(Boolean).join('　')}`, true), run(String(r.text || '').replace(/\n/g, ''), false, true)] }));
       });
       if (i < days.length - 1) children.push(new D.Paragraph({ children: [] }));
     });
