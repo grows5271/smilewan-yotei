@@ -3383,7 +3383,7 @@ function recLabel(r) {
   const kp = kpOf(r), has = c => kp.some(k => k.startsWith(c + '|'));
   if (kubunOf((state.name || '').trim()) !== '介護') {
     // 障害：【朝・身体】【昼・家事】【夜・入浴】（時間帯＋身体／家事／入浴）
-    const tod = shogaiTod(parseInt(r.e.start || '12', 10));
+    const tod = shogaiTod(parseInt(entryTime(r.e).s || '12', 10));
     const cat = (/入浴/.test(r.e.type || '') || (has('入浴・清拭') && !has('起床・就寝'))) ? '入浴' : r.kind === '家事援助' ? '家事' : '身体';
     return tod + '・' + cat;
   }
@@ -3392,11 +3392,19 @@ function recLabel(r) {
     const w = detailLines(r.e.detail).flatMap(x => x.split(/[・、]/)).map(x => x.replace(/^買い物$/, '買い物代行').replace(/[（）()]/g, '').trim()).filter(x => x && !/^生活\d*$/.test(x));
     return [...new Set(w)].join('・') || '家事';
   }
-  const h = parseInt(r.e.start || '12', 10), tod = shogaiTod(h);
+  const h = parseInt(entryTime(r.e).s || '12', 10), tod = shogaiTod(h);
   const parts = [tod, '身体'];
   if (/生活|家事/.test(r.e.type || '') || ['調理', '清掃', '洗濯', '買物等', '衣類・寝具'].some(has)) parts.push('生活');
   if (has('排泄')) parts.push('排泄');
   return parts.join('・');
+}
+// 特記事項の見出し：時刻（7:00〜7:30）と、何をしたか（予定の内容。無ければ主なチェック項目）
+const docxTime = r => { const f = t => String(t || '').replace(/^0(\d)/, '$1'), t = entryTime(r.e); return t.s ? `${f(t.s)}〜${f(t.e)}` : ''; };
+function docxWhat(r) {
+  const w = detailLines(r.e.detail).join('・').replace(/[０-９\d]{1,2}[：:][０-９\d]{2}\s*[～〜~-]\s*[０-９\d]{1,2}[：:][０-９\d]{2}・?/g, '').replace(/^・|・$/g, '').trim();
+  if (w) return w;
+  const kp = kpAll(r).filter(k => !/^(自立支援|その他)\|/.test(k)).map(k => k.split('|')[1]);
+  return [...new Set(kp)].slice(0, 4).join('・') || r.kind || '';
 }
 async function exportRecordsDocx() {
   const rows = recRows.filter(r => r.on);
@@ -3421,7 +3429,7 @@ async function exportRecordsDocx() {
       const firstLine = kubun === '介護' ? `　　　　　　　${flat}　介護` : `　${flat}`;
       children.push(new D.Paragraph({ children: [run(head, true), ...(i === 0 ? [run(firstLine, true)] : [])] }));
       d.rows.forEach(r => {
-        children.push(new D.Paragraph({ children: [run(`【${recLabel(r)}】`, true), run(String(r.text || '').replace(/\n/g, ''), false, true)] }));
+        children.push(new D.Paragraph({ children: [run(`【${recLabel(r)}】${docxTime(r)}　${docxWhat(r)}`, true), run(String(r.text || '').replace(/\n/g, ''), false, true)] }));
       });
       if (i < days.length - 1) children.push(new D.Paragraph({ children: [] }));
     });
