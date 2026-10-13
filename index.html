@@ -3410,9 +3410,9 @@ function recLabel(r) {
 }
 // 特記事項の見出し：時刻（7:00〜7:30）と、何をしたか（予定の内容。無ければ主なチェック項目）
 const docxTime = r => { const f = t => String(t || '').replace(/^0(\d)/, '$1'), t = entryTime(r.e); return t.s ? `${f(t.s)}〜${f(t.e)}` : ''; };
-// 予定表の「種別」欄から、数字・（ ）の補足を除いた言葉だけ（身体1生活1→身体・生活、入浴（身体2）→入浴、家事（月2回）→家事）
-const docxKind = r => { const t = String(r.e.type || '').replace(/[（(][^）)]*[）)]/g, '').replace(/[0-9０-９]/g, ''), w = ['通院', '入浴', '身体', '家事', '生活'].filter(x => t.includes(x));
-  return (w.includes('入浴') || w.includes('通院') ? w.filter(x => x !== '身体') : w).join('・') || t.trim(); };
+// 予定表の「種別」欄のまま（身体・家事・入浴・身体1生活1…）。共に行う訪問は「（共に）」を付ける
+const docxKind = r => { const t = String(r.e.type || '').trim(), tog = /共に|一緒/.test((r.e.type || '') + (r.e.detail || '')) || isTogether(kpOf(r));
+  return t && tog && !/共に/.test(t) ? t + '（共に）' : t; };
 function docxWhat(r) {
   const w = detailLines(r.e.detail).join('・').replace(/[０-９\d]{1,2}[：:][０-９\d]{2}\s*[～〜~-]\s*[０-９\d]{1,2}[：:][０-９\d]{2}・?/g, '').replace(/^・|・$/g, '').trim();
   if (w) return w;
