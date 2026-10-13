@@ -392,13 +392,15 @@
       <div class="toolbar">
         <button class="primary" onclick="buildRecords()">📝 記録を生成</button>
         <button onclick="copyRecordsTsv()">表をコピー</button>
-        <button id="docxBtn" onclick="exportRecordsDocx()">Word書き出し</button>
-        <button id="pdfBtn" onclick="exportRecordsPdf()">PDF保存</button>
+        <button id="docxBtn" onclick="exportRecordsDocx()">📄 文章をWord</button>
+        <button id="pdfBtn" onclick="exportRecordsPdf()">📄 文章をPDF</button>
+        <button id="chkPdfBtn" onclick="exportRecordsPdf('check')">✅ チェックリストをPDF</button>
+        <button onclick="exportChecklistCsv()">✅ チェックリストをExcel</button>
         <button onclick="saveRecords()">💾 記録を保存</button>
         <button onclick="if(dupConfirm()){saveRecords({quiet:true});window.print()}">🖨 印刷</button>
         <button onclick="if(event.shiftKey)paperSelfTest();else document.getElementById('paperFile').click()">📄 紙(PDF)から取込</button>
       </div>
-      <label style="display:flex;align-items:center;gap:6px;font-weight:normal;margin:2px 0 4px"><input type="checkbox" id="docxChk" style="width:auto" onchange="lsSet('smilewan_docxchk',this.checked?'1':'0')"> Word・PDFにチェック項目（顔色・実施項目など）も入れる</label>
+      <div class="hint" style="margin:2px 0 4px">文章（特記事項）とチェックリスト（顔色・実施項目など）は別々に書き出します。</div>
       <input type="file" id="paperFile" accept="application/pdf,image/*" style="display:none" onchange="importPaper(this)">
       <div id="paperStatus" class="hint" style="display:none"></div>
       <label>利用者（保存済みから選択）</label>
@@ -533,7 +535,7 @@
             <li><b>記録の日時</b>：その月のカイポケのシフト（業務日誌ツールに取り込んだ分）がある利用者は、<b>シフトの実際の日時</b>で記録を作る。予定表に無い訪問も「予定表に無い訪問（シフトから）」として作り、予定表にあってシフトに無い予定はチェックを外して出す（出力しない）。シフトの無い月は週間予定表の曜日・時刻で作る。文章の時間帯は 朝5〜10時台／昼11〜15時台／夕方16〜17時台／夜18時〜 に揃えている（19時以降の薬は「眠前薬」）</li>
             <li><b>担当者</b>：記録を作ると、カイポケのシフト（業務日誌ツールに取り込んだ月）から、利用者・日付・開始時刻（30分以内）が合うヘルパーが自動で入る。シフトが無い月は「📋 シフトCSVを取り込む」でカイポケのシフト予定表CSVを入れる。手で選び直した担当者はそのまま残る。「🔄 シフトから担当者を入れ直す」で入れ直せる</li>
             <li><b>📋 チェック一覧</b>：記録の表の上の「📋 チェック一覧」に切り替えると、1日ごとにカイポケと同じ並びの一覧（縦＝全項目、横＝その日の訪問）が出る。☐☑を押すと付け外しでき、文章も作り直される。「チェックがある項目だけ」で短くできる。下にその日の文章も並ぶ。印刷にも使える</li>
-            <li><b>チェック欄</b>：記録の右の「チェック」列に、記録欄の値（顔色・発汗・体温・血圧…）と、チェックした実施項目をカイポケと同じ並びで ☑ 表示（PDF・印刷・Wordにも出る。Wordでは各記録の下に小さい灰色の1行「チェック：…」。いらないときは「Word・PDFにチェック項目も入れる」を外す）。選び方：①予定表 ②アセスメント（洗髪介助・口腔清潔など）③文章に書いてある支援 ④記録欄の値 ⑤関連してセットで行う支援（入浴→更衣介助、通院→外出準備・帰宅受入、車いす→移乗介助、障害の声掛け→場面の小項目）。チェックにマウスを乗せると理由が出る（点線の下線＝関連で選んだ物）。調理の訪問は献立欄に料理名。「✎ 項目」で選び直し、「📝 記録欄」で数字を入れる。「📋」でカイポケ用にコピー</li>
+            <li><b>チェック欄</b>：記録の右の「チェック」列に、記録欄の値（顔色・発汗・体温・血圧…）と、チェックした実施項目をカイポケと同じ並びで ☑ 表示（文章とは別に「✅ チェックリストをPDF／Excel」で書き出す。「📄 文章をWord／PDF」には文章だけが入る）。選び方：①予定表 ②アセスメント（洗髪介助・口腔清潔など）③文章に書いてある支援 ④記録欄の値 ⑤関連してセットで行う支援（入浴→更衣介助、通院→外出準備・帰宅受入、車いす→移乗介助、障害の声掛け→場面の小項目）。チェックにマウスを乗せると理由が出る（点線の下線＝関連で選んだ物）。調理の訪問は献立欄に料理名。「✎ 項目」で選び直し、「📝 記録欄」で数字を入れる。「📋」でカイポケ用にコピー</li>
             <li><b>📝記録欄</b>：カイポケの欄（顔色・発汗・体温・血圧・排尿／排便の回数・量・食事量・水分cc・部分浴・清拭・整容・買物の金額と内訳・その他・予定の変更・加算）。入れた数字は文章に自動で書き足され、消すと文章からも消える。文章に書いた体温・血圧・排尿／排便・食事量・水分cc・清拭・整容・金額なども自動で欄に入る（点線。文章を打っている途中でも反映）。押せば選び直せる</li>
             <li><b>🛒 買い物タブ</b>：利用者を選んで「🍱 献立と買い物リストを作る」。買い物リストはチェックしながら使える（チェックは保存され、他の端末でも同じ）。日用品にチェックすると「今日買った」になる。周期の設定は下の「⚙ 日用品の買う周期」を開く。「LINE用にコピー」「印刷」もある。</li>
             <li><b>🍱 献立・買い物リスト</b>：予定表の調理の曜日・食事ごとに献立を作り、材料をまとめた買い物リストも作る。アセスメントの病名（高血圧→減塩、糖尿病→糖質控えめ）・義歯（やわらかい料理）・調理の力（障害→簡単な料理）と、「食べられない物」欄・NGの言葉を外して作る。献立には1人分の量（例：豚肉80g・玉ねぎ1/2個、ご飯1膳150g）が付き、買い物リストは1週間の合計量（買う単位に切り上げ）と米の合数、生活に必要な日用品（予定表の支援・アセスメントから：洗剤・トイレットペーパー・おむつ・入れ歯洗浄剤など）も出る。作った献立は記録の「調理」の文に入る。日用品は「買う周期（日）」と「前回買った日」を利用者ごとに持ち、今週買う時期の物だけ買い物リストに入る（周期の初期値は1人暮らしの目安。「✓今日買った」か、記録に「購入品：トイレットペーパー」などと書いて保存すると前回買った日が更新される）</li>
@@ -1815,7 +1817,6 @@ function setMode(m) {
     }
     refreshStaffSelect();
     try { const ms = lsGet('smilewan_minsent'); if (ms) document.getElementById('recMinSent').value = ms; } catch {}
-    document.getElementById('docxChk').checked = lsGet('smilewan_docxchk') !== '0';
     renderRecordView();
   }
 }
@@ -3409,7 +3410,7 @@ async function exportRecordsDocx() {
     const D = window.docx;
     const name = (state.name || '').trim(), flat = name.replace(/[\s　]+/g, '');
     const kubun = document.getElementById('recKubun').value;
-    const FONT = window._docxFont || '游明朝', withChk = document.getElementById('docxChk').checked;
+    const FONT = window._docxFont || '游明朝';
     const run = (text, bold, brk) => new D.TextRun({ text, bold, break: brk ? 1 : 0, font: { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, size: 21 });
     // 日付の早い順、同じ日は時刻順
     const sorted = [...rows].sort((a, b) => (a.date - b.date) || (a.e.start || '').localeCompare(b.e.start || ''));
@@ -3421,7 +3422,6 @@ async function exportRecordsDocx() {
       children.push(new D.Paragraph({ children: [run(head, true), ...(i === 0 ? [run(firstLine, true)] : [])] }));
       d.rows.forEach(r => {
         children.push(new D.Paragraph({ children: [run(`【${recLabel(r)}】`, true), run(String(r.text || '').replace(/\n/g, ''), false, true)] }));
-        if (withChk) children.push(new D.Paragraph({ children: [new D.TextRun({ text: 'チェック：' + checkText(r), font: { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, size: 17, color: '555555' })] }));
       });
       if (i < days.length - 1) children.push(new D.Paragraph({ children: [] }));
     });
@@ -3437,14 +3437,15 @@ async function exportRecordsDocx() {
   } finally { btn.disabled = false; btn.textContent = label; }
 }
 // ---- PDF保存（A4縦。行の途中でページが切れないよう、1ページずつ組んで画像化→PDF） ----
-async function exportRecordsPdf() {
+async function exportRecordsPdf(mode) {
+  const chkMode = mode === 'check'; // チェックリストだけのPDF（文章は入れない）
   const rows = recRows.filter(r => r.on);
   if (!rows.length) { alert('出力する行がありません'); return; }
   if (!dupConfirm()) return;
   saveRecords({ quiet: true });
   try { await loadLib('pdfOut'); } catch {}
   if (!window.html2canvas || !window.jspdf) { alert('PDF作成の部品を読み込めませんでした。通信状態を確認して再読み込みしてください'); return; }
-  const btn = document.getElementById('pdfBtn'), label = btn.textContent;
+  const btn = document.getElementById(chkMode ? 'chkPdfBtn' : 'pdfBtn'), label = btn.textContent;
   btn.disabled = true; btn.textContent = 'PDF作成中…';
   const W = 794, H = 1123, PAD = 45; // A4 @96dpi
   const name = (state.name || '').trim();
@@ -3453,14 +3454,20 @@ async function exportRecordsPdf() {
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed;left:-10000px;top:0;';
   document.body.appendChild(host);
-  const cell = 'border:1px solid #555;padding:5px 7px;vertical-align:top;text-align:left;', withChk = document.getElementById('docxChk').checked;
-  const head = `<tr style="background:#eee;font-weight:bold"><td style="${cell}width:108px">日時</td><td style="${cell}width:60px">担当</td><td style="${cell}width:70px">種別</td><td style="${cell}">記録</td>${withChk ? `<td style="${cell}width:168px">チェック</td>` : ''}</tr>`;
-  const chkHtml = r => `<div style="font-size:9.5px;line-height:1.45;color:#333">${kpFieldsLine(r).replace(/<span/g, '<span style="display:inline-block;margin-right:5px;white-space:nowrap"').replace(/ class="warn">/g, '>⚠')}</div><div style="font-size:10px;line-height:1.5;margin-top:3px">${kpLinesHtml(r).replace(/<b>/g, '<b style="font-weight:normal;color:#555">').replace(/<i>/g, '<span style="display:inline-block;margin-right:6px;white-space:nowrap">').replace(/<\/i>/g, '</span>')}</div>`;
-  const rowHtml = r => `<tr><td style="${cell}white-space:nowrap">${String(r.date.getMonth() + 1).padStart(2, '0')}/${String(r.date.getDate()).padStart(2, '0')}（${DAYS[r.date.getDay()]}）<br>${esc(r.e.start || '--:--')} - ${esc(r.e.end || '--:--')}</td><td style="${cell}">${esc(r.staff)}</td><td style="${cell}">${esc(r.kind)}</td><td style="${cell}line-height:1.55;white-space:pre-wrap">${esc(r.text)}</td>${withChk ? `<td style="${cell}">${chkHtml(r)}</td>` : ''}</tr>`;
+  const cell = 'border:1px solid #555;padding:5px 7px;vertical-align:top;text-align:left;';
+  const head = chkMode
+    ? `<tr style="background:#eee;font-weight:bold"><td style="${cell}width:108px">日時</td><td style="${cell}width:60px">担当</td><td style="${cell}width:110px">予定</td><td style="${cell}width:150px">記録欄</td><td style="${cell}">実施項目</td></tr>`
+    : `<tr style="background:#eee;font-weight:bold"><td style="${cell}width:108px">日時</td><td style="${cell}width:60px">担当</td><td style="${cell}width:70px">種別</td><td style="${cell}">記録</td></tr>`;
+  const dateCell = r => `<td style="${cell}white-space:nowrap">${String(r.date.getMonth() + 1).padStart(2, '0')}/${String(r.date.getDate()).padStart(2, '0')}（${DAYS[r.date.getDay()]}）<br>${esc(r.e.start || '--:--')} - ${esc(r.e.end || '--:--')}</td><td style="${cell}">${esc(r.staff)}</td>`;
+  const fieldsHtml = r => `<div style="font-size:10px;line-height:1.5">${kpFieldsLine(r).replace(/<span/g, '<span style="display:block"').replace(/ class="warn">/g, '>⚠')}</div>`;
+  const itemsHtml = r => `<div style="font-size:11px;line-height:1.6">${kpLinesHtml(r).replace(/<b>/g, '<b style="display:inline-block;min-width:78px;color:#333">').replace(/<i[^>]*>/g, '<span style="display:inline-block;margin-right:8px;white-space:nowrap">').replace(/<\/i>/g, '</span>') || '（なし）'}</div>`;
+  const rowHtml = r => chkMode
+    ? `<tr>${dateCell(r)}<td style="${cell}font-size:11px">${esc(r.kind)}<br>${esc(String(r.e.detail || '').replace(/\n/g, '・'))}</td><td style="${cell}">${fieldsHtml(r)}</td><td style="${cell}">${itemsHtml(r)}</td></tr>`
+    : `<tr>${dateCell(r)}<td style="${cell}">${esc(r.kind)}</td><td style="${cell}line-height:1.55;white-space:pre-wrap">${esc(r.text)}</td></tr>`;
   const newPage = () => {
     const pg = document.createElement('div');
     pg.style.cssText = `width:${W}px;height:${H}px;padding:${PAD}px;box-sizing:border-box;background:#fff;color:#000;font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;font-size:13px;position:relative;`;
-    pg.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px"><div style="font-size:20px;font-weight:bold">訪問記録　${esc(name)} 様</div><div style="font-size:12px">期間：${period}</div></div><table style="width:100%;border-collapse:collapse;table-layout:fixed">${head}</table><div class="pf" style="position:absolute;left:${PAD}px;right:${PAD}px;bottom:22px;display:flex;justify-content:space-between;font-size:11px;color:#333"><span>訪問介護 すまいるわん　TEL 080-4135-4037</span><span class="pn"></span></div>`;
+    pg.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px"><div style="font-size:20px;font-weight:bold">${chkMode ? 'チェックリスト' : '訪問記録'}　${esc(name)} 様</div><div style="font-size:12px">期間：${period}</div></div><table style="width:100%;border-collapse:collapse;table-layout:fixed">${head}</table><div class="pf" style="position:absolute;left:${PAD}px;right:${PAD}px;bottom:22px;display:flex;justify-content:space-between;font-size:11px;color:#333"><span>訪問介護 すまいるわん　TEL 080-4135-4037</span><span class="pn"></span></div>`;
     host.appendChild(pg); return pg;
   };
   try {
@@ -3484,12 +3491,28 @@ async function exportRecordsPdf() {
       if (i) pdf.addPage();
       pdf.addImage(canvas.toDataURL('image/jpeg', 0.85), 'JPEG', 0, 0, 210, 297);
     }
-    await download(pdf.output('blob'), `訪問記録_${name}_${from}〜${to}.pdf`);
+    await download(pdf.output('blob'), `${chkMode ? 'チェックリスト' : '訪問記録'}_${name}_${from}〜${to}.pdf`);
   } catch (e) {
     alert('PDFを作成できませんでした: ' + (e && e.message || e));
   } finally {
     host.remove(); btn.disabled = false; btn.textContent = label;
   }
+}
+
+// ---- チェックリストをExcel（CSV）：1行＝1訪問、列＝記録欄とカイポケの全項目（○） ----
+async function exportChecklistCsv() {
+  const rows = recRows.filter(r => r.on);
+  if (!rows.length) { alert('出力する行がありません'); return; }
+  saveRecords({ quiet: true });
+  const name = (state.name || '').trim(), from = document.getElementById('recFrom').value, to = document.getElementById('recTo').value;
+  const items = KP.flatMap(([c, its]) => its.map(it => c + '|' + it));
+  const q = x => /[",\n]/.test(String(x)) ? '"' + String(x).replace(/"/g, '""') + '"' : String(x);
+  const head = ['日付', '曜日', '開始', '終了', '担当', '種別', '予定の内容', '記録欄', ...items.map(k => k.replace('|', '：'))];
+  const lines = [head, ...[...rows].sort((a, b) => (a.date - b.date) || (a.e.start || '').localeCompare(b.e.start || '')).map(r => {
+    const kp = kpAll(r);
+    return [ymd(r.date), DAYS[r.date.getDay()], r.e.start || '', r.e.end || '', r.staff || '', r.kind || '', String(r.e.detail || '').replace(/\n/g, '・'), vSummary(r), ...items.map(k => kp.includes(k) ? '○' : '')];
+  })].map(l => l.map(q).join(','));
+  await download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' }), `チェックリスト_${name}_${from}〜${to}.csv`);
 }
 
 // ---- 紙(PDF)から取込: スキャンした週間予定表を、ブラウザ内の文字読み取り(Tesseract)で予定表に入れる ----
