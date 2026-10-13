@@ -2625,7 +2625,7 @@ function prevSum(r) {
   if (c('清掃')) parts.push('掃除');
   if (c('洗濯')) parts.push('洗濯');
   if (c('買物等')) parts.push('買い物');
-  if (c('自立支援')) parts.push('一緒に行う家事');
+  if (isTogether(kp)) parts.push('一緒に行う家事'); // 共に行う家事の項目があるときだけ（声掛け・見守りだけでは言わない）
   if (!parts.length && c('排泄')) parts.push('排泄介助');
   if (!parts.length && c('身体整容')) parts.push('身支度');
   if (!parts.length && kp.includes('服薬・医療|服薬介助・確認')) parts.push(/セット/.test(r.e.detail || '') ? '服薬セット' : '服薬確認');
@@ -3411,10 +3411,10 @@ function recLabel(r) {
 // 特記事項の見出し：時刻（7:00〜7:30）と、何をしたか（予定の内容。無ければ主なチェック項目）
 const docxTime = r => { const f = t => String(t || '').replace(/^0(\d)/, '$1'), t = entryTime(r.e); return t.s ? `${f(t.s)}〜${f(t.e)}` : ''; };
 // 予定表の「種別」欄のまま（身体・家事・入浴・身体1生活1…）。共に行う訪問は「（共に）」を付ける
-const docxKind = r => { const t = String(r.e.type || '').trim(), tog = /共に|一緒/.test((r.e.type || '') + (r.e.detail || '')) || isTogether(kpOf(r));
+const docxKind = r => { const t = String(r.e.type || '').trim(), tog = /共に|一緒/.test((r.e.type || '') + (r.e.detail || '')); // 予定表に「共に・一緒」と書いてある訪問だけ
   return t && tog && !/共に/.test(t) ? t + '（共に）' : t; };
 function docxWhat(r) {
-  const w = detailLines(r.e.detail).join('・').replace(/[０-９\d]{1,2}[：:][０-９\d]{2}\s*[～〜~-]\s*[０-９\d]{1,2}[：:][０-９\d]{2}・?/g, '').replace(/^・|・$/g, '').trim();
+  const w = detailLines(r.e.detail).join('・').replace(/・{2,}/g, '・').replace(/[０-９\d]{1,2}[：:][０-９\d]{2}\s*[～〜~-]\s*[０-９\d]{1,2}[：:][０-９\d]{2}・?/g, '').replace(/^・|・$/g, '').trim();
   if (w) return w;
   const kp = kpAll(r).filter(k => !/^(自立支援|その他)\|/.test(k)).map(k => k.split('|')[1]);
   return [...new Set(kp)].slice(0, 4).join('・') || r.kind || '';
