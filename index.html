@@ -1594,7 +1594,16 @@ function procKP(p) {
   const res = new Map(); out.forEach((why, k) => res.set(body ? TO_TOGETHER(k) : k, why));
   return res;
 }
-function autoKPFor(e, name) {
+// 朝・夜の身体介護（入浴・通院以外）：洗面・口腔ケア・更衣介助をセットで付け、整容は付けない（事業所の決まり）
+const MN_SET = ['身体整容|洗面', '身体整容|口腔ケア', '身体整容|更衣介助'];
+function mnBody(e) {
+  const t = (e.type || '') + ' ' + (e.detail || ''), h = parseInt(entryTime(e).s || '12', 10);
+  if (kindOf(e.type || '') === '家事援助' || /入浴|シャワー|清拭|通院/.test(t)) return false;
+  return h < 11 || h >= 18 || /起床|就寝|朝/.test(e.detail || '');
+}
+function mnFix(kp, e) { if (!mnBody(e)) return kp; return [...new Set([...kp.filter(k => k !== '身体整容|整容'), ...MN_SET])]; }
+function autoKPFor(e, name) { return mnFix(autoKPFor0(e, name), e); }
+function autoKPFor0(e, name) {
   const proc = procedureFor(e, name), pk = proc ? procKP(proc) : null;
   // 手順書の項目でも、この訪問の予定に無い種類（掃除の訪問に調理・入浴の無い訪問に入浴など）は付けない
   const vf = featOf((e.type || '') + ' ' + (e.detail || '')), NEED = [[/^(調理\||自立支援\|一般的な調理)/, '調理'], [/^(洗濯\||自立支援\|洗濯)/, '洗濯'], [/^(買物等\|日常品|自立支援\|買い物)/, '買物'], [/^入浴・清拭\|(入浴介助|シャワー浴|洗髪)/, '入浴']];
@@ -2394,9 +2403,10 @@ function kpFromText(r) {
   const det = (r.e.type || '') + ' ' + (r.e.detail || '');
   const base = autoKP(r.e), withAs = autoKPFor(r.e, name);
   const proc = procedureFor(r.e, name), pk = proc ? procKP(proc) : new Map();
-  kp.forEach(k => { src[k] = pk.has(k) ? pk.get(k) : base.includes(k) ? (proc ? '予定表から（業務手順書に無い）' : '予定表から') : withAs.includes(k) ? 'アセスメントから' : '手で選択'; });
+  kp.forEach(k => { src[k] = pk.has(k) ? pk.get(k) : base.includes(k) ? (proc ? '予定表から（業務手順書に無い）' : '予定表から') : (MN_SET.includes(k) && mnBody(r.e)) ? '朝・夜の身体介護（洗面・口腔ケア・更衣介助はセット）' : withAs.includes(k) ? 'アセスメントから' : '手で選択'; });
   if (kp.includes('服薬・医療|見守り') && src['服薬・医療|見守り'] === 'アセスメントから') src['服薬・医療|見守り'] = `アセスメントから（服用支援：${medWatchNote(a)}）`;
-  const add = (k, why) => { if (!kp.includes(k) && !off.includes(k) && !out.has(k)) { out.add(k); src[k] = why; } };
+  const mn = mnBody(r.e);
+  const add = (k, why) => { if (mn && k === '身体整容|整容') return; if (!kp.includes(k) && !off.includes(k) && !out.has(k)) { out.add(k); src[k] = why; } };
   const together = isTogether(kp) && r.kind !== '家事援助';
   const body = r.kind !== '家事援助';
   const bath = kp.includes('入浴・清拭|入浴介助') || kp.includes('入浴・清拭|シャワー浴');
