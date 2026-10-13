@@ -1579,20 +1579,30 @@ function procKP(p) {
   const bath = p.steps.some(s => /全身浴|入浴|浴/.test(s.label + s.text));
   p.steps.forEach(s => {
     const why = `業務手順書から（サービス${p.no}：${s.label || '手順'}「${(s.text || '').slice(0, 30)}」）`, txt = s.label + '。' + s.text;
-    (PROC_LABEL[s.label.replace(/\s/g, '')] || []).forEach(k => add(k, why));
-    TEXT_KP.forEach(([re, k, sc]) => { if ((sc === 'body' && !body) || (sc === 'house' && body)) return; if (bath && /更衣介助|入浴・清拭\|清拭|トイレ介助/.test(k) && !PROC_LABEL[s.label]) return; if (re.test(txt)) add(k, why); });
+    const selfEat = s.label.replace(/\s/g, '') === '食事介助' && !/摂食|食事(の)?介助を|口(元)?(まで|に)運|食べさせ|全介助|一部介助/.test(s.text); // 「食事していただく」＝本人が食べる
+    (PROC_LABEL[s.label.replace(/\s/g, '')] || []).forEach(k => { if (!(selfEat && k === '食事|摂食介助')) add(k, why); });
+    if (selfEat && body) add('自立支援|排泄・食事', why);
+    TEXT_KP.forEach(([re, k, sc]) => { if ((sc === 'body' && !body) || (sc === 'house' && body)) return; if (selfEat && k === '食事|摂食介助') return; if (bath && /更衣介助|入浴・清拭\|清拭|トイレ介助/.test(k) && !PROC_LABEL[s.label]) return; if (re.test(txt)) add(k, why); });
     if (/お風呂|浴室/.test(s.text) && /掃除|清掃/.test(s.text)) add('清掃|浴室', why);
     if (/トイレ/.test(s.text) && /掃除|清掃/.test(s.text)) add('清掃|トイレ', why);
     if (/片付|片づけ|整理/.test(txt) && !bath) add('清掃|居室', why);
     if (/見守|声掛け|声かけ|促し/.test(s.text) && body) { add('自立支援|声掛け・見守り', why); if (bath) add('自立支援|清拭・入浴・身体整容', why); }
   });
+  // 通院の手順は移動・院内・薬の受け取りだけ（帰宅後のうがい・片付けは口腔ケアや掃除にしない）
+  if (/通院/.test(p.type || '')) [...out.keys()].forEach(k => { if (!/^(移動\||服薬・医療\|(院内介助|服薬介助・確認)|自立支援\|(声掛け・見守り|通院・外出介助)|買物等\|薬の受取り)/.test(k)) out.delete(k); });
   // 身体介護の手順に家事がある＝本人と一緒に行う（自立支援の共に行う）
   const res = new Map(); out.forEach((why, k) => res.set(body ? TO_TOGETHER(k) : k, why));
   return res;
 }
 function autoKPFor(e, name) {
   const proc = procedureFor(e, name), pk = proc ? procKP(proc) : null;
-  const kp = pk ? [...new Set([...pk.keys(), ...autoKP(e)])] : autoKP(e), a = assessOf(name); if (!a) return toiletByKubun(kp, name);
+  // 手順書の項目でも、この訪問の予定に無い種類（掃除の訪問に調理・入浴の無い訪問に入浴など）は付けない
+  const vf = featOf((e.type || '') + ' ' + (e.detail || '')), NEED = [[/^(調理\||自立支援\|一般的な調理)/, '調理'], [/^(洗濯\||自立支援\|洗濯)/, '洗濯'], [/^(買物等\|日常品|自立支援\|買い物)/, '買物'], [/^入浴・清拭\|(入浴介助|シャワー浴|洗髪)/, '入浴']];
+  const fits = k => { const n = NEED.find(([re]) => re.test(k)); return !n || !vf.length || vf.includes(n[1]) || (n[1] === '入浴' && /入浴/.test(e.type || '')); };
+  // 身体介護だけの訪問（生活の付かない区分）で予定表にある家事は、本人と共に行う家事にする
+  const pureBody = kindOf(e.type || '') !== '家事援助' && !/生活|家事/.test(e.type || '');
+  const sched = autoKP(e).map(k => pureBody ? TO_TOGETHER(k) : k);
+  const kp = pk ? [...new Set([...[...pk.keys()].filter(fits), ...sched])] : [...new Set(sched)], a = assessOf(name); if (!a) return toiletByKubun(kp, name);
   const t = (e.type || '') + '\n' + (e.detail || ''), add = k => { if (!kp.includes(k)) kp.push(k); };
   const morningNight = /起床|就寝|整容|身支度/.test(t);
   if (kp.includes('入浴・清拭|入浴介助') && a.needs.includes('洗髪介助')) add('入浴・清拭|洗髪');
@@ -2364,7 +2374,7 @@ const TEXT_KP = [
   [/衣替え|タンス(の)?整理|衣類(の)?整理/, '衣類・寝具|衣類の整理'],
   [/補修|ボタン付け|繕|裾上げ|ほつれ/, '衣類・寝具|被服の補修'],
   // 調理
-  [/調理|料理|献立/, '調理|調理'],
+  [/調理(?!台|器具)|料理|献立/, '調理|調理'],
   [/下拵え|下ごしらえ|下処理|皮をむ|切り分け/, '調理|下拵え'],
   [/配膳|下膳|食器(類)?を(下げ|片付|洗)|後片付け/, '調理|配・下膳'],
   // 買物等
