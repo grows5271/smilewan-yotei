@@ -575,7 +575,7 @@
         <tr><td>⑤</td><td>記録欄</td><td>水分cc→水分補給、摂食・部分浴・清拭・整容・排尿排便の欄</td></tr>
         <tr><td>⑥</td><td>事業所の決まり</td><td>
           ・<b>朝・夜の身体介護</b>（11時前／18時以降／内容に起床・就寝・朝。入浴・通院・家事は除く）→ 洗面・口腔ケア・更衣介助をセット、<b>朝は起床介助も</b>、<b>整容は付けない</b>（「共に」の訪問は除く）<br>
-          ・<b>調理</b> → 下拵えも付ける。<b>シーツ・カバー交換</b> → ベッドメイクも付ける。シーツ交換は手順書に書いてある曜日だけ<br>
+          ・<b>調理</b> → 下拵えも付ける。<b>シーツ・カバー交換</b> → ベッドメイクも付ける。<b>洗濯と乾燥（物干し）</b>はセット。シーツ交換は手順書に書いてある曜日だけ<br>
           ・<b>介護のトイレ介助</b> → おむつ交換・パッド交換（→陰部清潔介助）<br>
           ・<b>入浴・シャワー</b> → 更衣介助も付ける（シャワーだけの日は入浴介助にしない）。<b>清掃と移動介助は付けない</b><br>
           ・<b>使った場所の清掃</b>：食事→台所・卓上／トイレ→トイレ／ポータブルトイレ→ポータブルトイレ<br>
@@ -718,7 +718,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016122706';
+const APP_VER = '20261016133036';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -2574,6 +2574,7 @@ function kpAll(r) {
   const tog = r.kind !== '家事援助' && visTogether(r.e);
   const out = [...new Set([...kpOf(r), ...r.kpText].map(k => tog ? (TOGETHER_RE.test(k) ? k : /^自立支援\|/.test(k) ? null : TO_TOGETHER(k)) : /^自立支援\|/.test(k) ? JIRITSU_MAP[k] : k).filter(Boolean))];
   if (out.includes('調理|調理') && !out.includes('調理|下拵え') && !(r.kpOff || []).includes('調理|下拵え')) out.push('調理|下拵え'); // 調理のときは下拵えも（事業所の決まり）
+  { const W = ['洗濯|洗濯', '洗濯|乾燥（物干し）']; if (W.some(k => out.includes(k))) W.forEach(k => { if (!out.includes(k) && !(r.kpOff || []).includes(k)) out.push(k); }); } // 洗濯と物干しはセット（事業所の決まり）
   if (out.includes('衣類・寝具|シーツ・カバー交換') && !out.includes('衣類・寝具|ベッドメイク') && !(r.kpOff || []).includes('衣類・寝具|ベッドメイク')) out.push('衣類・寝具|ベッドメイク'); // シーツ・カバー交換のときはベッドメイクも（事業所の決まり）
   return out;
 }
