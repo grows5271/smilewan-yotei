@@ -351,8 +351,8 @@
       <label>メモ（注意事項・鍵の場所・アレルギーなど）</label><textarea id="ciMemo" oninput="clientDirty()"></textarea>
       <label>アセスメント（記録の文章・様子・NG・実施項目の判断に使います）</label>
       <div class="hint" id="assessSummary" style="margin:0 0 4px">まだ取り込んでいません</div>
-      <button class="small" onclick="document.getElementById('assessFile').click()">📋 アセスメント・計画書取込（PDF・複数可）</button>
-      <input type="file" id="assessFile" accept="application/pdf" multiple style="display:none" onchange="importAssessment(this)">
+      <button class="small" onclick="document.getElementById('assessFile').click()">📋 アセスメント・計画書取込（PDF・写真・複数可）</button>
+      <input type="file" id="assessFile" accept="application/pdf,image/*" multiple style="display:none" onchange="importAssessment(this)">
       <label>🍱 献立・買い物リスト</label>
       <button class="small" onclick="setMode('shop')">🛒 買い物タブで見る・作る</button>
       <div class="row" style="margin-top:6px"><button class="small primary fixed" onclick="saveClientInfo()">💾 利用者情報を保存</button><span class="hint" style="margin:0">手で直した内容は、CSVを取り込み直しても消えません。</span></div>
@@ -719,7 +719,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016150345';
+const APP_VER = '20261016153503';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1435,6 +1435,7 @@ function parseProcedures(pages) {
       });
       let type = '', minutes = 0;
       if (typeRow) { const t = typeRow.ws.map(w => w.s).join(''), m = t.match(/■(身体介護|家事援助|重度訪問介護|通院介助[^（]*|通院等乗降介助|行動援護|同行援護[^（]*)（(?:(\d+)時間)?(?:(\d+)分)?/); if (m) { type = m[1]; minutes = (+m[2] || 0) * 60 + (+m[3] || 0); } }
+      if (!type && steps.length) { const all = steps.map(st => st.label + st.text).join(''); type = /入浴|浴|更衣|着替|排泄|トイレ介助|起床|就寝|服薬介助|共に|一緒/.test(all) ? '身体介護' : /掃除|洗濯|調理|買い物|片付/.test(all) ? '家事援助' : ''; minutes = steps.reduce((n, st) => n + (st.min || 0), 0); } // 写真で種類の欄が読めないときは中身から
       if (steps.length) procs.push({ no: procs.length + 1, type, minutes, steps });
     });
   });
@@ -1456,7 +1457,7 @@ function parsePlan(pages) {
     (dW <= dG ? wish : goal).push(t);
   });
   const W = wish.join(''), G = goal.join('');
-  return { form: 'plan', name: nm ? (nm[1] + ' ' + nm[2]).trim() : '', wish: W, goal: G, notes: noteKeysOf(W + G), procs: parseProcedures(pages) };
+  return { form: 'plan', name: nm ? (nm[1] + ' ' + nm[2]).replace(/[\d\-−‐:：A-Za-z〒]+/g, '').replace(/\s+/g, ' ').trim() : '', wish: W, goal: G, notes: noteKeysOf(W + G), procs: parseProcedures(pages) };
 }
 async function pdfLines(file) {
   await loadLib('pdfIn');
@@ -1506,15 +1507,62 @@ function parseAssessment(lines) {
   return A;
 }
 function assessOf(name) { const d = getColl('clients')[docId(name || ' ')]; return (d && d.assessment) || null; }
+// 文字読み取りの前処理：大きさを300dpi相当にそろえ、白黒にして、表の罫線（長い縦線・横線）を消す（罫線があると字を読み違えるため）
+function ocrPrep(src) {
+  const k = Math.min(3, Math.max(1, 2480 / Math.min(src.width, src.height)));
+  const c = document.createElement('canvas'); c.width = Math.round(src.width * k); c.height = Math.round(src.height * k);
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(src, 0, 0, c.width, c.height);
+  const W = c.width, H = c.height, img = x.getImageData(0, 0, W, H), d = img.data, dark = new Uint8Array(W * H);
+  let sum = 0; for (let i = 0; i < W * H; i++) { const g = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11; sum += g; d[i * 4] = g; }
+  const th = Math.min(200, (sum / (W * H)) * 0.8); // 明るさに合わせたしきい値
+  for (let i = 0; i < W * H; i++) dark[i] = d[i * 4] < th ? 1 : 0;
+  const L = Math.round(W * 0.06), erase = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) { let run = 0; for (let xx = 0; xx <= W; xx++) { if (xx < W && dark[y * W + xx]) run++; else { if (run > L) for (let z = xx - run; z < xx; z++) erase[y * W + z] = 1; run = 0; } } }
+  for (let xx = 0; xx < W; xx++) { let run = 0; for (let y = 0; y <= H; y++) { if (y < H && dark[y * W + xx]) run++; else { if (run > L) for (let z = y - run; z < y; z++) erase[z * W + xx] = 1; run = 0; } } }
+  for (let i = 0; i < W * H; i++) { const v = dark[i] && !erase[i] ? 0 : 255; d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v; d[i * 4 + 3] = 255; }
+  x.putImageData(img, 0, 0); return c;
+}
+// 写真・スキャンの計画書／アセスメント：画面内の文字読み取り（Tesseract）で、PDFの文字データと同じ形（x・y・文字）にする
+async function ocrPages(file) {
+  const canvases = [];
+  if (file.type.startsWith('image/')) canvases.push(await paperCanvas(file));
+  else {
+    await loadLib('pdfIn'); pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    for (let n = 1; n <= Math.min(pdf.numPages, 6); n++) {
+      const page = await pdf.getPage(n), v1 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: Math.min(300 / 72, 3600 / Math.max(v1.width, v1.height)) });
+      const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+      await page.render({ canvasContext: x, viewport: vp }).promise; canvases.push(c);
+    }
+  }
+  const ocr = await getOcr(), pages = [];
+  for (let i = 0; i < canvases.length; i++) {
+    paperMsg(`📷 写真・スキャンの文字を読み取り中…（${i + 1}/${canvases.length}ページ）少し時間がかかります`);
+    const c = ocrPrep(canvases[i]), f = (c.width > c.height ? 842 : 595) / c.width; // PDFと同じ大きさ（A4のポイント）にそろえる
+    const raw = (await ocr.words(c)).map(w => ({ x: w.x * f, y: w.y * f, s: w.s.replace(/\(/g, '（').replace(/\)/g, '）') })).sort((p, q) => (p.y - q.y) || (p.x - q.x));
+    // 1文字ずつに分かれた字を、同じ行で近い物どうしつなげる（表の列のすき間は広いので分かれたまま）
+    const ws = []; raw.forEach(w => { const l = ws[ws.length - 1]; if (l && Math.abs(l.y - w.y) < 3 && w.x - l.last < 26 && w.x >= l.last) { l.s += w.s; l.last = w.x; } else ws.push({ ...w, last: w.x }); });
+    // 読み違えやすい記号を直す：「回・男・国」→■、「口・ロ」→□（サービスの種類の前の印）
+    const TY = /^(身体介護|家事援助|重度|通院|行動援護|同行援護)/;
+    ws.forEach((w, j) => { const nx = ws[j + 1]; w.s = w.s.replace(/^[回男国圓■](?=(身体介護|家事援助|重度|通院|行動援護|同行援護))/, '■').replace(/^[口ロ□](?=(身体介護|家事援助|重度|通院|行動援護|同行援護))/, '□');
+      if (nx && TY.test(nx.s) && Math.abs(nx.y - w.y) < 4) { if (/^[回男国圓]$/.test(w.s)) w.s = '■'; else if (/^[口ロ]$/.test(w.s)) w.s = '□'; } });
+    ws.forEach(w => { delete w.last; w.s = w.s.replace(/所翼時間|所要時問|所要時閻/g, '所要時間').replace(/[回男国圓](?=(身体介護|家事援助|重度|通院|行動援護|同行援護))/g, '■').replace(/[口ロ](?=(身体介護|家事援助|重度|通院|行動援護|同行援護))/g, '□'); });
+    pages.push(ws);
+  }
+  return pages;
+}
 async function importAssessment(input, opt = {}) {
   const files = [...input.files]; input.value = ''; if (!files.length) return;
   const done = [], skipped = [];
   for (const f of files) {
     paperMsg(`📋 読み取り中…（${done.length + skipped.length + 1}/${files.length}）${f.name}`);
     let pages, text;
-    try { pages = await pdfPages(f); text = pages.flat().map(w => w.s).join(''); }
-    catch (e) { skipped.push(`${f.name}（読めませんでした）`); continue; }
-    if (text.replace(/\s/g, '').length < 50) { skipped.push(`${f.name}（文字データがありません。スキャンのPDFは不可）`); continue; }
+    try {
+      if (f.type.startsWith('image/')) pages = await ocrPages(f);
+      else { pages = await pdfPages(f); if (pages.flat().map(w => w.s).join('').replace(/\s/g, '').length < 50) pages = await ocrPages(f); } // 文字データの無いスキャンPDFは読み取りで
+      text = pages.flat().map(w => w.s).join('');
+    } catch (e) { skipped.push(`${f.name}（読めませんでした：${(e && e.message) || e}）`); continue; }
+    if (text.replace(/\s/g, '').length < 50) { skipped.push(`${f.name}（文字を読み取れませんでした。明るく・まっすぐ写した写真で試してください）`); continue; }
     let A;
     if (/支援アセスメントシート/.test(text)) A = parseShogaiSheet(pages);
     else if (/居宅介護等計画書|サービス等利用計画|個別支援計画/.test(text)) A = parsePlan(pages);
@@ -3841,6 +3889,16 @@ function ocrClient(worker) {
         const l = lines.get(key) || { y: top, t: '' }; l.y = Math.min(l.y, top); l.t += txt; lines.set(key, l);
       });
       return [...lines.values()];
+    },
+    // canvas → 単語ごとの文字と位置（計画書・アセスメントの読み取り用）
+    async words(canvas) {
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      const { tsv } = await call('recognize', buf, [buf.buffer], 180000);
+      const ws = String(tsv || '').split('\n').map(row => row.split('\t')).filter(c => c.length >= 12 && c[0] === '5' && (c[11] || '').trim())
+        .map(c => ({ line: c[2] + '-' + c[3] + '-' + c[4], x: +c[6], y: +c[7] + +c[9], s: c[11].trim() }));
+      const bottom = {}; ws.forEach(w => { bottom[w.line] = Math.max(bottom[w.line] || 0, w.y); }); // 同じ行の文字は同じ高さにそろえる
+      return ws.map(w => ({ x: w.x, y: bottom[w.line], s: w.s }));
     },
   };
 }
