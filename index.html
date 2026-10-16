@@ -716,6 +716,24 @@ async function setSetting(key, localKey, list, opt = {}) {
 // ===== Supabase 保存（GitHub Pages 版）: 合言葉つきの関数(RPC)経由で読み書き =====
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
+// 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
+const APP_VER = '20261016115954';
+let appOutdated = false;
+async function checkVer() {
+  if (APP_VER === 'dev' || appOutdated) return appOutdated;
+  try {
+    const t = await (await fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' })).text(), m = t.match(/const APP_VER = '([^']+)'/);
+    if (m && m[1] !== APP_VER) {
+      appOutdated = true;
+      const b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#dc2626;color:#fff;padding:10px 16px;font-weight:bold;text-align:center;cursor:pointer';
+      b.textContent = '🔄 ツールが新しくなりました。ここを押して読み直してください（このままでは記録を保存できません）';
+      b.onclick = () => location.reload(); document.body.appendChild(b);
+    }
+  } catch {}
+  return appOutdated;
+}
+setInterval(checkVer, 3 * 60 * 1000); window.addEventListener('focus', () => checkVer()); setTimeout(checkVer, 5000);
 function supaOn() { return !!(SUPA.url && SUPA.key) && !(window.claude && typeof window.claude.use === 'function'); }
 async function supaRpc(fn, args) {
   const r = await fetch(SUPA.url.replace(/\/$/, '') + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { apikey: SUPA.key, Authorization: 'Bearer ' + SUPA.key, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
@@ -1282,6 +1300,7 @@ function menuOrQuick(row, meal) {
 // 訪問記録: 利用者×月 ごとに1件（同じ日時の行は上書き）
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 async function saveRecords(opt = {}) {
+  if (await checkVer()) { alert('ツールが古い版のままです。画面上の赤い帯を押して読み直してから、もう一度保存してください。'); return; }
   clearTimeout(recTimer);
   const name = (state.name || '').trim();
   const rows = recRows.filter(r => r.on);
