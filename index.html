@@ -555,7 +555,7 @@
         <tr><th>ボタン</th><th>できること</th></tr>
         <tr><td>💾 記録を保存</td><td>利用者ごと・月ごとに保存（全員で共有）。同じ日時は上書き</td></tr>
         <tr><td>📚 保存した訪問記録 → 開く</td><td>過去の月の記録を呼び出して出し直し・修正</td></tr>
-        <tr><td>📄 文章をWord</td><td>特記事項の形。日付ごとに【時間帯・区分】時刻　種別（共に行う訪問は「（共に）」）→文章→チェック欄（記録欄と全項目の☑／☐）。1行目の区分（介護／障害）は左の「区分」で選ぶ</td></tr>
+        <tr><td>📄 文章をWord</td><td>特記事項の形。日付ごとに【時間帯・区分】時刻　種別（共に行う訪問は「（共に）」）→カイポケの訪問記録と同じ並びの表（提供時間・サービス名・加算・予定変更・顔色・発汗・バイタル・その他→排泄…買物等の全項目☑／☐→特記事項＝文章）。1行目の区分（介護／障害）は左の「区分」で選ぶ</td></tr>
         <tr><td>📄 文章をPDF</td><td>日時・担当・種別・文章のA4縦PDF</td></tr>
         <tr><td>✅ チェックリストをPDF／Excel</td><td>チェックだけの一覧（PDF＝訪問ごとの☑、Excel＝1行1訪問・全項目に○）</td></tr>
         <tr><td>🖨 印刷</td><td>画面の表をそのまま印刷</td></tr>
@@ -3538,15 +3538,40 @@ function docxWhat(r) {
   return [...new Set(kp)].slice(0, 4).join('・') || r.kind || '';
 }
 // 特記事項の下に入れるチェック欄（カイポケと同じ並び。全項目を ☑／☐ で出す）
+// カイポケの訪問記録と同じ並び・同じ欄で出す（上から：提供時間〜その他 → 排泄 … 買物等 → 特記事項）
 function docxCheckTable(D, r, FONT) {
-  const kp = kpAll(r), f = { eastAsia: FONT, ascii: FONT, hAnsi: FONT };
+  const kp = kpAll(r), v = vOf(r), f = { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, on = k => kp.includes(k);
   const t = (text, o = {}) => new D.TextRun({ text, font: f, size: 17, ...o });
   const line = { style: D.BorderStyle.SINGLE, size: 4, color: '999999' }, borders = { top: line, bottom: line, left: line, right: line };
   const cell = (children, w, shade) => new D.TableCell({ children: [new D.Paragraph({ children })], width: { size: w, type: D.WidthType.DXA }, borders, margins: { top: 30, bottom: 30, left: 80, right: 80 }, ...(shade ? { shading: { fill: 'F2F2F2', type: D.ShadingType.CLEAR, color: 'auto' } } : {}) });
-  const menu = vOf(r).献立 || '', rows = [new D.TableRow({ children: [cell([t('記録欄', { bold: true })], 1800, 1), cell([t(vSummary(r).replace(/／献立:[^／]*/, '').replace(/:/g, '：').replace(/ /g, '　'))], 6704)] })];
-  const tog = r.kind !== '家事援助' && visTogether(r.e); // 共に行うの行は「共に」の訪問だけ出す
-  KP.filter(([c]) => c !== '自立支援' || tog).forEach(([c, items]) => rows.push(new D.TableRow({ children: [cell([t(catLabel(c), { bold: true })], 1800, 1),
-    cell(items.flatMap((it, j) => { const on = kp.includes(c + '|' + it); return [t((j ? '　' : '') + (on ? '☑' : '☐') + it, on ? { bold: true } : { color: '777777' })]; }).concat(c === '調理' && menu && kp.includes('調理|調理') ? [t('　献立：' + menu, { bold: true })] : []), 6704)] })));
+  const box = (label, yes, j) => t((j ? '　' : '') + (yes ? '☑' : '☐') + label, yes ? { bold: true } : { color: '777777' });
+  const opt = (label, val) => t('　' + label + '：' + (val || '　　'), val ? { bold: true } : { color: '777777' });
+  const pick = (opts, val) => opts.map((o, j) => box(o, Array.isArray(val) ? val.includes(o) : val === o, j));
+  const items = (c, list) => list.map((it, j) => box(it, on(c + '|' + it), j));
+  const rows = [], row = (label, runs) => rows.push(new D.TableRow({ children: [cell([t(label, { bold: true })], 1800, 1), cell(runs, 6704)] }));
+  const tm = entryTime(r.e);
+  row('サービス提供時間', [t(`${tm.s || ''} 〜 ${tm.e || ''}`)]);
+  row('サービス名', [t(r.kind || '')]);
+  row('特定加算', pick(['初回', '緊急'], v.加算 || []));
+  row('予定の変更', pick(['有', '無'], v.変更 || '無'));
+  row('顔色', pick(['良', '不良'], v.顔色));
+  row('発汗', pick(['有', '無'], v.発汗));
+  row('バイタル', [t('体温：' + (v.体温 ? v.体温 + '℃' : '　　℃')), t('　血圧：' + (v.血圧上 ? `${v.血圧上}/${v.血圧下 || ''}` : '　　/　　') + ' mmHg')]);
+  row('その他', pick(['環境整備', '相談援助', '情報収集・提供', '記録'], v.その他 || []));
+  row('排泄', [...items('排泄', ['トイレ介助', 'ポータブルトイレ介助', 'おむつ交換', 'パッド交換', 'リネン等交換', '陰部清潔介助', '尿器洗浄']), opt('排尿 回数', v.排尿回数 && v.排尿回数 + '回'), opt('量', v.排尿量 && v.排尿量 + 'cc'), opt('排便 回数', v.排便回数 && v.排便回数 + '回'), opt('状態', v.排便状態)]);
+  row('食事', [box('姿勢の確保', on('食事|姿勢の確保'), 0), box('摂食介助', on('食事|摂食介助'), 1), t('（'), ...pick(['全部', '一部'], v.摂食), t('）'), opt('食事量', v.食事量), box('水分補給', on('食事|水分補給'), 1), t(v.水分 ? ` ${v.水分}cc` : ''), box('完食', on('食事|完食'), 1), box('食べ残しあり', on('食事|食べ残しあり'), 1)]);
+  row('入浴・清拭', [...items('入浴・清拭', ['入浴介助', 'シャワー浴', '洗髪', '部分浴']), t('（'), ...pick(['手', '足'], v.部分浴), t('）'), box('清拭', on('入浴・清拭|清拭'), 1), t('（'), ...pick(['全身', '部分'], v.清拭), t('）')]);
+  row('身体整容', [...items('身体整容', ['洗面', '口腔ケア', '更衣介助', '整容']), t('（'), ...pick(['爪', '耳', '髭', '髪', '化粧'], v.整容 || []), t('）')]);
+  row('移動', items('移動', ['体位変換', '移乗介助', '移動介助', '外出準備介助', '帰宅受入介助', '通院介助', '買物介助']));
+  row('起床・就寝', items('起床・就寝', ['起床介助', '就寝介助']));
+  row('服薬・医療', items('服薬・医療', ['服薬介助・確認', '薬の塗布', '点眼', '痰の吸引', '浣腸', '経管栄養', '院内介助', '見守り']));
+  row('自立支援', [t('共に行う：'), ...items('自立支援', ['掃除', '洗濯', 'ベッドメイク', '衣類の整理・被服の補修', '一般的な調理・配下膳', '買い物・薬の受け取り']), ...['声掛け・見守り', '排泄・食事', '清拭・入浴・身体整容', '通院・外出介助', '起床就寝介助', '服薬'].map(it => box(it, false, 1))]);
+  row('清掃', items('清掃', ['居室', 'トイレ', 'ポータブルトイレ', '卓上', '台所', '浴室', '玄関', 'ゴミ出し']));
+  row('洗濯', items('洗濯', ['洗濯', '乾燥（物干し）', '取入れ・収納', 'アイロン']));
+  row('衣類・寝具', items('衣類・寝具', ['ベッドメイク', 'シーツ・カバー交換', '布団干し', '衣類の整理', '被服の補修']));
+  row('調理', [...items('調理', ['調理', '下拵え', '配・下膳']), opt('献立', on('調理|調理') ? v.献立 : '')]);
+  row('買物等', [...items('買物等', ['日常品等の買物', '薬の受取り']), opt('預り', v.預り && v.預り + '円'), opt('購入', v.購入 && v.購入 + '円'), opt('お釣', v.お釣 && v.お釣 + '円'), opt('内訳', v.内訳)]);
+  row('特記事項', [t(String(r.text || '').replace(/\n/g, ''), { size: 19 })]);
   return new D.Table({ rows, width: { size: 8504, type: D.WidthType.DXA }, columnWidths: [1800, 6704] });
 }
 async function exportRecordsDocx() {
@@ -3572,7 +3597,7 @@ async function exportRecordsDocx() {
       const firstLine = kubun === '介護' ? `　　　　　　　${flat}　介護` : `　${flat}`;
       children.push(new D.Paragraph({ children: [run(head, true), ...(i === 0 ? [run(firstLine, true)] : [])] }));
       d.rows.forEach(r => {
-        children.push(new D.Paragraph({ children: [run(`【${recLabel(r)}】${docxTime(r)}　${docxKind(r)}`, true), run(String(r.text || '').replace(/\n/g, ''), false, true)] }));
+        children.push(new D.Paragraph({ children: [run(`【${recLabel(r)}】${docxTime(r)}　${docxKind(r)}`, true)] })); // 文章は表の一番下の「特記事項」に入れる（カイポケと同じ並び）
         children.push(docxCheckTable(D, r, FONT), new D.Paragraph({ children: [] }));
       });
       if (i < days.length - 1) children.push(new D.Paragraph({ children: [] }));
