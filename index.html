@@ -719,7 +719,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016155652';
+const APP_VER = '20261016160931';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -4132,9 +4132,64 @@ async function readSchedulePhoto(base, worker) {
   }
   return { name, readName, matched, days, count };
 }
+// 写真の台形のゆがみを直す（スキャナーアプリと同じ）：表の外枠（一番大きい四角）を見つけて、まっすぐな長方形に引き伸ばす
+// OpenCV の部品は then を持つので、async 関数からそのまま返すと終わらなくなる → { cv } に包んで返す
+async function loadCv() {
+  if (window.cv && window.cv.Mat) return { cv: window.cv };
+  paperMsg('📷 写真のゆがみを直す部品を読み込み中…（初回は少し時間がかかります）');
+  await loadScriptOnce('https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js');
+  await new Promise((ok, ng) => { const t0 = Date.now(); (function wait() { if (window.cv && window.cv.Mat) return ok(); if (Date.now() - t0 > 60000) return ng(new Error('部品の準備に時間がかかりすぎました')); setTimeout(wait, 200); })(); });
+  return { cv: window.cv };
+}
+async function flattenTable(src) {
+  const { cv } = await loadCv();
+  const S = Math.min(1, 1400 / Math.max(src.width, src.height)), sm = document.createElement('canvas');
+  sm.width = Math.round(src.width * S); sm.height = Math.round(src.height * S); sm.getContext('2d').drawImage(src, 0, 0, sm.width, sm.height);
+  const m = cv.imread(sm), g = new cv.Mat(), b = new cv.Mat(), cs = new cv.MatVector(), h = new cv.Mat();
+  let quad = null;
+  try {
+    cv.cvtColor(m, g, cv.COLOR_RGBA2GRAY); cv.GaussianBlur(g, g, new cv.Size(5, 5), 0);
+    cv.adaptiveThreshold(g, b, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY_INV, 25, 10);
+    const k = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3)); cv.dilate(b, b, k); k.delete();
+    cv.findContours(b, cs, h, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+    let best = 0;
+    for (let i = 0; i < cs.size(); i++) {
+      const c = cs.get(i), a = cv.contourArea(c);
+      if (a > best && a > sm.width * sm.height * 0.2) { const ap = new cv.Mat(); cv.approxPolyDP(c, ap, cv.arcLength(c, true) * 0.02, true);
+        if (ap.rows === 4) { best = a; quad = [...Array(4).keys()].map(j => ({ x: ap.data32S[j * 2] / S, y: ap.data32S[j * 2 + 1] / S })); } ap.delete(); }
+      c.delete();
+    }
+  } finally { m.delete(); g.delete(); b.delete(); cs.delete(); h.delete(); }
+  if (!quad) return null;
+  // 左上・右上・右下・左下の順に並べる
+  const sum = p => p.x + p.y, dif = p => p.x - p.y;
+  const tl = quad.reduce((a, p) => sum(p) < sum(a) ? p : a), br = quad.reduce((a, p) => sum(p) > sum(a) ? p : a), tr = quad.reduce((a, p) => dif(p) > dif(a) ? p : a), bl = quad.reduce((a, p) => dif(p) < dif(a) ? p : a);
+  const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y), W = Math.round(Math.max(dist(tl, tr), dist(bl, br))), H = Math.round(Math.max(dist(tl, bl), dist(tr, br)));
+  // 表のまわり（名前の行・下の事業所名）も残すため、四方に余白を付けて引き伸ばす（写真は縦横どちら向きでもよい）
+  const px = Math.round(W * 0.18), py = Math.round(H * 0.18);
+  const sIn = cv.imread(src), out = new cv.Mat();
+  const from = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]), to = cv.matFromArray(4, 1, cv.CV_32FC2, [px, py, px + W, py, px + W, py + H, px, py + H]);
+  const M = cv.getPerspectiveTransform(from, to);
+  cv.warpPerspective(sIn, out, M, new cv.Size(W + px * 2, H + py * 2), cv.INTER_CUBIC, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255, 255));
+  const c = document.createElement('canvas'); cv.imshow(c, out);
+  sIn.delete(); out.delete(); from.delete(); to.delete(); M.delete();
+  return c;
+}
 async function readSchedulePaper(file) {
   paperMsg('📄 PDFを画像に変換中…');
-  const base = await paperCanvas(file);
+  const base0 = await paperCanvas(file);
+  // 写真は「ゆがみを直した物」と「そのまま」の両方で読み、よく読めた方を使う（名前は読めた方から）
+  if ((/^image\//.test(file.type) || /\.(heic|heif|jpe?g|png|webp)$/i.test(file.name)) && !readSchedulePaper._inner) {
+    let flat = null; try { flat = await flattenTable(base0); } catch (e) { console.warn('flatten', e); }
+    const run = async c => { try { readSchedulePaper._inner = c; return await readSchedulePaper(file); } catch (e) { return null; } finally { readSchedulePaper._inner = null; } };
+    const a = await run(base0), b = flat ? await run(flat) : null;
+    const VOC = /起床|洗面|更衣|服薬|確認|買い物|洗濯|掃除|調理|入浴|眠前薬|準備|通院|介助|片付/;
+    const q = r => !r ? -1 : r.days.flatMap(d => ['upper', 'middle', 'lower'].flatMap(k => d[k] || [])).reduce((n, e) => n + (e.start ? 3 : 0) + String(e.detail || '').split(/\n/).filter(Boolean).reduce((m, x) => m + (VOC.test(x) ? 1 : -1), 0), 0);
+    const best = q(b) > q(a) ? b : a; if (!best) throw new Error('写真を読み取れませんでした。明るい所で真上から撮るか、「書類をスキャン」で撮ってください');
+    const other = best === a ? b : a; if (!best.name && other && other.name) Object.assign(best, { name: other.name, readName: other.readName, matched: other.matched });
+    return best;
+  }
+  const base = readSchedulePaper._inner || base0;
   // 向き: 横長の表なので、縦長ページなら90°回転。どちらの90°かは曜日の見出しで判定
   const tries = base.height > base.width ? [90, 270, 0, 180] : [0, 180, 90, 270];
   paperMsg('📄 文字読み取りの準備中…（初回は20秒ほどかかります）');
