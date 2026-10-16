@@ -719,7 +719,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016134320';
+const APP_VER = '20261016135106';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -2473,7 +2473,7 @@ const TOGETHER_KP = [
 // 老計第10号の区分に合わせて選ぶ（その行為の一連の流れに含まれる物は、別の項目にしない）
 function kpFromText(r) {
   const kp = kpOf(r), off = r.kpOff || [], name = (state.name || '').trim();
-  const sents = (r.text || '').split('。').filter(x => x && !/に続けて/.test(x)), t = sents.join('。');
+  const sents = (r.text || '').split('。').filter(x => x && !LINK_RE.test(x)), t = sents.join('。');
   const m = r.vin || {}, out = new Set(), src = {}, a = assessOf(name) || {};
   const det = (r.e.type || '') + ' ' + (r.e.detail || '');
   const base = autoKP(r.e), withAs = autoKPFor(r.e, name);
@@ -2771,7 +2771,7 @@ function dayCtx(row) {
   const cur = /入浴/.test(row.e.type || '') || kpOf(row).some(x => x.startsWith('入浴・清拭|')) ? '入浴の支援' : row.kind === '家事援助' ? '家事援助' : '支援';
   const link = (who, noHealth) => {
     if (!last || gap > 5) return '';  // 時間が連続しているときだけつなげる
-    return noHealth ? `${sum}に続けて、${cur}に入った。` : `${sum}に続けて、${who}の体調を確認した。`;
+    return noHealth ? pick([`${sum}に続けて、${cur}に入った。`, `${sum}を終え、そのまま${cur}に入った。`, `${sum}の後、続けて${cur}を行った。`]) : pick([`${sum}に続けて、${who}の体調を確認した。`, `${sum}を終え、続けて${who}の体調を確認した。`]);
   };
   // 前の訪問で食事を作っていて、間が空いた身体の訪問なら、食べられたか確認する
   const lastMeal = last && (kpOf(last).some(x => x.startsWith('調理|')) || /朝食|昼食|夕食/.test(last.e.detail || '')) && false ? mealOf(last) : '';
@@ -2865,7 +2865,7 @@ function genShogai(row) {
     const oral = has('身体整容|口腔ケア'), dentS = assessOf((state.name || '').trim())?.dentures;
     const washAH = /洗面|洗顔/.test(AH.care);  // 洗面と洗顔は同じ。アセスの文があれば重ねない
     if (washAH) {}
-    else if (has('身体整容|整容') || has('身体整容|洗面') || (has('起床・就寝|起床介助') && etc)) s.push(oral ? `洗面・${dentS ? '義歯の洗浄・' : ''}口腔ケアについても声掛けを行い、本人のペースで実施された。` : pickF(SG.wash));
+    else if (has('身体整容|整容') || has('身体整容|洗面') || (has('起床・就寝|起床介助') && etc)) s.push(oral ? pickF([`洗面・${dentS ? '義歯の洗浄・' : ''}口腔ケアについても声掛けを行い、本人のペースで実施された。`, `${dentS ? '義歯の洗浄と' : ''}歯磨き・洗面は声掛けで促し、本人に行っていただいた。`, `洗面と${dentS ? '義歯の洗浄・' : ''}口腔ケアは、本人ができる部分を見守りながら実施した。`, `声掛けにて洗面・${dentS ? '義歯の洗浄・' : ''}口腔ケアを促し、終わった後に仕上がりを確認した。`]) : pickF(SG.wash));
     else if (oral) s.push(dentS ? '義歯の洗浄・口腔ケアについて声掛けし、本人ができる部分は自身で行っていただいた。' : '口腔ケアについて声掛けし、本人のペースで実施された。');
     if (hasC('排泄') || /排泄|トイレ(?!の?(掃除|清掃))/.test(row.e.detail || '')) s.push(pickF(SG.toilet));
     if (isTogether(kp)) {
@@ -2933,7 +2933,7 @@ function genTokki(row) {
     if (!washAH && has('身体整容|口腔ケア')) acts.push(dent ? '義歯の洗浄・口腔ケア' : '口腔ケア');
     if (has('起床・就寝|就寝介助')) acts.push('就寝の準備');
     if (acts.length || !isTogether(kp)) s.push(K
-      ? (acts.length ? `ヘルパーが${acts.join('、')}を行った。` : 'ヘルパーが必要な身体介助を行った。')
+      ? (acts.length ? pickF([`ヘルパーが${acts.join('、')}を行った。`, `${acts.join('、')}の介助を行った。`, `${acts.join('・')}について、必要な部分をヘルパーが介助した。`, ...(acts.length > 1 ? [`${acts[0]}から${acts.slice(1).join('、')}まで、順に介助を行った。`] : [])]) : 'ヘルパーが必要な身体介助を行った。')
       : (acts.length ? `${acts.join('、')}は、利用者様ができる部分はご自身で行っていただき、難しい部分のみ支援した。` : '利用者様ができることはご自身で行っていただき、必要な部分のみ支援した。'));
     if (hasC('排泄')) s.push(K ? pickF(['排泄後は清潔保持を行い、身だしなみを整えた。', 'トイレへの移動時は転倒に注意し、必要な部分を支えながら介助した。', '排泄後の陰部の清潔を確認し、衣類を整えた。', 'トイレまでの移動は足元に注意しながら付き添った。', '排泄の状態を確認し、後始末まで行った。'])
                                : pickF(['トイレまでの移動は見守り、必要な場面のみ介助した。', '排泄はご自身で行っていただき、後始末を声掛けで確認した。']));
@@ -2946,7 +2946,7 @@ function genTokki(row) {
       s.push(pickF([`${what}は利用者様と一緒に行い、できるところはご自身で取り組んでいただいた。`, `${what}の手順を声掛けで確認しながら、利用者様と一緒に行った。`]));
     }
     if (!mealFirst && (/生活|家事/.test(row.e.type || '') || ['調理', '清掃', '洗濯', '買物等'].some(hasC))) {
-      if (/朝食|昼食|夕食|提供|準備/.test(row.e.detail || '') || hasC('調理')) { const mn = menuFor(row, meal); s.push(K ? `${meal}${mn ? `（${mn}）` : ''}の準備・配膳を行った。` : `${meal}${mn ? `（${mn}）` : ''}の準備は手順を声掛けしながら一緒に行った。`); }
+      if (/朝食|昼食|夕食|提供|準備/.test(row.e.detail || '') || hasC('調理')) { const mn = menuFor(row, meal), mt = mn ? `（${mn}）` : ''; s.push(K ? pickF([`${meal}${mt}の準備・配膳を行った。`, `${meal}${mt}を用意し、配膳した。`, `${meal}${mt}を準備し、食べやすいよう配膳した。`]) : `${meal}${mn ? `（${mn}）` : ''}の準備は手順を声掛けしながら一緒に行った。`); }
       else s.push(K ? pickF(['生活に必要な準備を行い、室内を整えた。', '過ごしやすいよう生活環境を整えた。']) : '身の回りの整理は、利用者様と一緒に行った。');
     }
   }
@@ -3027,7 +3027,7 @@ async function buildRecords() {
       entries.forEach(e => { if (e.note && !includeNote) return; plan.push({ e: { ...e }, staff, on: !e.note, flag: e.note || '' }); });
     }
     plan.sort((a, b) => (a.e.start || '').localeCompare(b.e.start || '')); // 時間順に作る（前の予定とのつながり用）
-    for (const p of plan) {
+    for (const p of [...plan].sort((a, b) => (entryTime(a.e).s || '').localeCompare(entryTime(b.e).s || ''))) { // 時刻の順に作る（前の訪問とのつながりのため）
       const row = { date: new Date(d), e: p.e, kind: kindOf(p.e.type), staff: p.staff || (p.fromShift ? '' : staff), on: p.on, flag: p.flag };
       if (p.fromShift) { row.staffFromShift = true; row.staffEdited = true; }
       row.kp = autoKPFor(row.e, name);
@@ -3035,6 +3035,8 @@ async function buildRecords() {
       recRows.push(row);
     }
   }
+  // 次の訪問が続けて始まるときは、最後に「続けて〇〇に移った。」（全部の行ができてから）
+  recRows.filter(r => r.on && r.text).forEach(r => { r.text = nextLink(r, r.text); });
   // 出力しない行（シフトに無い予定）は文章を作っておく（チェックを入れたら使えるように）
   recRows.filter(r => !r.on && !r.text).forEach(r => { r.text = uniqueText(r, recRows.filter(x => x.on)); });
   recRows.sort((a, b) => (b.date - a.date) || ((b.e.start || '') > (a.e.start || '') ? 1 : -1));
@@ -3264,11 +3266,12 @@ const ACT_MIN = [
   ['衣類', /衣類を整理|衣類の整理|たたん|畳ん/, 5, /衣類|洗濯|整理/], ['排泄', /排泄介助|トイレへの移動|排泄を/, 8, /排泄|トイレ/],
   ['起床', /起床を促し|起き上がり|起床の/, 5, /起床/], ['更衣', /更衣|着替/, 5, /.*/], ['洗面', /洗面|口腔|歯磨/, 5, /.*/], ['服薬', /服薬|薬を|薬の|飲み忘れ/, 3, /.*/],
 ];
+// 前後の訪問とのつなぎの文（〜に続けて／〜に移った）は作業として数えない
 function fitTime(row, t) {
   const tm = entryTime(row.e); if (!tm.s || !tm.e) return t;
   const dur = hm(tm.e) - hm(tm.s); if (!(dur > 0)) return t;
   const det = (row.e.type || '') + ' ' + (row.e.detail || '');
-  let sents = String(t).split('。').filter(Boolean).map(x => { const a = ACT_MIN.find(([, re]) => re.test(x)); return { x, k: a ? a[0] : '', min: a ? a[2] : 0, need: a ? a[3].test(det) : true }; });
+  let sents = String(t).split('。').filter(Boolean).map(x => { const a = LINK_RE.test(x) ? null : ACT_MIN.find(([, re]) => re.test(x)); return { x, k: a ? a[0] : '', min: a ? a[2] : 0, need: a ? a[3].test(det) : true }; });
   // 短い訪問で食事を待つ時間は無いので「食後に」は「調理後に」
   if (dur <= 45) sents.forEach(o => { o.x = o.x.replace(/食後に使用した食器類/, '調理に使用した器具や食器').replace(/^食後に/, '調理後に'); });
   const seen = new Set(), total = () => { const bath = sents.some(o => o.k === '入浴'); return sents.reduce((n, o) => { if (!o.k || seen.has(o.k) || (bath && /更衣|洗面/.test(o.k))) return n; seen.add(o.k); return n + o.min; }, 0); }; // 入浴中の着替えは入浴の時間に含む
@@ -3282,6 +3285,17 @@ function mnText(row, t) {
   return String(t).replace(/(され|行い|し)?、終了後(に|の)?身だしなみを(一緒に)?確認した/g, (m, v) => ({ され: 'された', 行い: '行った', し: 'した' })[v] || '').replace(/排泄後は清潔保持を行い、身だしなみを整えた。/g, '排泄後は清潔保持を行った。')
     .replace(/[、・]整容(?=[、・を])/g, '').replace(/整容[、・]/g, '').replace(/[^。]*(整容|身だしなみ)[^。]*。/g, '');
 }
+const LINK_RE = /に続けて|を終え、(そのまま|続けて)|の後、続けて|に移った|引き続き[^。]*を行った/; // 前後の訪問とのつなぎの文
+// 次の訪問とのつながり：次の訪問が続けて（5分以内に）始まるときは、最後に「続けて〇〇の支援に移った。」と書く
+function nextLink(row, t) {
+  const k = ymd(row.date), toMin = x => { const m = String(x || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
+  const end = toMin(entryTime(row.e).e); if (end == null) return t;
+  const nx = recRows.filter(r => r !== row && r.on !== false && ymd(r.date) === k && toMin(entryTime(r.e).s) != null && toMin(entryTime(r.e).s) >= end && toMin(entryTime(r.e).s) - end <= 5)
+    .sort((a, b) => toMin(entryTime(a.e).s) - toMin(entryTime(b.e).s))[0];
+  if (!nx) return t;
+  const core = (prevSum(nx) || '').split('・')[0], what = /入浴/.test(nx.e.type || '') || /入浴/.test(core) ? '入浴の支援' : nx.kind === '家事援助' ? `${core ? core + 'の' : ''}家事援助` : `${core || '次'}の支援`;
+  return String(t).replace(/(続けて|この後、)[^。]*に移った。$|引き続き[^。]*を行った。$/, '') + pick([`続けて${what}に移った。`, `この後、${what}に移った。`]);
+}
 function uniqueText(row, others) {
   const used = new Set(others.map(r => normText(r.text)));
   let t = composeText(row);
@@ -3290,7 +3304,7 @@ function uniqueText(row, others) {
     const bank = document.querySelector('input[name=recStyle]:checked').value === 'short' ? SHORT : PB;
     for (const c of [...bank.締め].sort(() => Math.random() - .5)) { if (c && !used.has(normText(t + c))) { t += c; break; } }
   }
-  t = fitTime(row, mnText(row, withVin(row, t))); const keep = row.text; row.text = t; kpFromText(row); row.text = keep;
+  t = nextLink(row, fitTime(row, mnText(row, withVin(row, t)))); const keep = row.text; row.text = t; kpFromText(row); row.text = keep;
   return t;
 }
 function dupGroups() {
