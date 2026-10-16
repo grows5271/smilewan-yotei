@@ -719,7 +719,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016140954';
+const APP_VER = '20261016141753';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -3297,6 +3297,24 @@ function nextLink(row, t) {
   const core = (prevSum(nx) || '').split('・')[0], what = /入浴/.test(nx.e.type || '') || /入浴/.test(core) ? '入浴の支援' : nx.kind === '家事援助' ? `${core ? core + 'の' : ''}家事援助` : `${core || '次'}の支援`;
   return String(t).replace(/(続けて|この後、)[^。]*に移った。$|引き続き[^。]*を行った。$/, '') + pick([`続けて${what}に移った。`, `この後、${what}に移った。`]);
 }
+// 文章とチェックの矛盾をなくす：決まりで付けない項目（水分補給・取入れ・身体介護の家事・入浴の洗濯や清掃・家事の訪問の服薬など）や
+// 手で外した項目を書いている文は外す（文章に書いた支援は必ずチェック、の決まりと食い違わないように）
+function consistText(row, t) {
+  // その文の言葉が直接指している項目だけを見る（関連で付く物は見ない）
+  const badItems = x => TEXT_KP.filter(([re]) => re.test(x)).map(([, k]) => k)
+    .filter(k => (row.kpOff || []).includes(k) || !kpAll({ ...row, kp: [k], kpText: [], kpOff: [] }).length);
+  const endFix = c => c.replace(/(行|洗|払|拭|使)い$/, '$1った').replace(/([^し])し$/, '$1した').replace(/して$/, 'した').replace(/(え|け|べ|め|せ|れ)$/, '$1た').replace(/(取|切|守|配)り$/, '$1った');
+  const out = [];
+  String(t).split('。').filter(Boolean).forEach(x => {
+    if (LINK_RE.test(x) || !badItems(x).length) { out.push(x); return; }
+    const cl = x.split('、'), keep = cl.filter(c => !badItems(c).length); // 文の中の「、」で区切った部分ごとに外す
+    if (!keep.length || keep.length === cl.length) return; // 全部だめ・分けられないときは文ごと外す
+    const topic = (cl[0].match(/^[^、]{1,6}?は/) || [])[0]; if (topic && keep[0] !== cl[0] && !/は/.test(keep[0])) keep[0] = topic + keep[0]; // 「入浴後は」などの書き出しは残す
+    let y = keep.join('、'); if (keep[keep.length - 1] !== cl[cl.length - 1]) y = y.replace(/[^、]+$/, endFix);
+    if (!badItems(y).length) out.push(y);
+  });
+  return (out.length ? out : String(t).split('。').filter(Boolean).slice(0, 1)).join('。') + '。';
+}
 function uniqueText(row, others) {
   const used = new Set(others.map(r => normText(r.text)));
   let t = composeText(row);
@@ -3305,7 +3323,7 @@ function uniqueText(row, others) {
     const bank = document.querySelector('input[name=recStyle]:checked').value === 'short' ? SHORT : PB;
     for (const c of [...bank.締め].sort(() => Math.random() - .5)) { if (c && !used.has(normText(t + c))) { t += c; break; } }
   }
-  t = nextLink(row, fitTime(row, mnText(row, withVin(row, t)))); const keep = row.text; row.text = t; kpFromText(row); row.text = keep;
+  t = nextLink(row, consistText(row, fitTime(row, mnText(row, withVin(row, t))))); const keep = row.text; row.text = t; kpFromText(row); row.text = keep;
   return t;
 }
 function dupGroups() {
