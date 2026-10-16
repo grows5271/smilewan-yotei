@@ -1613,7 +1613,7 @@ function procKP(p, tog) {
   const out = new Map(), body = !/家事/.test(p.type || ''), add = (k, why) => { if (!out.has(k)) out.set(k, why); };
   const bath = p.steps.some(s => /全身浴|入浴|浴/.test(s.label + s.text));
   p.steps.forEach(s => {
-    const why = `業務手順書から（サービス${p.no}：${s.label || '手順'}「${(s.text || '').slice(0, 30)}」）`, txt = s.label + '。' + s.text;
+    const why = `業務手順書から（サービス${p.no}：${s.label || '手順'}「${(s.text || '').slice(0, 30)}」）`, txt = (s.label + '。' + s.text).replace(/[－‐−―]/g, 'ー');
     const selfEat = s.label.replace(/\s/g, '') === '食事介助' && !/摂食|食事(の)?介助を|口(元)?(まで|に)運|食べさせ|全介助|一部介助/.test(s.text); // 「食事していただく」＝本人が食べる
     (PROC_LABEL[s.label.replace(/\s/g, '')] || []).forEach(k => { if (!(selfEat && k === '食事|摂食介助')) add(k, why); });
     if (selfEat && body) add('自立支援|排泄・食事', why);
@@ -1623,6 +1623,7 @@ function procKP(p, tog) {
     if (/片付|片づけ|整理/.test(txt) && !bath) add('清掃|居室', why);
     if (/見守|声掛け|声かけ|促し/.test(s.text) && body) { add('自立支援|声掛け・見守り', why); if (bath) add('自立支援|清拭・入浴・身体整容', why); }
   });
+  out.delete('衣類・寝具|シーツ・カバー交換'); // シーツ交換は曜日を見て kpFromText で付ける
   // 通院の手順は移動・院内・薬の受け取りだけ（帰宅後のうがい・片付けは口腔ケアや掃除にしない）
   if (/通院/.test(p.type || '')) [...out.keys()].forEach(k => { if (!/^(移動\||服薬・医療\|(院内介助|服薬介助・確認)|自立支援\|(声掛け・見守り|通院・外出介助)|買物等\|薬の受取り)/.test(k)) out.delete(k); });
   // 共に行う訪問の家事は自立支援（共に行う）に。それ以外は普通の家事の欄
@@ -2485,6 +2486,10 @@ function kpFromText(r) {
   // 清掃：その訪問で使った場所を掃除する（食事→台所・卓上、入浴→浴室、トイレ→トイレ、ポータブルトイレ→ポータブルトイレ）
   const used = [[meal, '清掃|台所', '食事で使った台所'], [meal, '清掃|卓上', '食事で使った卓上'], [has('排泄|トイレ介助') || /トイレ/.test(r.e.detail || ''), '清掃|トイレ', '使ったトイレ'], [has('排泄|ポータブルトイレ介助'), '清掃|ポータブルトイレ', '使ったポータブルトイレ']].filter(x => x[0]);
   used.forEach(([, k, w]) => add(k, `関連（${w}を掃除）`));
+  // 業務手順書のシーツ交換（「月曜は」「毎週火曜日は」とあればその曜日だけ）
+  if (proc) proc.steps.forEach(st => { const x = (st.label + '。' + st.text).replace(/[－‐−―]/g, 'ー'); if (!/シーツ/.test(x) || !/交換/.test(x)) return;
+    const w = [...x.matchAll(/([日月火水木金土])曜/g)].map(m => '日月火水木金土'.indexOf(m[1]));
+    if (!w.length || w.includes(r.date.getDay())) add('衣類・寝具|シーツ・カバー交換', `業務手順書から（サービス${proc.no}：${(st.text || '').slice(0, 30)}）`); });
   if (bath) add('身体整容|更衣介助', '関連（入浴の着脱）');
   // ④ 見守り的援助（1-6）：声かけ・見守り中心で支援した場面ごとに小項目（介護・障害とも）
   // 見守り的援助＝本人が自分で行うのを、見守り・声かけで支えた文（「声掛けをしてから介助した」のような介助前の声かけは含めない）
