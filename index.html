@@ -717,7 +717,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016115954';
+const APP_VER = '20261016120043';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -3239,8 +3239,8 @@ const ACT_MIN = [
   ['買物', /買い物代行|購入し|買い物を/, 30, /買い物|買物|代行/], ['入浴', /入浴介助|洗身|浴槽内|入浴中|湯船/, 30, /入浴|シャワー/], ['通院', /通院|受診|病院/, 60, /通院/],
   ['調理', /調理を行|調理・配膳|準備を実施|を調理し|の調理/, 20, /調理|食事|朝食|昼食|夕食|準備|提供/], ['配膳', /配膳/, 3, /調理|食事|朝食|昼食|夕食|準備|提供|配膳/],
   ['食器', /食器|洗い物|調理器具/, 5, /調理|食事|朝食|昼食|夕食|準備|提供|片付/],
-  ['居室', /室内の清掃|生活スペース|掃除機|床面|居室|清掃・整理/, 10, /掃除|清掃|居室/], ['トイレ掃除', /トイレの清掃|便器/, 8, /トイレ|掃除/], ['浴室掃除', /浴室の清掃|浴槽や床/, 10, /風呂|浴室|入浴後/],
-  ['台所掃除', /台所の清掃|シンクや/, 5, /台所|片付|調理|食事|朝食|昼食|夕食|準備/], ['洗濯', /洗濯を行|洗濯機|洗濯物を確認/, 10, /洗濯/], ['干す', /干し|干す|干した/, 8, /洗濯|干/],
+  ['居室', /室内の(清掃|掃除)|生活スペース|掃除機|床面|居室|清掃・整理|部屋の(掃除|清掃)/, 10, /掃除|清掃|居室/], ['トイレ掃除', /トイレの(清掃|掃除)|便器/, 8, /トイレ|掃除/], ['浴室掃除', /浴室の(清掃|掃除)|浴槽や床|お風呂の(掃除|清掃)/, 10, /風呂|浴室|入浴後/],
+  ['台所掃除', /台所の(清掃|掃除)|シンクや/, 5, /台所|片付|調理|食事|朝食|昼食|夕食|準備/], ['洗濯', /洗濯を行|洗濯機|洗濯物を確認/, 10, /洗濯/], ['干す', /干し|干す|干した/, 8, /洗濯|干/],
   ['衣類', /衣類を整理|衣類の整理|たたん|畳ん/, 5, /衣類|洗濯|整理/], ['排泄', /排泄介助|トイレへの移動|排泄を/, 8, /排泄|トイレ/],
   ['起床', /起床を促し|起き上がり|起床の/, 5, /起床/], ['更衣', /更衣|着替/, 5, /.*/], ['洗面', /洗面|口腔|歯磨/, 5, /.*/], ['服薬', /服薬|薬を|薬の|飲み忘れ/, 3, /.*/],
 ];
@@ -3254,7 +3254,7 @@ function fitTime(row, t) {
   const seen = new Set(), total = () => { const bath = sents.some(o => o.k === '入浴'); return sents.reduce((n, o) => { if (!o.k || seen.has(o.k) || (bath && /更衣|洗面/.test(o.k))) return n; seen.add(o.k); return n + o.min; }, 0); }; // 入浴中の着替えは入浴の時間に含む
   const sum = () => { seen.clear(); return total(); };
   const REL = { 居室: /部屋|きれい|片付いた/, 洗濯: /洗濯物|洗濯/, 干す: /洗濯物/, 調理: /おいし|ご飯|食事/, 買物: /買い物|買って/, 入浴: /お風呂|さっぱり/, 浴室掃除: /お風呂/, トイレ掃除: /トイレ/ };
-  while (sum() > dur + 5) { const drop = sents.filter(o => o.k && !o.need).sort((a, b) => b.min - a.min)[0]; if (!drop) break; sents = sents.filter(o => o.k !== drop.k && !(!o.k && REL[drop.k] && REL[drop.k].test(o.x))); } // 外した作業の話（「部屋がきれい…」など）も外す
+  while (sum() > dur) { const drop = sents.filter(o => o.k && !o.need).sort((a, b) => b.min - a.min)[0]; if (!drop) break; sents = sents.filter(o => o.k !== drop.k && !(!o.k && REL[drop.k] && REL[drop.k].test(o.x))); } // 外した作業の話（「部屋がきれい…」など）も外す
   return sents.map(o => o.x).join('。') + '。';
 }
 function mnText(row, t) {
