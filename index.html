@@ -573,7 +573,7 @@
         <tr><td>④</td><td>文章</td><td>文章に書いた支援は必ずチェック（全72項目の言い回し）。「〜に続けて」の文（前の訪問のこと）は読まない</td></tr>
         <tr><td>⑤</td><td>記録欄</td><td>水分cc→水分補給、摂食・部分浴・清拭・整容・排尿排便の欄</td></tr>
         <tr><td>⑥</td><td>事業所の決まり</td><td>
-          ・<b>朝・夜の身体介護</b>（11時前／18時以降／内容に起床・就寝・朝。入浴・通院・家事は除く）→ 洗面・口腔ケア・更衣介助をセット、<b>整容は付けない</b><br>
+          ・<b>朝・夜の身体介護</b>（11時前／18時以降／内容に起床・就寝・朝。入浴・通院・家事は除く）→ 洗面・口腔ケア・更衣介助をセット、<b>朝は起床介助も</b>、<b>整容は付けない</b>（「共に」の訪問は除く）<br>
           ・<b>介護のトイレ介助</b> → おむつ交換・パッド交換（→陰部清潔介助）<br>
           ・<b>入浴・シャワー</b> → 更衣介助も付ける（シャワーだけの日は入浴介助にしない）。<b>清掃と移動介助は付けない</b><br>
           ・<b>使った場所の清掃</b>：食事→台所・卓上／トイレ→トイレ／ポータブルトイレ→ポータブルトイレ<br>
@@ -1633,10 +1633,12 @@ function procKP(p, tog) {
 const MN_SET = ['身体整容|洗面', '身体整容|口腔ケア', '身体整容|更衣介助'];
 function mnBody(e) {
   const t = (e.type || '') + ' ' + (e.detail || ''), h = parseInt(entryTime(e).s || '12', 10);
-  if (kindOf(e.type || '') === '家事援助' || /入浴|シャワー|清拭|通院/.test(t)) return false;
+  if (kindOf(e.type || '') === '家事援助' || /入浴|シャワー|清拭|通院/.test(t) || visTogether(e)) return false; // 共に行う家事の訪問も除く
   return h < 11 || h >= 18 || /起床|就寝|朝/.test(e.detail || '');
 }
-function mnFix(kp, e) { if (!mnBody(e)) return kp; return [...new Set([...kp.filter(k => k !== '身体整容|整容'), ...MN_SET])]; }
+const mnMorning = e => parseInt(entryTime(e).s || '12', 10) < 11 || /起床|朝/.test(e.detail || '');
+// 朝の身体介護は起床介助も付ける（事業所の決まり）
+function mnFix(kp, e) { if (!mnBody(e)) return kp; return [...new Set([...kp.filter(k => k !== '身体整容|整容'), ...MN_SET, ...(mnMorning(e) ? ['起床・就寝|起床介助'] : [])])]; }
 function autoKPFor(e, name) { return kpFinal(mnFix(autoKPFor0(e, name), e), e); }
 // どの決まりで付いても最後にそろえる：家事の訪問に身体の項目は付けない／入浴は更衣介助も／服薬の見守りは「服薬・医療：見守り」に一本化
 const NO_KP = '自立支援|声掛け・見守り';
@@ -2441,7 +2443,7 @@ function kpFromText(r) {
   const det = (r.e.type || '') + ' ' + (r.e.detail || '');
   const base = autoKP(r.e), withAs = autoKPFor(r.e, name);
   const proc = procedureFor(r.e, name), pk = proc ? procKP(proc, visTogether(r.e)) : new Map();
-  kp.forEach(k => { src[k] = pk.has(k) ? pk.get(k) : base.includes(k) ? (proc ? '予定表から（業務手順書に無い）' : '予定表から') : (MN_SET.includes(k) && mnBody(r.e)) ? '朝・夜の身体介護（洗面・口腔ケア・更衣介助はセット）' : withAs.includes(k) ? 'アセスメントから' : '手で選択'; });
+  kp.forEach(k => { src[k] = pk.has(k) ? pk.get(k) : base.includes(k) ? (proc ? '予定表から（業務手順書に無い）' : '予定表から') : ((MN_SET.includes(k) || k === '起床・就寝|起床介助') && mnBody(r.e)) ? '朝・夜の身体介護（洗面・口腔ケア・更衣介助はセット、朝は起床介助も）' : withAs.includes(k) ? 'アセスメントから' : '手で選択'; });
   if (kp.includes('服薬・医療|見守り') && src['服薬・医療|見守り'] === 'アセスメントから') src['服薬・医療|見守り'] = `アセスメントから（服用支援：${medWatchNote(a)}）`;
   const mn = mnBody(r.e);
   const add = (k, why) => { if ((mn && k === '身体整容|整容') || k === NO_KP) return; if (!kp.includes(k) && !off.includes(k) && !out.has(k)) { out.add(k); src[k] = why; } };
