@@ -405,6 +405,7 @@
       <div id="paperStatus" class="hint" style="display:none"></div>
       <label>利用者（保存済みから選択）</label>
       <select id="recUser" onchange="loadSaved(this.value)"></select>
+      <div id="recAsWarn" class="hint" style="display:none;color:var(--danger);font-weight:bold"></div>
       <label>📚 保存した訪問記録（この利用者）</label>
       <div class="row"><select id="recSavedMonth"><option value="">（保存した記録はありません）</option></select><button class="small fixed" onclick="openSavedRecords()">開く</button></div>
       <label>期間</label>
@@ -717,7 +718,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016120043';
+const APP_VER = '20261016122325';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1906,10 +1907,20 @@ function refreshRecUsers() {
   const f = kubunFilter();
   const names = Object.keys(getStore()).filter(n => !f || kubunOf(n) === f || n === (state.name || '').trim()).sort((a, b) => a.localeCompare(b, 'ja'));
   const cur = (state.name || '').trim();
-  const opts = names.map(n => `<option value="${esc(n)}" ${n === cur ? 'selected' : ''}>［${kubunOf(n)}］${esc(n)}</option>`);
+  const opts = names.map(n => `<option value="${esc(n)}" ${n === cur ? 'selected' : ''}>［${kubunOf(n)}］${esc(n)}${assessOf(n) ? '' : '　⚠アセスなし'}</option>`);
   if (cur && !names.includes(cur)) opts.unshift(`<option value="" selected>${esc(cur)}（未保存）</option>`);
   if (!opts.length) opts.push('<option value="">（予定表を保存すると選べます）</option>');
   sel.innerHTML = opts.join('');
+  showAsWarn();
+}
+// アセスメントが入っていない利用者を知らせる（チェックが予定表の言葉だけになるため）
+function showAsWarn() {
+  const el = document.getElementById('recAsWarn'); if (!el) return;
+  const cur = (state.name || '').trim(), missing = Object.keys(getStore()).filter(n => !assessOf(n)).sort((a, b) => a.localeCompare(b, 'ja'));
+  const msg = [];
+  if (cur && !assessOf(cur)) msg.push(`⚠ ${cur} さんはアセスメントが入っていません${proceduresOf(cur).length ? '' : '（業務手順書もありません）'}。チェックは予定表の言葉だけで付きます。予定表の画面の「📇 利用者情報」からアセスメントを取り込んでください。`);
+  if (missing.length) msg.push(`アセスメントが無い人（${missing.length}人）：${missing.join('、')}`);
+  el.innerHTML = msg.map(esc).join('<br>'); el.style.display = msg.length ? '' : 'none';
 }
 
 // ---- 文例バンク（ここに文を足すと言い回しが増えます） ----
@@ -3307,6 +3318,7 @@ function renderCheckList(v) {
     }).join('');
 }
 function renderRecordView() {
+  try { showAsWarn(); } catch {}
   renderRecSteps();
   document.getElementById('statePop').style.display = 'none';
   const v = document.getElementById('recordView');
