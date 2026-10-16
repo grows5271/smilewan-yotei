@@ -719,7 +719,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016153812';
+const APP_VER = '20261016154403';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -4068,6 +4068,58 @@ function parseColumn(lines, exact = false) {
   });
   return list.map(e => ({ ...e, detail: e.detail.join('\n'), type: e.type || guessType(e.detail.join(''), e.start) }));
 }
+// 写真の小さな傾きを直す：-8°〜8°で回してみて、横方向の黒の並びが一番くっきりする角度にする
+function deskew(src) {
+  const S = Math.min(1, 900 / src.width), w = Math.round(src.width * S), h = Math.round(src.height * S);
+  const sm = document.createElement('canvas'); sm.width = w; sm.height = h; const sx = sm.getContext('2d'); sx.fillStyle = '#fff'; sx.fillRect(0, 0, w, h); sx.drawImage(src, 0, 0, w, h);
+  const d = sx.getImageData(0, 0, w, h).data, pts = []; let sum = 0;
+  for (let i = 0; i < w * h; i++) sum += d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11;
+  const th = (sum / (w * h)) * 0.75;
+  for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) { const i = (y * w + x) * 4; if (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11 < th) pts.push([x - w / 2, y - h / 2]); }
+  let best = 0, bv = -1;
+  for (let a = -8; a <= 8; a += 0.5) { const r = a * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r), bins = new Float64Array(h * 2);
+    pts.forEach(([x, y]) => { const yy = Math.round(-x * sn + y * cs + h); if (yy >= 0 && yy < bins.length) bins[yy]++; });
+    let m = 0, v = 0; bins.forEach(b => { m += b; }); m /= bins.length; bins.forEach(b => { v += (b - m) * (b - m); }); if (v > bv) { bv = v; best = a; } }
+  if (Math.abs(best) < 0.4) return src;
+  const r = best * Math.PI / 180, c = document.createElement('canvas'); c.width = src.width; c.height = src.height; const x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.translate(c.width / 2, c.height / 2); x.rotate(-r); x.drawImage(src, -src.width / 2, -src.height / 2); return c;
+}
+// スマホで撮った写真など、表の枠線がまっすぐ取れないとき：ページ全体の文字を読み、曜日の見出しの位置で列に分けて読む
+async function readSchedulePhoto(base, worker) {
+  const DAYC = '日月火水木金土';
+  let best = null;
+  for (const deg of base.height > base.width ? [270, 90, 0, 180] : [0, 180, 270, 90]) {
+    paperMsg(`📷 写真の向きを確かめています…（${deg}°）`);
+    const c = ocrPrep(deskew(rotateCanvas(base, deg))), ws = await worker.words(c);
+    const heads = ws.filter(w => w.s.length === 1 && DAYC.includes(w.s) && w.y < c.height * 0.45);
+    // 同じ高さに並んだ曜日の見出しを探す
+    let grp = [];
+    heads.forEach(h => { const g = heads.filter(o => Math.abs(o.y - h.y) < c.height * 0.06); const uniq = [...new Set(g.map(o => o.s))]; if (uniq.length > new Set(grp.map(o => o.s)).size) grp = g; });
+    const score = new Set(grp.map(o => o.s)).size;
+    if (!best || score > best.score) best = { c, ws, grp, score };
+    if (score >= 5) break;
+  }
+  if (!best || best.score < 2) throw new Error('曜日の見出しを読み取れませんでした。明るい所で、表全体が入るように真上から撮ってください');
+  const { c, ws, grp } = best;
+  // 曜日ごとの列の中心（読めなかった曜日は前後から推定）
+  const cx = [...DAYC].map(ch => { const h = grp.find(o => o.s === ch); return h ? h.x + c.width * 0.01 : null; });
+  for (let k = 0; k < 7; k++) if (cx[k] == null) { const l = [...Array(7).keys()].filter(i => cx[i] != null); const a = l.filter(i => i < k).pop(), b = l.find(i => i > k);
+    cx[k] = a != null && b != null ? cx[a] + (cx[b] - cx[a]) * (k - a) / (b - a) : a != null ? cx[a] + (cx[a] - cx[l[l.length - 2] ?? a] || c.width / 8) * (k - a) : cx[b] - (cx[l[1]] - cx[b] || c.width / 8) * (b - k); }
+  const hy = grp.reduce((n, o) => n + o.y, 0) / grp.length, colOf = x => { let k = 0, d = 1e9; cx.forEach((v, i) => { if (Math.abs(x - v) < d) { d = Math.abs(x - v); k = i; } }); return k; };
+  // 利用者名（見出しより上の文字）
+  const title = ws.filter(w => w.y < hy - c.height * 0.03).sort((a, b) => (a.y - b.y) || (a.x - b.x)).map(w => w.s).join('');
+  const raw = (title.split(/予定表|定表/).pop() || title).split(/様|㏌|襟|桜/)[0].replace(/[()（）「」\[\]{}|｜_・.,:;'"`~ー\-]/g, '').trim();
+  const { name, readName, matched } = matchUserName(raw);
+  const days = DAYS.map(emptyDay); let count = 0;
+  const body = ws.filter(w => w.y > hy + c.height * 0.01), lh = c.height * 0.012;
+  for (let k = 0; k < 7; k++) {
+    const cw = body.filter(w => colOf(w.x + c.width * 0.01) === k).sort((a, b) => a.y - b.y), lines = [];
+    cw.forEach(w => { const l = lines.find(l => Math.abs(l.y - w.y) < lh); if (l) l.ws.push(w); else lines.push({ y: w.y, ws: [w] }); });
+    const L = lines.map(l => ({ y: l.y, t: l.ws.sort((a, b) => a.x - b.x).map(w => w.s).join('') })).sort((a, b) => a.y - b.y);
+    parseColumn(L).forEach(e => { days[k][blockByTime(e.start)].push({ ...emptyEntry(), type: e.type, start: e.start, end: e.end, detail: e.detail, note: e.note }); count++; });
+  }
+  return { name, readName, matched, days, count };
+}
 async function readSchedulePaper(file) {
   paperMsg('📄 PDFを画像に変換中…');
   const base = await paperCanvas(file);
@@ -4084,7 +4136,7 @@ async function readSchedulePaper(file) {
     if (!pick || score > pick.score) pick = { c, g, score };
     if (score >= 4) break;
   }
-  if (!pick) throw new Error('表の枠線を見つけられませんでした。スキャナーでまっすぐ読み込んだPDFを使ってください');
+  if (!pick || pick.score < 3) return await readSchedulePhoto(base, worker); // 枠線が取れない写真は文字の位置で読む
   const { c, g } = pick, V = g.V, Hs = g.Hs;
   // 見出し(曜日)・時間の行の下から読み取る。上段/下段の境目は幅いっぱいの横線
   const top = Hs.length >= 4 ? Hs[2] : Hs[1], bottom = Hs[Hs.length - 1];
