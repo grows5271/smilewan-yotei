@@ -352,7 +352,7 @@
       <label>アセスメント（記録の文章・様子・NG・実施項目の判断に使います）</label>
       <div class="hint" id="assessSummary" style="margin:0 0 4px">まだ取り込んでいません</div>
       <button class="small" onclick="document.getElementById('assessFile').click()">📋 アセスメント・計画書取込（PDF・写真・複数可）</button>
-      <input type="file" id="assessFile" accept="application/pdf,image/*" multiple style="display:none" onchange="importAssessment(this)">
+      <input type="file" id="assessFile" accept="application/pdf,image/*,.heic,.heif" multiple style="display:none" onchange="importAssessment(this)">
       <label>🍱 献立・買い物リスト</label>
       <button class="small" onclick="setMode('shop')">🛒 買い物タブで見る・作る</button>
       <div class="row" style="margin-top:6px"><button class="small primary fixed" onclick="saveClientInfo()">💾 利用者情報を保存</button><span class="hint" style="margin:0">手で直した内容は、CSVを取り込み直しても消えません。</span></div>
@@ -719,7 +719,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016153503';
+const APP_VER = '20261016153812';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1525,7 +1525,7 @@ function ocrPrep(src) {
 // 写真・スキャンの計画書／アセスメント：画面内の文字読み取り（Tesseract）で、PDFの文字データと同じ形（x・y・文字）にする
 async function ocrPages(file) {
   const canvases = [];
-  if (file.type.startsWith('image/')) canvases.push(await paperCanvas(file));
+  if (/^image\//.test(file.type) || /\.(heic|heif|jpe?g|png|webp)$/i.test(file.name)) canvases.push(await paperCanvas(file));
   else {
     await loadLib('pdfIn'); pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
@@ -1554,11 +1554,15 @@ async function ocrPages(file) {
 async function importAssessment(input, opt = {}) {
   const files = [...input.files]; input.value = ''; if (!files.length) return;
   const done = [], skipped = [];
-  for (const f of files) {
-    paperMsg(`📋 読み取り中…（${done.length + skipped.length + 1}/${files.length}）${f.name}`);
+  // 写真を何枚か選んだときは、1人分の計画書の各ページとしてまとめて読む（1枚目に名前、2枚目以降に手順書…のため）
+  const isImg = f => /^image\//.test(f.type) || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name);
+  const groups = files.length > 1 && files.every(isImg) ? [files.slice().sort((a, b) => a.name.localeCompare(b.name, 'ja', { numeric: true }))] : files.map(f => [f]);
+  for (const g of groups) {
+    const f = g[0];
+    paperMsg(`📋 読み取り中…（${done.length + skipped.length + 1}/${groups.length}）${g.length > 1 ? `写真${g.length}枚` : f.name}`);
     let pages, text;
     try {
-      if (f.type.startsWith('image/')) pages = await ocrPages(f);
+      if (isImg(f)) { pages = []; for (const im of g) pages.push(...await ocrPages(im)); }
       else { pages = await pdfPages(f); if (pages.flat().map(w => w.s).join('').replace(/\s/g, '').length < 50) pages = await ocrPages(f); } // 文字データの無いスキャンPDFは読み取りで
       text = pages.flat().map(w => w.s).join('');
     } catch (e) { skipped.push(`${f.name}（読めませんでした：${(e && e.message) || e}）`); continue; }
@@ -1567,7 +1571,7 @@ async function importAssessment(input, opt = {}) {
     if (/支援アセスメントシート/.test(text)) A = parseShogaiSheet(pages);
     else if (/居宅介護等計画書|サービス等利用計画|個別支援計画/.test(text)) A = parsePlan(pages);
     else { const lines = []; pages.forEach(ws => { const rows = []; ws.forEach(w => { let r = rows.find(r => Math.abs(r.y - w.y) < 3); if (!r) rows.push(r = { y: w.y, ws: [] }); r.ws.push(w); }); rows.sort((a, b) => a.y - b.y).forEach(r => lines.push(r.ws.sort((a, b) => a.x - b.x).map(w => w.s).join(' '))); }); A = parseAssessment(lines); A.form = 'zensha'; }
-    const multi = files.length > 1;
+    const multi = groups.length > 1;
     const { name: matched, matched: how } = matchUserName(A.name);
     const name = (!multi && (state.name || '').trim() && (!A.name || matched.replace(/\s/g, '') === state.name.replace(/\s/g, ''))) ? state.name.trim() : (how ? matched : (multi ? '' : (matched || state.name || '').trim()));
     if (!name || !getStore()[name] && multi) { skipped.push(`${f.name}（${A.name || '名前不明'}：予定表に登録がありません）`); continue; }
@@ -3917,8 +3921,13 @@ async function getOcr() {
 }
 // PDF 1ページ目（または画像）を 300dpi 相当のキャンバスに
 async function paperCanvas(file) {
-  if (file.type.startsWith('image/')) {
-    const img = await createImageBitmap(file);
+  if (/^image\//.test(file.type) || /\.(heic|heif|jpe?g|png|webp)$/i.test(file.name)) {
+    let img;
+    try { img = await createImageBitmap(file); }
+    catch (e) { // iPhoneの写真（HEIC）は、このブラウザで開けないときにJPEGへ変換する
+      await loadScriptOnce('https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js');
+      const jpg = await window.heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 }); img = await createImageBitmap(Array.isArray(jpg) ? jpg[0] : jpg);
+    }
     const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
     const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0); return c;
   }
