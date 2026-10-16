@@ -719,7 +719,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016154753';
+const APP_VER = '20261016155652';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -3989,7 +3989,7 @@ async function ocrLines(worker, canvas, sx, sy, sw, sh, S = 2, erase = []) {
   return lines.map(l => ({ y: l.y / S + sy, t: l.t.replace(/\s+/g, '') })).filter(l => l.t).sort((a, b) => a.y - b.y);
 }
 // 読み取り文字の揺れを直す
-const OCR_FIX = [[/人浴/g, '入浴'], [/排池|排世/g, '排泄'], [/楽/g, '薬'], [/尿寝|就痕|就寝/g, '就寝'], [/[|｜_]/g, ''], [/^[ー一\-－~〜・.,:;]+/, ''], [/[ー一\-－~〜]+$/, '']];
+const OCR_FIX = [[/眼前薬|虐前薬|眼前楽|眠前楽/g, '眠前薬'], [/[揚扶提捕]除/g, '掃除'], [/起床介且|起介且|起介助/g, '起床介助'], [/洗面更衣/g, '洗面・更衣'], [/準人$|準傭/g, '準備'], [/人浴/g, '入浴'], [/排池|排世/g, '排泄'], [/楽/g, '薬'], [/尿寝|就痕|就寝/g, '就寝'], [/[|｜_]/g, ''], [/^[ー一\-－~〜・.,:;]+/, ''], [/[ー一\-－~〜]+$/, '']];
 function ocrClean(t) { OCR_FIX.forEach(([a, b]) => { t = t.replace(a, b); }); return t.trim(); }
 function ocrTime(t) {
   const s = t.replace(/[OoＯ]/g, '0').replace(/[lIｌ|]/g, '1');
@@ -4113,15 +4113,17 @@ async function readSchedulePhoto(base, worker) {
   const days = DAYS.map(emptyDay); let count = 0;
   // 列ごとに2通りで読み、読めた量の多い方を使う：①ページ全体で読んだ文字 ②列を切り出して拡大し直して読んだ文字（奥側の小さな字のため）
   const bnd = k => k <= 0 ? Math.max(0, cx[0] - (cx[1] - cx[0]) / 2) : k >= 7 ? Math.min(c.width, cx[6] + (cx[6] - cx[5]) / 2) : (cx[k - 1] + cx[k]) / 2;
-  const top = hy + c.height * 0.01, lh = c.height * 0.012;
+  const top = hy + c.height * 0.01, lh = c.height * 0.009;
+  // 表の下の事業所名・電話番号より下は読まない
+  const foot = ws.filter(w => w.y > top && /TEL|訪問介護|すまい|いるわん|4135|4037/.test(w.s)).reduce((m, w) => Math.min(m, w.y - c.height * 0.015), c.height);
   const toLines = (list, tol) => { const lines = []; list.sort((a, b) => a.y - b.y).forEach(w => { const l = lines.find(l => Math.abs(l.y - w.y) < tol); if (l) l.ws.push(w); else lines.push({ y: w.y, ws: [w] }); });
     return lines.map(l => ({ y: l.y, t: l.ws.sort((a, b) => a.x - b.x).map(w => w.s).join('') })).sort((a, b) => a.y - b.y); };
   const VOC = /起床|洗面|更衣|服薬|確認|買い物|洗濯|掃除|調理|入浴|眠前薬|準備|通院|介助|片付|回/;
   const quality = es => es.reduce((n, e) => n + (e.start ? 3 : 0) + String(e.detail || '').split(/\n/).filter(Boolean).reduce((m, d) => m + (VOC.test(d) ? 1 : -1), 0), 0);
   for (let k = 0; k < 7; k++) {
     paperMsg(`📷 ${DAYS[k]}曜日を拡大して読み取り中…（${k + 1}/7）`);
-    const a = parseColumn(toLines(ws.filter(w => w.y > top && w.x + c.width * 0.01 >= bnd(k) && w.x + c.width * 0.01 < bnd(k + 1)), lh));
-    const x0 = bnd(k) * R, x1 = bnd(k + 1) * R, y0 = top * R, crop = document.createElement('canvas'); crop.width = Math.max(1, Math.round(x1 - x0)); crop.height = Math.max(1, Math.round(img.height - y0));
+    const a = parseColumn(toLines(ws.filter(w => w.y > top && w.y < foot && w.x + c.width * 0.01 >= bnd(k) && w.x + c.width * 0.01 < bnd(k + 1)), lh));
+    const x0 = bnd(k) * R, x1 = bnd(k + 1) * R, y0 = top * R, crop = document.createElement('canvas'); crop.width = Math.max(1, Math.round(x1 - x0)); crop.height = Math.max(1, Math.round(foot * R - y0));
     const cc = crop.getContext('2d'); cc.fillStyle = '#fff'; cc.fillRect(0, 0, crop.width, crop.height); cc.drawImage(img, x0, y0, crop.width, crop.height, 0, 0, crop.width, crop.height);
     const z = ocrPrep(crop), zs = z.height / crop.height, zw = await worker.words(z);
     const b = parseColumn(toLines(zw.map(w => ({ x: w.x, y: w.y / zs, s: w.s })), lh * R));
