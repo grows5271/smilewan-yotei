@@ -1268,6 +1268,16 @@ function menuFor(row, meal) {
   const m = getColl('clients')[docId((state.name || '').trim())]?.menu; if (!m) return '';
   const p = m.plan.find(x => x.dow === row.date.getDay() && x.meal === meal); return p ? p.dishes.filter(d => d !== 'ご飯').join('・') : '';
 }
+// 調理にチェックがある訪問の献立：献立表にあればそれ、無ければその日・その食事で決まった献立を作る（NG・配慮は献立表と同じ決まり。同じ日なら毎回同じ）
+function menuOrQuick(row, meal) {
+  const fixed = menuFor(row, meal); if (fixed) return fixed;
+  const name = (state.name || '').trim(); let R; try { R = menuRules(name); } catch { R = { avoid: new Set(), ng: [], easy: false }; }
+  let seed = 0; for (const ch of name + ymd(row.date) + meal) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+  const pick = (k, ban) => { const p = DISH[k].filter(d => { try { return dishOk(d, R); } catch { return true; } }), q = p.filter(d => !(ban || []).some(b => d[1].includes(b))); const a = q.length ? q : p; if (!a.length) return null; seed = (seed * 1103515245 + 12345) >>> 0; return a[seed % a.length]; };
+  const main = pick(meal === '朝食' ? '朝' : '主菜'), mi = main ? main[1] : [];
+  const side = meal === '朝食' ? null : pick('副菜', mi), soup = R.avoid && R.avoid.has && R.avoid.has('塩') && meal === '朝食' ? null : pick('汁物', mi);
+  return [main, side, soup].filter(Boolean).map(d => d[0]).join('・');
+}
 // 訪問記録: 利用者×月 ごとに1件（同じ日時の行は上書き）
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 async function saveRecords(opt = {}) {
@@ -2302,7 +2312,7 @@ function vAuto(r) {
   v.内訳 = m(/購入品[:：は]\s*([^。]+)/);
   v.その他 = ['記録', ...(/環境を整え|整理整頓|清掃|掃除|動線|生活環境|環境整備/.test(t) ? ['環境整備'] : []), ...(/相談|傾聴|不安について話|話を伺/.test(t) ? ['相談援助'] : []), ...(/(責任者|ケアマネ|家族|事業所|主治医|看護|医師)[^。]*(報告|連絡|伝え|相談)|報告した|情報(を)?(提供|共有|収集)|連絡帳/.test(t) ? ['情報収集・提供'] : [])];
   if ((kpOf(r).some(k => /^清掃\||^自立支援\|(掃除|ベッドメイク|衣類)/.test(k)) || /換気|室温|日当たり|日あたり|ベッドまわり|ベッド周り|整頓|環境を整え/.test(t)) && !v.その他.includes('環境整備')) v.その他.push('環境整備');
-  { const mn = /調理/.test(kpOf(r).join(' ')) ? menuFor(r, mealOf(r)) : ''; const mt = t.match(/献立に沿って(.+?)を調理|（([^）]+)）の(準備|調理)/); v.献立 = mn || (mt ? (mt[1] || mt[2]) : ''); }
+  { const mn = [...kpOf(r), ...(r.kpText || [])].some(k => k === '調理|調理' || k === '自立支援|一般的な調理・配下膳') ? menuOrQuick(r, mealOf(r)) : ''; const mt = t.match(/献立に沿って(.+?)を調理|（([^）]+)）の(準備|調理)/); v.献立 = mn || (mt ? (mt[1] || mt[2]) : ''); }
   Object.keys(v).forEach(k => { if (v[k] === '' || v[k] == null) delete v[k]; });
   return v;
 }
@@ -3491,9 +3501,9 @@ function docxCheckTable(D, r, FONT) {
   const t = (text, o = {}) => new D.TextRun({ text, font: f, size: 17, ...o });
   const line = { style: D.BorderStyle.SINGLE, size: 4, color: '999999' }, borders = { top: line, bottom: line, left: line, right: line };
   const cell = (children, w, shade) => new D.TableCell({ children: [new D.Paragraph({ children })], width: { size: w, type: D.WidthType.DXA }, borders, margins: { top: 30, bottom: 30, left: 80, right: 80 }, ...(shade ? { shading: { fill: 'F2F2F2', type: D.ShadingType.CLEAR, color: 'auto' } } : {}) });
-  const rows = [new D.TableRow({ children: [cell([t('記録欄', { bold: true })], 1800, 1), cell([t(vSummary(r).replace(/:/g, '：').replace(/ /g, '　'))], 6704)] })];
+  const menu = vOf(r).献立 || '', rows = [new D.TableRow({ children: [cell([t('記録欄', { bold: true })], 1800, 1), cell([t(vSummary(r).replace(/／献立:[^／]*/, '').replace(/:/g, '：').replace(/ /g, '　'))], 6704)] })];
   KP.forEach(([c, items]) => rows.push(new D.TableRow({ children: [cell([t(c, { bold: true })], 1800, 1),
-    cell(items.flatMap((it, j) => { const on = kp.includes(c + '|' + it); return [t((j ? '　' : '') + (on ? '☑' : '☐') + it, on ? { bold: true } : { color: '777777' })]; }), 6704)] })));
+    cell(items.flatMap((it, j) => { const on = kp.includes(c + '|' + it); return [t((j ? '　' : '') + (on ? '☑' : '☐') + it, on ? { bold: true } : { color: '777777' })]; }).concat(c === '調理' && menu && kp.includes('調理|調理') ? [t('　献立：' + menu, { bold: true })] : []), 6704)] })));
   return new D.Table({ rows, width: { size: 8504, type: D.WidthType.DXA }, columnWidths: [1800, 6704] });
 }
 async function exportRecordsDocx() {
