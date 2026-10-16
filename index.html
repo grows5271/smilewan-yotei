@@ -719,7 +719,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016160931';
+const APP_VER = '20261016171804';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -3381,10 +3381,24 @@ const MORE = {
   会話: ['支援の合間に近況を伺い、本人の話に耳を傾けた。', '天気や季節の話題を交えながら、和やかに会話された。', '本人から最近の出来事について話があり、相づちを打ちながら聞いた。', '会話を楽しまれる様子が見られ、表情も和らいでいた。', '本人の話を遮らないよう、ゆっくりと話を伺った。', '困りごとがないか尋ねたところ、特にないとの返答であった。', '本人の気持ちを確認しながら、丁寧に言葉を掛けた。', '次回の予定について伝えると、うなずいて了承された。'],
   退室: ['退室時に本人の様子に変わりがないことを確認した。', '退室前に戸締まりや火の元を確認し、安全を確かめた。', '退室時に次回の訪問日時を伝え、本人の了承を得た。', '退室前に必要な物が手の届く所にあるかを確認した。', '支援の終わりに、困りごとがないか本人に確認した。', '退室時には落ち着いた様子で見送っていただいた。'],
 };
+// 足す文どうし・元の文と、同じ意味にならないように：意味のまとまり
+const MORE_SAME = [/次回/, /穏やか|落ち着|笑顔|和ら|疲れた様子|普段どおり|変わり(は|が)ない|いつもと違う/, /顔色|表情|話し方|受け答え|声の調子/, /訴え|痛み|不調/, /言葉|説明|伝え|戸惑/, /ペース|急がせ|ゆっくり|無理のない|手を出しすぎ/, /話を|話に|会話|近況|話題|相づち/, /意向|希望|やり方|了承/, /安全|転倒|危険|戸締まり|火の元/, /退室|見送/];
+function sameMeaning(a, b) { return MORE_SAME.some(re => re.test(a) && re.test(b)); }
+// 「朝食後の服薬」の文が、朝食を用意する文より前にあれば後ろへ回す（順番の矛盾をなくす）
+// 同じことを2回言っている文の、後ろの方を外す（例：「献立を伝えると…」と「内容を伝えると…」、「話を伺い傾聴」と「会話を交えながら」）
+const DUP_SAME = [/伝えると/, /傾聴|話を伺|会話を交え|会話され|会話を楽しま/];
+function dedupeText(t) { const seen = []; return String(t).split('。').filter(Boolean).filter(x => { const g = DUP_SAME.findIndex(re => re.test(x)); if (g < 0 || LINK_RE.test(x)) return true; if (seen.includes(g)) return false; seen.push(g); return true; }).join('。') + '。'; }
+function orderFix(t) {
+  const ss = String(t).split('。').filter(Boolean);
+  for (let i = 0; i < ss.length; i++) { const m = ss[i].match(/(朝食|昼食|夕食)後/); if (!m) continue;
+    const j = ss.findIndex((x, k) => k > i && x.includes(m[1]) && /用意|準備|調理|配膳/.test(x)); if (j > i) { const [x] = ss.splice(i, 1); ss.splice(j, 0, x); i--; } }
+  return ss.join('。') + '。';
+}
 function addMore(row, t) {
   const K = kubunOf((state.name || '').trim()) === '介護', sents = String(t).split('。').filter(Boolean);
-  const day = typeof sameDayTxt === 'function' ? (() => { try { return sameDayTxt() + recentTxt(6); } catch { return ''; } })() : '';
-  const pickOne = arr => { const cur = String(t).split('。').filter(Boolean), ok = arr.filter(x => !String(t).includes(x) && !day.includes(x) && !ngHits(x).length && !TEXT_KP.some(([re]) => re.test(x)) && !MEAN.some(re => re.test(x) && cur.some(y => re.test(y)))); return ok.length ? pick(ok) : ''; };
+  const day = typeof sameDayTxt === 'function' ? (() => { try { return sameDayTxt() + recentTxt(6); } catch { return ''; } })() : '', picked = [];
+  const pickOne = arr => { const cur = [...String(t).split('。').filter(Boolean), ...picked], ok = arr.filter(x => !String(t).includes(x) && !day.includes(x) && !ngHits(x).length && !TEXT_KP.some(([re]) => re.test(x)) && !MEAN.some(re => re.test(x) && cur.some(y => re.test(y))) && !cur.some(y => sameMeaning(x, y)));
+    if (!ok.length) return ''; const v = pick(ok); picked.push(v); return v; };
   const cont = !!nextRow(row); // 続けて次の訪問があるときは退室・次回の話は書かない
   const add = (cont ? ['様子', '配慮', '会話'] : ['様子', '配慮', '会話', '退室']).map(k => pickOne(MORE[k].filter(x => !cont || !/次回|退室|見送/.test(x)))).filter(Boolean).map(x => K ? x.replace(/本人/g, '利用者様') : x);
   const lastQuote = sents.length && /「/.test(sents[sents.length - 1]);
@@ -3399,7 +3413,7 @@ function uniqueText(row, others) {
     const bank = document.querySelector('input[name=recStyle]:checked').value === 'short' ? SHORT : PB;
     for (const c of [...bank.締め].sort(() => Math.random() - .5)) { if (c && !used.has(normText(t + c))) { t += c; break; } }
   }
-  t = nextLink(row, consistText(row, addMore(row, fitTime(row, mnText(row, withVin(row, t)))))); const keep = row.text; row.text = t; kpFromText(row); row.text = keep;
+  t = nextLink(row, dedupeText(orderFix(consistText(row, addMore(row, fitTime(row, mnText(row, withVin(row, t)))))))); const keep = row.text; row.text = t; kpFromText(row); row.text = keep;
   return t;
 }
 function dupGroups() {
