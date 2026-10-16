@@ -3198,6 +3198,29 @@ function coverText(row, t) {
   return ss.length > 1 && /「|過ごされ|様子|取り組まれ|発言あり|話があった|話されて|会話/.test(last) ? ss.slice(0, -1).map(x => x + '。').join('') + ins + last + '。' : t + ins;
 }
 // 朝・夜の身体介護は整容を付けないので、文章にも整容・身だしなみを書かない
+// 時間内に終わる文章にする：文ごとに作業の目安時間を足し、訪問時間を超えるときは予定表に無い作業の文から外す
+const ACT_MIN = [
+  ['買物', /買い物代行|購入し|買い物を/, 30, /買い物|買物|代行/], ['入浴', /入浴介助|洗身|浴槽内|入浴中|湯船/, 30, /入浴|シャワー/], ['通院', /通院|受診|病院/, 60, /通院/],
+  ['調理', /調理を行|調理・配膳|準備を実施|を調理し|の調理/, 20, /調理|食事|朝食|昼食|夕食|準備|提供/], ['配膳', /配膳/, 3, /調理|食事|朝食|昼食|夕食|準備|提供|配膳/],
+  ['食器', /食器|洗い物|調理器具/, 5, /調理|食事|朝食|昼食|夕食|準備|提供|片付/],
+  ['居室', /室内の清掃|生活スペース|掃除機|床面|居室|清掃・整理/, 10, /掃除|清掃|居室/], ['トイレ掃除', /トイレの清掃|便器/, 8, /トイレ|掃除/], ['浴室掃除', /浴室の清掃|浴槽や床/, 10, /風呂|浴室|入浴後/],
+  ['台所掃除', /台所の清掃|シンクや/, 5, /台所|片付|調理|食事|朝食|昼食|夕食|準備/], ['洗濯', /洗濯を行|洗濯機|洗濯物を確認/, 10, /洗濯/], ['干す', /干し|干す|干した/, 8, /洗濯|干/],
+  ['衣類', /衣類を整理|衣類の整理|たたん|畳ん/, 5, /衣類|洗濯|整理/], ['排泄', /排泄介助|トイレへの移動|排泄を/, 8, /排泄|トイレ/],
+  ['起床', /起床を促し|起き上がり|起床の/, 5, /起床/], ['更衣', /更衣|着替/, 5, /.*/], ['洗面', /洗面|口腔|歯磨/, 5, /.*/], ['服薬', /服薬|薬を|薬の|飲み忘れ/, 3, /.*/],
+];
+function fitTime(row, t) {
+  const tm = entryTime(row.e); if (!tm.s || !tm.e) return t;
+  const dur = hm(tm.e) - hm(tm.s); if (!(dur > 0)) return t;
+  const det = (row.e.type || '') + ' ' + (row.e.detail || '');
+  let sents = String(t).split('。').filter(Boolean).map(x => { const a = ACT_MIN.find(([, re]) => re.test(x)); return { x, k: a ? a[0] : '', min: a ? a[2] : 0, need: a ? a[3].test(det) : true }; });
+  // 短い訪問で食事を待つ時間は無いので「食後に」は「調理後に」
+  if (dur <= 45) sents.forEach(o => { o.x = o.x.replace(/食後に使用した食器類/, '調理に使用した器具や食器').replace(/^食後に/, '調理後に'); });
+  const seen = new Set(), total = () => { const bath = sents.some(o => o.k === '入浴'); return sents.reduce((n, o) => { if (!o.k || seen.has(o.k) || (bath && /更衣|洗面/.test(o.k))) return n; seen.add(o.k); return n + o.min; }, 0); }; // 入浴中の着替えは入浴の時間に含む
+  const sum = () => { seen.clear(); return total(); };
+  const REL = { 居室: /部屋|きれい|片付いた/, 洗濯: /洗濯物|洗濯/, 干す: /洗濯物/, 調理: /おいし|ご飯|食事/, 買物: /買い物|買って/, 入浴: /お風呂|さっぱり/, 浴室掃除: /お風呂/, トイレ掃除: /トイレ/ };
+  while (sum() > dur + 5) { const drop = sents.filter(o => o.k && !o.need).sort((a, b) => b.min - a.min)[0]; if (!drop) break; sents = sents.filter(o => o.k !== drop.k && !(!o.k && REL[drop.k] && REL[drop.k].test(o.x))); } // 外した作業の話（「部屋がきれい…」など）も外す
+  return sents.map(o => o.x).join('。') + '。';
+}
 function mnText(row, t) {
   if (!mnBody(row.e)) return t;
   return String(t).replace(/(され|行い|し)?、終了後(に|の)?身だしなみを(一緒に)?確認した/g, (m, v) => ({ され: 'された', 行い: '行った', し: 'した' })[v] || '').replace(/排泄後は清潔保持を行い、身だしなみを整えた。/g, '排泄後は清潔保持を行った。')
@@ -3211,7 +3234,7 @@ function uniqueText(row, others) {
     const bank = document.querySelector('input[name=recStyle]:checked').value === 'short' ? SHORT : PB;
     for (const c of [...bank.締め].sort(() => Math.random() - .5)) { if (c && !used.has(normText(t + c))) { t += c; break; } }
   }
-  t = mnText(row, withVin(row, t)); const keep = row.text; row.text = t; kpFromText(row); row.text = keep;
+  t = fitTime(row, mnText(row, withVin(row, t))); const keep = row.text; row.text = t; kpFromText(row); row.text = keep;
   return t;
 }
 function dupGroups() {
