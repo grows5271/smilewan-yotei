@@ -719,7 +719,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016141753';
+const APP_VER = '20261016142325';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -2354,7 +2354,7 @@ function vAuto(r) {
   Object.keys(v).forEach(k => { if (v[k] === '' || v[k] == null) delete v[k]; });
   return v;
 }
-function vOf(r) { const a = vAuto(r), m = r.vin || {}; return { ...a, ...m }; }
+function vOf(r) { const a = vAuto(r), m = r.vin || {}, v = { ...a, ...m }; v.その他 = ['環境整備', '相談援助', '情報収集・提供', '記録']; return v; } // その他は毎回4つとも（事業所の決まり）
 const SEIYO = { 爪: '爪切り', 耳: '耳掃除', 髭: '髭剃り', 髪: '整髪', 化粧: '化粧' };
 function vinSentences(r) {
   const m = r.vin || {}, K = kubunOf((state.name || '').trim()) === '介護', who = K ? '利用者様' : '本人', head = [], tail = [];
