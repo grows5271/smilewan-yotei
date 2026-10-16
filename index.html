@@ -719,7 +719,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261016154403';
+const APP_VER = '20261016154753';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -4090,17 +4090,17 @@ async function readSchedulePhoto(base, worker) {
   let best = null;
   for (const deg of base.height > base.width ? [270, 90, 0, 180] : [0, 180, 270, 90]) {
     paperMsg(`📷 写真の向きを確かめています…（${deg}°）`);
-    const c = ocrPrep(deskew(rotateCanvas(base, deg))), ws = await worker.words(c);
+    const img = deskew(rotateCanvas(base, deg)), c = ocrPrep(img), ws = await worker.words(c);
     const heads = ws.filter(w => w.s.length === 1 && DAYC.includes(w.s) && w.y < c.height * 0.45);
     // 同じ高さに並んだ曜日の見出しを探す
     let grp = [];
     heads.forEach(h => { const g = heads.filter(o => Math.abs(o.y - h.y) < c.height * 0.06); const uniq = [...new Set(g.map(o => o.s))]; if (uniq.length > new Set(grp.map(o => o.s)).size) grp = g; });
     const score = new Set(grp.map(o => o.s)).size;
-    if (!best || score > best.score) best = { c, ws, grp, score };
+    if (!best || score > best.score) best = { c, ws, grp, score, img };
     if (score >= 5) break;
   }
   if (!best || best.score < 2) throw new Error('曜日の見出しを読み取れませんでした。明るい所で、表全体が入るように真上から撮ってください');
-  const { c, ws, grp } = best;
+  const { c, ws, grp, img } = best, R = img.width / c.width; // raw（拡大前の写真）とc（読み取り用に拡大した物）の倍率
   // 曜日ごとの列の中心（読めなかった曜日は前後から推定）
   const cx = [...DAYC].map(ch => { const h = grp.find(o => o.s === ch); return h ? h.x + c.width * 0.01 : null; });
   for (let k = 0; k < 7; k++) if (cx[k] == null) { const l = [...Array(7).keys()].filter(i => cx[i] != null); const a = l.filter(i => i < k).pop(), b = l.find(i => i > k);
@@ -4111,12 +4111,22 @@ async function readSchedulePhoto(base, worker) {
   const raw = (title.split(/予定表|定表/).pop() || title).split(/様|㏌|襟|桜/)[0].replace(/[()（）「」\[\]{}|｜_・.,:;'"`~ー\-]/g, '').trim();
   const { name, readName, matched } = matchUserName(raw);
   const days = DAYS.map(emptyDay); let count = 0;
-  const body = ws.filter(w => w.y > hy + c.height * 0.01), lh = c.height * 0.012;
+  // 列ごとに2通りで読み、読めた量の多い方を使う：①ページ全体で読んだ文字 ②列を切り出して拡大し直して読んだ文字（奥側の小さな字のため）
+  const bnd = k => k <= 0 ? Math.max(0, cx[0] - (cx[1] - cx[0]) / 2) : k >= 7 ? Math.min(c.width, cx[6] + (cx[6] - cx[5]) / 2) : (cx[k - 1] + cx[k]) / 2;
+  const top = hy + c.height * 0.01, lh = c.height * 0.012;
+  const toLines = (list, tol) => { const lines = []; list.sort((a, b) => a.y - b.y).forEach(w => { const l = lines.find(l => Math.abs(l.y - w.y) < tol); if (l) l.ws.push(w); else lines.push({ y: w.y, ws: [w] }); });
+    return lines.map(l => ({ y: l.y, t: l.ws.sort((a, b) => a.x - b.x).map(w => w.s).join('') })).sort((a, b) => a.y - b.y); };
+  const VOC = /起床|洗面|更衣|服薬|確認|買い物|洗濯|掃除|調理|入浴|眠前薬|準備|通院|介助|片付|回/;
+  const quality = es => es.reduce((n, e) => n + (e.start ? 3 : 0) + String(e.detail || '').split(/\n/).filter(Boolean).reduce((m, d) => m + (VOC.test(d) ? 1 : -1), 0), 0);
   for (let k = 0; k < 7; k++) {
-    const cw = body.filter(w => colOf(w.x + c.width * 0.01) === k).sort((a, b) => a.y - b.y), lines = [];
-    cw.forEach(w => { const l = lines.find(l => Math.abs(l.y - w.y) < lh); if (l) l.ws.push(w); else lines.push({ y: w.y, ws: [w] }); });
-    const L = lines.map(l => ({ y: l.y, t: l.ws.sort((a, b) => a.x - b.x).map(w => w.s).join('') })).sort((a, b) => a.y - b.y);
-    parseColumn(L).forEach(e => { days[k][blockByTime(e.start)].push({ ...emptyEntry(), type: e.type, start: e.start, end: e.end, detail: e.detail, note: e.note }); count++; });
+    paperMsg(`📷 ${DAYS[k]}曜日を拡大して読み取り中…（${k + 1}/7）`);
+    const a = parseColumn(toLines(ws.filter(w => w.y > top && w.x + c.width * 0.01 >= bnd(k) && w.x + c.width * 0.01 < bnd(k + 1)), lh));
+    const x0 = bnd(k) * R, x1 = bnd(k + 1) * R, y0 = top * R, crop = document.createElement('canvas'); crop.width = Math.max(1, Math.round(x1 - x0)); crop.height = Math.max(1, Math.round(img.height - y0));
+    const cc = crop.getContext('2d'); cc.fillStyle = '#fff'; cc.fillRect(0, 0, crop.width, crop.height); cc.drawImage(img, x0, y0, crop.width, crop.height, 0, 0, crop.width, crop.height);
+    const z = ocrPrep(crop), zs = z.height / crop.height, zw = await worker.words(z);
+    const b = parseColumn(toLines(zw.map(w => ({ x: w.x, y: w.y / zs, s: w.s })), lh * R));
+    const best = quality(b) > quality(a) ? b : a;
+    best.forEach(e => { days[k][blockByTime(e.start)].push({ ...emptyEntry(), type: e.type, start: e.start, end: e.end, detail: e.detail, note: e.note }); count++; });
   }
   return { name, readName, matched, days, count };
 }
