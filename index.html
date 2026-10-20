@@ -565,6 +565,7 @@
       <p class="hint">カイポケへは直接入力できません。青い実施項目を見ながらチェックし、文章は📋でコピーして貼り付けます。</p>
 
       <h3 id="h-rokei">チェックの決まり（まとめ）</h3>
+      <p><b>見本が無い訪問（障害の利用者）</b>は、同じ種類・時間帯の見本で半分以上に付いている項目から作り（家事は予定の内容にある家事だけ）、アセスメントで合わない項目（服用支援・洗髪介助・入浴介助・排泄介助・通院支援が無い／洗濯・清掃・調理・買い物が「できる」／NGの言葉）は外します。</p>
       <p><b>見本がある訪問は見本どおり</b>：カイポケの記録用紙に手で付けた見本（105枚・27人）と、利用者・開始時刻（前後10分）・曜日が合う訪問は、下の決まりを使わず見本の項目だけを付けます（「火木」などの曜日の書き込みはその曜日だけ／丸で囲んだ項目は付けない）。手で足した・外した項目はそのまま。見本が無い訪問は、上から順に下の決まりで付けます。</p>
       <table class="help-table">
         <tr><th>順</th><th>もと</th><th>付け方</th></tr>
@@ -719,7 +720,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261020105434';
+const APP_VER = '20261020110914';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -2643,9 +2644,65 @@ function tmplItems(r) {
   const dow = r.date.getDay();
   return (t.checked || []).filter(k => !(t.dayOnly || {})[k] || t.dayOnly[k].includes(dow));
 }
+// ===== 見本が無い訪問：似た訪問の見本（種類・時間帯が同じ）から作り、アセスメントで合わない項目は外す =====
+const tmplKind = (type, detail, kind) => /共に|一緒/.test((type || '') + (detail || '')) ? '共に' : /入浴|シャワー/.test(type || '') ? '入浴' : /通院/.test(type || '') ? '通院' : (kind === '家事援助' || /^家事|生活援助/.test(type || '')) ? '家事' : '身体';
+const tmplTod = st => { const h = Math.floor((hm(st) || 720) / 60); return h < 11 ? '朝' : h < 16 ? '昼' : h < 18 ? '夕' : '夜'; };
+// 家事の項目は、予定の内容にその家事があるときだけ
+const GEN_FEAT = [[/^調理\||^自立支援\|一般的な調理/, /調理|食事|朝食|昼食|夕食|準備|提供|配膳/], [/^清掃\||^自立支援\|掃除/, /掃除|清掃|片付|片づけ|整理/], [/^洗濯\||^自立支援\|洗濯/, /洗濯|干/], [/^衣類・寝具\|(衣類|被服)|^自立支援\|衣類/, /衣類|整理/], [/^衣類・寝具\|(ベッド|シーツ|布団)|^自立支援\|ベッド/, /シーツ|ベッド|布団/], [/^買物等\||^自立支援\|買い物/, /買い物|買物|代行/], [/^移動\|(通院|外出準備|帰宅受入)|^服薬・医療\|院内|^自立支援\|通院/, /通院|受診|病院/]];
+// アセスメントで外す：その支援が要らない（できる・自立）と書いてある項目／NGの言葉を含む項目
+function assessBlock(name, k) {
+  const c = getColl('clients')[docId(name || ' ')] || {}, a = c.assessment || {}, needs = a.needs || [], notes = a.notes || [], items = a.itemNotes || {}, it = k.split('|')[1];
+  const can = key => { const v = Object.entries(items).find(([n]) => n.includes(key)); return v && /^\s*(できる|自立|ひとりでできる|一人でできる|自分でできる)/.test(v[1]) && !/できない|支援|介助|必要|一緒|声掛け|促し|見守|不安|困難/.test(v[1]); };
+  if (!Object.keys(a).length) return '';
+  if (/^(服薬・医療\|(服薬介助・確認|見守り)|自立支援\|服薬)$/.test(k) && !needs.some(n => /服用|服薬/.test(n)) && !notes.includes('服薬忘れ')) return 'アセスメントに服用の支援が無い';
+  if (k === '入浴・清拭|洗髪' && !needs.includes('洗髪介助') && !/洗髪/.test(JSON.stringify(items))) return 'アセスメントに洗髪介助が無い';
+  if (/^入浴・清拭\|(入浴介助|シャワー浴)$/.test(k) && !needs.some(n => /入浴|洗身/.test(n))) return 'アセスメントに入浴介助が無い';
+  if (/^排泄\|/.test(k) && !needs.includes('排泄介助')) return 'アセスメントに排泄介助が無い';
+  if (/^(移動\|(通院|外出準備|帰宅受入)|服薬・医療\|院内)/.test(k) && !needs.some(n => /通院/.test(n))) return 'アセスメントに通院支援が無い';
+  if (/^(洗濯\||自立支援\|洗濯)/.test(k) && can('洗濯')) return 'アセスメントで洗濯は自分でできる';
+  if (/^(清掃\||自立支援\|掃除)/.test(k) && can('清掃')) return 'アセスメントで清掃は自分でできる';
+  if (/^(調理\||自立支援\|一般的な調理)/.test(k) && can('調理')) return 'アセスメントで調理は自分でできる';
+  if (/^(買物等\||自立支援\|買い物)/.test(k) && can('買')) return 'アセスメントで買い物は自分でできる';
+  const ng = [...(c.ng || [])].filter(Boolean); if (ng.some(w => it.includes(w))) return 'NGに入っている';
+  return '';
+}
+// 家事は「予定の内容にある家事」ごとに、その家事をしている見本で半分以上に付いている項目を付ける
+const GEN_HOUSE = [
+  [/調理|朝食|昼食|夕食|食事|準備|提供/, k => /^調理\|調理$/.test(k), /^調理\|/],
+  [/片付|片づけ|洗い物/, k => /^清掃\|台所$/.test(k), /^清掃\|台所$/],
+  [/(?<!風呂|浴室)掃除|清掃/, k => /^清掃\|居室$/.test(k), /^清掃\|/],
+  [/お風呂|浴室|入浴後/, k => /^清掃\|浴室$/.test(k), /^清掃\|浴室$/],
+  [/洗濯|干/, k => /^洗濯\|洗濯$/.test(k), /^洗濯\|/],
+  [/買い物|買物|代行/, k => /^買物等\|日常品/.test(k), /^買物等\|/],
+  [/衣類|整理/, k => /^衣類・寝具\|衣類/.test(k), /^衣類・寝具\|衣類/],
+  [/シーツ|ベッド|布団/, k => /^衣類・寝具\|(シーツ|ベッド)/.test(k), /^衣類・寝具\|(シーツ|ベッド|布団)/],
+];
+const HOUSE_RE = /^(調理|清掃|洗濯|買物等|衣類・寝具)\|/;
+function genItems(r) {
+  const name = (state.name || '').trim();
+  if (kubunOf(name) === '介護') return null; // 見本は障害の利用者の物なので、介護は今までの決まりで
+  const all = tmplList(); if (!all.length) return null;
+  const tk = t => tmplKind(t.type, '', /家事/.test(t.type || '') ? '家事援助' : '身体介護');
+  const key = tmplKind(r.e.type, r.e.detail, r.kind), tod = tmplTod(entryTime(r.e).s), det = (r.e.type || '') + ' ' + (r.e.detail || '');
+  let pool = all.filter(t => tk(t) === key && tmplTod(t.start) === tod);
+  if (pool.length < 3) pool = all.filter(t => tk(t) === key);
+  if (!pool.length) return null;
+  const freq = (ps, test) => { const c = {}; ps.forEach(t => [...new Set(t.checked || [])].forEach(k => { c[k] = (c[k] || 0) + 1; })); return Object.keys(c).filter(k => c[k] / ps.length >= 0.5 && test(k)); };
+  // 身体の項目：同じ種類・時間帯の見本で半分以上（入浴・家事の訪問の服薬は、予定に薬があるときだけ）
+  let out = freq(pool, k => !HOUSE_RE.test(k) && !/^自立支援\|(掃除|洗濯|ベッドメイク|衣類|一般的な調理|買い物)/.test(k))
+    .filter(k => !(/服薬/.test(k) && key !== '身体' && !/薬/.test(det)));
+  if (key === '家事') out = out.filter(k => !/^(身体整容|起床・就寝|食事|排泄|入浴・清拭|移動|自立支援)\|/.test(k));
+  // 家事の項目：内容にある家事ごとに
+  const house = [];
+  GEN_HOUSE.forEach(([re, has, cat]) => { if (!re.test(det)) return; const ps = all.filter(t => (t.checked || []).some(has)); if (ps.length) house.push(...freq(ps, k => cat.test(k))); });
+  if (key === '共に') out.push(...house.map(TO_TOGETHER)); else if (key === '家事') out.push(...house);
+  out = [...new Set(out)].filter(k => !assessBlock(name, k));
+  r._genFrom = `似た訪問の見本${pool.length}件（${key}・${tod}）`;
+  return out;
+}
 function kpAll(r) {
   // 見本がある訪問は、見本どおり（手で足した物は足し、手で外した物は外す）
-  const ti = tmplItems(r); if (ti) return [...new Set([...ti, ...(r.kpOn || [])])].filter(k => !(r.kpOff || []).includes(k));
+  const ti = tmplItems(r) || genItems(r); if (ti) return [...new Set([...ti, ...(r.kpOn || [])])].filter(k => !(r.kpOff || []).includes(k));
   if (!r.kpText) kpFromText(r);
   // 予定表に「共に・一緒」とある身体介護は、家事を自立支援（共に行う）の欄へ。それ以外は共に行うの欄を使わない
   const tog = r.kind !== '家事援助' && visTogether(r.e);
@@ -3107,7 +3164,7 @@ async function buildRecords() {
     for (const p of [...plan].sort((a, b) => (entryTime(a.e).s || '').localeCompare(entryTime(b.e).s || ''))) { // 時刻の順に作る（前の訪問とのつながりのため）
       const row = { date: new Date(d), e: p.e, kind: kindOf(p.e.type), staff: p.staff || (p.fromShift ? '' : staff), on: p.on, flag: p.flag };
       if (p.fromShift) { row.staffFromShift = true; row.staffEdited = true; }
-      row.kp = tmplItems(row) || autoKPFor(row.e, name); // 見本があれば見本の項目で文章を作る
+      row.kp = tmplItems(row) || genItems(row) || autoKPFor(row.e, name); // 見本（無ければ似た訪問の見本＋アセスメント）の項目で文章を作る
       if (p.on) { row.text = uniqueText(row, recRows.filter(r => r.on)); } else row.text = '';
       recRows.push(row);
     }
@@ -3382,10 +3439,10 @@ function nextLink(row, t) {
 // 文章とチェックの矛盾をなくす：決まりで付けない項目（水分補給・取入れ・身体介護の家事・入浴の洗濯や清掃・家事の訪問の服薬など）や
 // 手で外した項目を書いている文は外す（文章に書いた支援は必ずチェック、の決まりと食い違わないように）
 function consistText(row, t) {
-  const allowed = new Set(tmplFor(row) ? kpAll(row) : []);
+  const useT = !!(tmplFor(row) || genItems(row)), allowed = new Set(useT ? kpAll(row) : []);
   // その文の言葉が直接指している項目だけを見る（関連で付く物は見ない）
   const badItems = x => TEXT_KP.filter(([re]) => re.test(x)).map(([, k]) => k)
-    .filter(k => (row.kpOff || []).includes(k) || (tmplFor(row) ? !(allowed.has(k) || allowed.has(JIRITSU_MAP[k]) || allowed.has(TO_TOGETHER(k))) : !kpAll({ ...row, kp: [k], kpText: [], kpOff: [] }).length));
+    .filter(k => (row.kpOff || []).includes(k) || (useT ? !(allowed.has(k) || allowed.has(JIRITSU_MAP[k]) || allowed.has(TO_TOGETHER(k))) : !kpAll({ ...row, kp: [k], kpText: [], kpOff: [] }).length));
   const endFix = c => c.replace(/(行|洗|払|拭|使)い$/, '$1った').replace(/([^し])し$/, '$1した').replace(/して$/, 'した').replace(/(え|け|べ|め|せ|れ)$/, '$1た').replace(/(取|切|守|配)り$/, '$1った');
   const out = [];
   String(t).split('。').filter(Boolean).forEach(x => {
