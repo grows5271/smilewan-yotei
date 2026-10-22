@@ -565,6 +565,7 @@
       <p class="hint">カイポケへは直接入力できません。青い実施項目を見ながらチェックし、文章は📋でコピーして貼り付けます。</p>
 
       <h3 id="h-rokei">チェックの決まり（まとめ）</h3>
+      <p><b>体調不良の日</b>：1か月に2〜3日（共に行う訪問がある日は選ばない）、入浴の訪問を「シャワー浴＋全身清拭」（入浴介助・洗髪は外す・顔色は不良）にし、文章も体調不良の内容に。次の日の最初の訪問は「前日の体調不良について確認…」の文から始める。</p>
       <p><b>見本が無い訪問（障害の利用者）</b>は、同じ種類・時間帯の見本で半分以上に付いている項目から作り（家事は予定の内容にある家事だけ）、アセスメントで合わない項目（服用支援・洗髪介助・入浴介助・排泄介助・通院支援が無い／洗濯・清掃・調理・買い物が「できる」／NGの言葉）は外します。</p>
       <p><b>見本がある訪問は見本どおり</b>：カイポケの記録用紙に手で付けた見本（105枚・27人）と、利用者・開始時刻（前後10分）・曜日が合う訪問は、下の決まりを使わず見本の項目だけを付けます（「火木」などの曜日の書き込みはその曜日だけ／丸で囲んだ項目は付けない）。手で足した・外した項目はそのまま。見本が無い訪問は、上から順に下の決まりで付けます。</p>
       <table class="help-table">
@@ -720,7 +721,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261020110914';
+const APP_VER = '20261022102248';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1319,7 +1320,7 @@ async function saveRecords(opt = {}) {
   for (const [month, rs] of Object.entries(byMonth)) {
     const id = docId(name) + '_' + month, prev = getColl('records')[id];
     const map = new Map((prev?.rows || []).map(x => [x.date + ' ' + x.start, x]));
-    rs.forEach(r => { const x = { date: ymd(r.date), start: r.e.start || '', end: r.e.end || '', type: r.e.type || '', detail: r.e.detail || '', staff: r.staff || '', kind: r.kind, text: r.text || '', flag: r.flag || '', kp: kpOf(r), kpText: kpAll(r).filter(k => !kpOf(r).includes(k)), vin: r.vin || {}, kpOff: r.kpOff || [], kpOn: r.kpOn || [], vinText: r.vinText || null, v: vOf(r) }; map.set(x.date + ' ' + x.start, x); n++; });
+    rs.forEach(r => { const x = { date: ymd(r.date), start: r.e.start || '', end: r.e.end || '', type: r.e.type || '', detail: r.e.detail || '', staff: r.staff || '', kind: r.kind, text: r.text || '', flag: r.flag || '', kp: kpOf(r), kpText: kpAll(r).filter(k => !kpOf(r).includes(k)), vin: r.vin || {}, kpOff: r.kpOff || [], kpOn: r.kpOn || [], sick: !!r.sick, sickNext: !!r.sickNext, vinText: r.vinText || null, v: vOf(r) }; map.set(x.date + ' ' + x.start, x); n++; });
     const list = [...map.values()].sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
     ok = (await putDoc('records', id, { name, month, rows: list, updatedAt: new Date().toISOString() })) && ok;
   }
@@ -1338,7 +1339,7 @@ function openSavedRecords() {
   const d = month && getColl('records')[docId(name) + '_' + month];
   if (!d) { alert('開く記録を選んでください'); return; }
   if (recRows.length && !confirm('今の表の内容を、保存した記録に入れ替えますか？')) return;
-  recRows = d.rows.map(x => ({ date: new Date(x.date + 'T00:00:00'), e: { ...emptyEntry(), type: x.type, start: x.start, end: x.end, detail: x.detail }, kind: x.kind, staff: x.staff, staffEdited: true, on: true, flag: x.flag || '', text: x.text, vin: x.vin || {}, kpOff: x.kpOff || [], kpOn: x.kpOn || [], vinText: x.vinText || null, kp: cleanKp(x) }))
+  recRows = d.rows.map(x => ({ date: new Date(x.date + 'T00:00:00'), e: { ...emptyEntry(), type: x.type, start: x.start, end: x.end, detail: x.detail }, kind: x.kind, staff: x.staff, staffEdited: true, on: true, flag: x.flag || '', text: x.text, vin: x.vin || {}, kpOff: x.kpOff || [], kpOn: x.kpOn || [], sick: !!x.sick, sickNext: !!x.sickNext, vinText: x.vinText || null, kp: cleanKp(x) }))
     .sort((a, b) => (b.date - a.date) || ((b.e.start || '') > (a.e.start || '') ? 1 : -1));
   const [y, m] = month.split('-').map(Number);
   document.getElementById('recFrom').value = `${month}-01`; document.getElementById('recTo').value = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
@@ -2408,8 +2409,9 @@ function vAuto(r) {
   return v;
 }
 function vOf(r) { const a = vAuto(r), m = r.vin || {}, v = { ...a, ...m }, t = tmplFor(r);
+  if (r.sick) { if (!m.顔色) v.顔色 = '不良'; if (!m.清拭) v.清拭 = '全身'; }
   if (t) { const dow = r.date.getDay(), on = k => !(t.dayOnly || {})[k] || t.dayOnly[k].includes(dow);
-    if (t.kaoiro && !m.顔色) v.顔色 = t.kaoiro; if (t.hakkan && !m.発汗) v.発汗 = t.hakkan; if (t.henkou && !m.変更) v.変更 = t.henkou;
+    if (t.kaoiro && !m.顔色 && !r.sick) v.顔色 = t.kaoiro; if (t.hakkan && !m.発汗) v.発汗 = t.hakkan; if (t.henkou && !m.変更) v.変更 = t.henkou;
     if (!m.整容) v.整容 = on('身体整容|整容') ? (t.seiyo || []) : [];
     if (!m.部分浴 && (t.bubunyoku || []).length) v.部分浴 = t.bubunyoku[0]; if (!m.清拭 && (t.seishiki || []).length) v.清拭 = t.seishiki[0]; if (!m.摂食 && t.sesshoku) v.摂食 = t.sesshoku; } v.その他 = ['環境整備', '相談援助', '情報収集・提供', '記録']; return v; } // その他は毎回4つとも（事業所の決まり）
 const SEIYO = { 爪: '爪切り', 耳: '耳掃除', 髭: '髭剃り', 髪: '整髪', 化粧: '化粧' };
@@ -2700,7 +2702,43 @@ function genItems(r) {
   r._genFrom = `似た訪問の見本${pool.length}件（${key}・${tod}）`;
   return out;
 }
-function kpAll(r) {
+// ===== 体調不良の日：1か月に2〜3日、入浴の訪問を「シャワー浴＋全身清拭」にする（共に行う訪問がある日は選ばない）。次の日の最初の訪問で体調を確認した文を入れる =====
+const isBathRow = r => /入浴|シャワー/.test((r.e.type || '') + ' ' + (r.e.detail || '')) || (tmplItems(r) || []).includes('入浴・清拭|入浴介助');
+const SICK_BATH = [
+  '訪問時、本人から「今日は少しだるい」と訴えがあり、体調を確認した。顔色がやや優れなかったため、本人と相談し、入浴は控えてシャワー浴とした。シャワー浴は短時間で済ませ、湯冷めしないよう室温に配慮した。シャワー浴後に全身清拭を行い、皮膚の状態を確認した。無理をせず休むよう声掛けした。',
+  '訪問時、本人の表情がすぐれず、体のだるさの訴えが聞かれた。体調を考慮して入浴は見合わせ、シャワー浴で対応した。シャワー浴の後は全身清拭を行い、清潔を保てるよう支援した。体調の変化がないか様子を確認し、ゆっくり休むよう伝えた。',
+  '訪問時に体調を確認したところ、本人から疲れが出ているとの話があった。入浴は負担が大きいため、本人の了承を得てシャワー浴とした。シャワー浴後に全身清拭を行い、体調に変わりがないことを確認した。今日は早めに休むよう声掛けした。',
+];
+const SICK_NEXT = [
+  '前日の体調不良について確認したところ、本日は体調が回復しており、だるさの訴えは聞かれなかった。',
+  '前日に体調を崩されていたため、まず体調を確認した。顔色も良く、本人から「もう大丈夫」と話があった。',
+  '前日の様子を踏まえて体調を確認し、熱っぽさやだるさがないことを確かめた。',
+];
+function applySick(rows, name, ym) {
+  const K = kubunOf(name) === '介護', on = rows.filter(r => r.on !== false && ymd(r.date).startsWith(ym));
+  const tog = new Set(on.filter(r => r.kind !== '家事援助' && visTogether(r.e)).map(r => ymd(r.date)));
+  const cands = [...new Set(on.filter(isBathRow).map(r => ymd(r.date)))].filter(d => !tog.has(d)).sort();
+  let seed = 0; for (const ch of name + ym) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+  const n = Math.min(cands.length, 2 + (seed % 2)), pickd = [];
+  const pool = cands.slice(); while (pickd.length < n && pool.length) { seed = (seed * 1103515245 + 12345) >>> 0; pickd.push(pool.splice(seed % pool.length, 1)[0]); }
+  const sick = new Set(pickd);
+  on.forEach(r => { r.sick = false; if (r.sickNext) { r.text = String(r.text || '').replace(new RegExp('^(' + SICK_NEXT.map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')'), ''); r.sickNext = false; } });
+  const base = seed % SICK_BATH.length; on.filter(r => sick.has(ymd(r.date)) && isBathRow(r)).sort((a, b) => a.date - b.date).forEach((r, i) => { r.sick = true; let t = SICK_BATH[(base + i) % SICK_BATH.length]; if (K) t = t.replace(/本人/g, '利用者様'); r.text = t; r.kpText = null; });
+  // 次の日の最初の訪問
+  let ni = seed % SICK_NEXT.length; [...sick].sort().forEach(d => { const nd = new Date(d + 'T00:00:00'); nd.setDate(nd.getDate() + 1); const k = ymd(nd);
+    const first = on.filter(r => ymd(r.date) === k).sort((a, b) => (entryTime(a.e).s || '').localeCompare(entryTime(b.e).s || ''))[0];
+    if (first && !first.sick) { let s = SICK_NEXT[ni++ % SICK_NEXT.length]; if (K) s = s.replace(/本人/g, '利用者様'); first.text = s + String(first.text || '').replace(/^訪問時、[^。]*体調[^。]*。/, ''); first.sickNext = true; first.kpText = null; } });
+  return pickd;
+}
+// 体調不良の日の入浴：入浴介助・洗髪の代わりにシャワー浴＋清拭
+function sickFix(r, out) {
+  if (!r.sick) return out;
+  const o = out.filter(k => k !== '入浴・清拭|入浴介助' && k !== '入浴・清拭|洗髪');
+  ['入浴・清拭|シャワー浴', '入浴・清拭|清拭'].forEach(k => { if (!o.includes(k) && !(r.kpOff || []).includes(k)) o.push(k); });
+  return o;
+}
+function kpAll(r) { return sickFix(r, kpAll0(r)); }
+function kpAll0(r) {
   // 見本がある訪問は、見本どおり（手で足した物は足し、手で外した物は外す）
   const ti = tmplItems(r) || genItems(r); if (ti) return [...new Set([...ti, ...(r.kpOn || [])])].filter(k => !(r.kpOff || []).includes(k));
   if (!r.kpText) kpFromText(r);
@@ -3171,6 +3209,8 @@ async function buildRecords() {
   }
   // 次の訪問が続けて始まるときは、最後に「続けて〇〇に移った。」（全部の行ができてから）
   recRows.filter(r => r.on && r.text).forEach(r => { r.text = nextLink(r, r.text); });
+  // 体調不良の日（月2〜3日）を決めて、入浴をシャワー浴＋清拭に・次の日に体調確認の文
+  [...new Set(recRows.map(r => ymd(r.date).slice(0, 7)))].forEach(ym => applySick(recRows, name, ym));
   // 出力しない行（シフトに無い予定）は文章を作っておく（チェックを入れたら使えるように）
   recRows.filter(r => !r.on && !r.text).forEach(r => { r.text = uniqueText(r, recRows.filter(x => x.on)); });
   recRows.sort((a, b) => (b.date - a.date) || ((b.e.start || '') > (a.e.start || '') ? 1 : -1));
