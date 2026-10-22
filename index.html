@@ -567,6 +567,7 @@
       <h3 id="h-rokei">チェックの決まり（まとめ）</h3>
       <p><b>見本（記録用紙）の書き込み</b>：■と赤ペンの✓は付ける、赤の×は外す、丸囲みは「ときどき」（初めは付けない）。「どちらか」は訪問ごとに交互に1つ。家事の訪問は必ずゴミ出し。献立欄の「3品」などは献立の品数。買い物代行の日は預り・購入・お釣・内訳をだいたいの金額で入れる（手で入れた値が優先）。</p>
       <p><b>同じ文を書かない</b>：同じ利用者・同じ月の中で一度使った文は、2回目からは意味を変えずに言い回しを変える（例：「退室前に戸締まりや火の元を確認し、安全を確かめた」→「帰る前に火の元や戸締まりを確認し、危険がないことを確かめた」）。言い回しが尽きた様子・会話などの付け足しの文は、同じ種類のまだ使っていない文に替える。</p>
+      <p><b>完食</b>：チェックは付けない（手で付けた時だけ）。</p>
       <p><b>体調不良の日</b>：1か月に2〜3日（共に行う訪問がある日は選ばない）、入浴の訪問を「シャワー浴」（入浴介助・洗髪・清拭は外す・顔色は不良）にし、文章も体調不良の内容に。同じ日のほかの訪問も「昨夜はあまり眠れず、しんどい」などの文から始め、顔色は不良（体調が良い・訴え無しの文は外す）。次の日の最初の訪問は「前日の体調不良について確認…」の文から始める。</p>
       <p><b>見本が無い訪問（障害の利用者）</b>は、同じ種類・時間帯の見本で半分以上に付いている項目から作り（家事は予定の内容にある家事だけ）、アセスメントで合わない項目（服用支援・洗髪介助・入浴介助・排泄介助・通院支援が無い／洗濯・清掃・調理・買い物が「できる」／NGの言葉）は外します。</p>
       <p><b>見本がある訪問は見本どおり</b>：カイポケの記録用紙に手で付けた見本（105枚・27人）と、利用者・開始時刻（前後10分）・曜日が合う訪問は、下の決まりを使わず見本の項目だけを付けます（「火木」などの曜日の書き込みはその曜日だけ／丸で囲んだ項目は付けない）。手で足した・外した項目はそのまま。見本が無い訪問は、上から順に下の決まりで付けます。</p>
@@ -723,7 +724,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261022163208';
+const APP_VER = '20261022165840';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1350,7 +1351,7 @@ function openSavedRecords() {
   const d = month && getColl('records')[docId(name) + '_' + month];
   if (!d) { alert('開く記録を選んでください'); return; }
   if (recRows.length && !confirm('今の表の内容を、保存した記録に入れ替えますか？')) return;
-  recRows = d.rows.map(x => ({ date: new Date(x.date + 'T00:00:00'), e: { ...emptyEntry(), type: x.type, start: x.start, end: x.end, detail: x.detail }, kind: x.kind, staff: x.staff, staffEdited: true, on: true, flag: x.flag || '', text: x.text, vin: x.vin || {}, kpOff: x.kpOff || [], kpOn: x.kpOn || [], sick: !!x.sick, sickNext: !!x.sickNext, sickDay: !!x.sickDay, vinText: x.vinText || null, kp: cleanKp(x) }))
+  recRows = d.rows.map(x => ({ date: new Date(x.date + 'T00:00:00'), e: { ...emptyEntry(), type: x.type, start: x.start, end: x.end, detail: x.detail }, kind: x.kind, staff: x.staff, staffEdited: true, on: true, flag: x.flag || '', text: x.text, vin: x.vin || {}, kpOff: x.kpOff || [], kpOn: x.kpOn || [], sick: !!x.sick, sickNext: !!x.sickNext, sickDay: !!x.sickDay, vinText: x.vinText || null, kp: cleanKp(x).filter(k => k !== '食事|完食' || (x.kpOn || []).includes(k)) }))
     .sort((a, b) => (b.date - a.date) || ((b.e.start || '') > (a.e.start || '') ? 1 : -1));
   const [y, m] = month.split('-').map(Number);
   document.getElementById('recFrom').value = `${month}-01`; document.getElementById('recTo').value = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
@@ -2782,7 +2783,8 @@ function sickFix(r, out) {
   ['入浴・清拭|シャワー浴'].forEach(k => { if (!o.includes(k) && !(r.kpOff || []).includes(k)) o.push(k); });
   return o;
 }
-function kpAll(r) { return sickFix(r, kpAll0(r)); }
+// 完食のチェックは付けない（事業所の決まり・手で付けた時だけ）
+function kpAll(r) { return sickFix(r, kpAll0(r)).filter(k => k !== '食事|完食' || (r.kpOn || []).includes(k)); }
 function kpAll0(r) {
   // 見本がある訪問は、見本どおり（手で足した物は足し、手で外した物は外す）
   const ti = tmplItems(r) || genItems(r); if (ti) return [...new Set([...ti, ...(r.kpOn || [])])].filter(k => !(r.kpOff || []).includes(k));
@@ -3247,7 +3249,7 @@ async function buildRecords() {
     for (const p of [...plan].sort((a, b) => (entryTime(a.e).s || '').localeCompare(entryTime(b.e).s || ''))) { // 時刻の順に作る（前の訪問とのつながりのため）
       const row = { date: new Date(d), e: p.e, kind: kindOf(p.e.type), staff: p.staff || (p.fromShift ? '' : staff), on: p.on, flag: p.flag };
       if (p.fromShift) { row.staffFromShift = true; row.staffEdited = true; }
-      row.kp = tmplItems(row) || genItems(row) || autoKPFor(row.e, name); // 見本（無ければ似た訪問の見本＋アセスメント）の項目で文章を作る
+      row.kp = (tmplItems(row) || genItems(row) || autoKPFor(row.e, name)).filter(k => k !== '食事|完食'); // 見本（無ければ似た訪問の見本＋アセスメント）の項目で文章を作る
       if (p.on) { row.text = uniqueText(row, recRows.filter(r => r.on)); } else row.text = '';
       recRows.push(row);
     }
