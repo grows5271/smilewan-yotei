@@ -567,7 +567,7 @@
       <h3 id="h-rokei">チェックの決まり（まとめ）</h3>
       <p><b>見本（記録用紙）の書き込み</b>：■と赤ペンの✓は付ける、赤の×は外す、丸囲みは「ときどき」（初めは付けない）。「どちらか」は訪問ごとに交互に1つ。家事の訪問は必ずゴミ出し。献立欄の「3品」などは献立の品数。買い物代行の日は預り・購入・お釣・内訳をだいたいの金額で入れる（手で入れた値が優先）。</p>
       <p><b>同じ文を書かない</b>：同じ利用者・同じ月の中で一度使った文は、2回目からは意味を変えずに言い回しを変える（例：「退室前に戸締まりや火の元を確認し、安全を確かめた」→「帰る前に火の元や戸締まりを確認し、危険がないことを確かめた」）。言い回しが尽きた様子・会話などの付け足しの文は、同じ種類のまだ使っていない文に替える。</p>
-      <p><b>体調不良の日</b>：1か月に2〜3日（共に行う訪問がある日は選ばない）、入浴の訪問を「シャワー浴＋全身清拭」（入浴介助・洗髪は外す・顔色は不良）にし、文章も体調不良の内容に。同じ日のほかの訪問も「昨夜はあまり眠れず、しんどい」などの文から始め、顔色は不良（体調が良い・訴え無しの文は外す）。次の日の最初の訪問は「前日の体調不良について確認…」の文から始める。</p>
+      <p><b>体調不良の日</b>：1か月に2〜3日（共に行う訪問がある日は選ばない）、入浴の訪問を「シャワー浴」（入浴介助・洗髪・清拭は外す・顔色は不良）にし、文章も体調不良の内容に。同じ日のほかの訪問も「昨夜はあまり眠れず、しんどい」などの文から始め、顔色は不良（体調が良い・訴え無しの文は外す）。次の日の最初の訪問は「前日の体調不良について確認…」の文から始める。</p>
       <p><b>見本が無い訪問（障害の利用者）</b>は、同じ種類・時間帯の見本で半分以上に付いている項目から作り（家事は予定の内容にある家事だけ）、アセスメントで合わない項目（服用支援・洗髪介助・入浴介助・排泄介助・通院支援が無い／洗濯・清掃・調理・買い物が「できる」／NGの言葉）は外します。</p>
       <p><b>見本がある訪問は見本どおり</b>：カイポケの記録用紙に手で付けた見本（105枚・27人）と、利用者・開始時刻（前後10分）・曜日が合う訪問は、下の決まりを使わず見本の項目だけを付けます（「火木」などの曜日の書き込みはその曜日だけ／丸で囲んだ項目は付けない）。手で足した・外した項目はそのまま。見本が無い訪問は、上から順に下の決まりで付けます。</p>
       <table class="help-table">
@@ -723,7 +723,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261022160548';
+const APP_VER = '20261022163208';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -2420,14 +2420,14 @@ function vAuto(r) {
   return v;
 }
 function vOf(r) { const a = vAuto(r), m = r.vin || {}, v = { ...a, ...m }, t = tmplFor(r);
-  if (r.sick) { if (!m.顔色) v.顔色 = '不良'; if (!m.清拭) v.清拭 = '全身'; }
+  if (r.sick) { if (!m.顔色) v.顔色 = '不良'; if (!m.清拭) delete v.清拭; }
   if (r.sickDay && !m.顔色) v.顔色 = '不良';
   // 買い物代行の日は、預り・購入・お釣・内訳をだいたいの金額で入れる（見本のメモ「だいたいでいいので記入」）。手で入れた値が優先
   if (!m.預り && !m.購入 && !m.お釣 && kpAll(r).includes('買物等|日常品等の買物')) Object.assign(v, shopGuess(r, v));
   if (t) { const dow = r.date.getDay(), on = k => !(t.dayOnly || {})[k] || t.dayOnly[k].includes(dow);
     if (t.kaoiro && !m.顔色 && !r.sick) v.顔色 = t.kaoiro; if (t.hakkan && !m.発汗) v.発汗 = t.hakkan; if (t.henkou && !m.変更) v.変更 = t.henkou;
     if (!m.整容) v.整容 = on('身体整容|整容') ? (t.seiyo || []) : [];
-    if (!m.部分浴 && (t.bubunyoku || []).length) v.部分浴 = t.bubunyoku[0]; if (!m.清拭 && (t.seishiki || []).length) v.清拭 = t.seishiki[0]; if (!m.摂食 && t.sesshoku) v.摂食 = t.sesshoku; } v.その他 = ['環境整備', '相談援助', '情報収集・提供', '記録']; return v; } // その他は毎回4つとも（事業所の決まり）
+    if (!m.部分浴 && (t.bubunyoku || []).length) v.部分浴 = t.bubunyoku[0]; if (!m.清拭 && (t.seishiki || []).length && !r.sick) v.清拭 = t.seishiki[0]; if (!m.摂食 && t.sesshoku) v.摂食 = t.sesshoku; } v.その他 = ['環境整備', '相談援助', '情報収集・提供', '記録']; return v; } // その他は毎回4つとも（事業所の決まり）
 function shopGuess(r, v) {
   let seed = 0; for (const ch of (state.name || '') + ymd(r.date) + (r.e.start || '')) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
   const rnd = n => { seed = (seed * 1103515245 + 12345) >>> 0; return seed % n; };
@@ -2728,12 +2728,12 @@ function genItems(r) {
   r._genFrom = `似た訪問の見本${pool.length}件（${key}・${tod}）`;
   return out;
 }
-// ===== 体調不良の日：1か月に2〜3日、入浴の訪問を「シャワー浴＋全身清拭」にする（共に行う訪問がある日は選ばない）。次の日の最初の訪問で体調を確認した文を入れる =====
+// ===== 体調不良の日：1か月に2〜3日、入浴の訪問を「シャワー浴」にする（共に行う訪問がある日は選ばない）。次の日の最初の訪問で体調を確認した文を入れる =====
 const isBathRow = r => /入浴|シャワー/.test((r.e.type || '') + ' ' + (r.e.detail || '')) || (tmplItems(r) || []).includes('入浴・清拭|入浴介助');
 const SICK_BATH = [
-  '訪問時、本人から「今日は少しだるい」と訴えがあり、体調を確認した。顔色がやや優れなかったため、本人と相談し、入浴は控えてシャワー浴とした。シャワー浴は短時間で済ませ、湯冷めしないよう室温に配慮した。シャワー浴後に全身清拭を行い、皮膚の状態を確認した。無理をせず休むよう声掛けした。',
-  '訪問時、本人の表情がすぐれず、体のだるさの訴えが聞かれた。体調を考慮して入浴は見合わせ、シャワー浴で対応した。シャワー浴の後は全身清拭を行い、清潔を保てるよう支援した。体調が悪化していないか様子を確認し、ゆっくり休むよう伝えた。',
-  '訪問時に体調を確認したところ、本人から疲れが出ているとの話があった。入浴は負担が大きいため、本人の了承を得てシャワー浴とした。シャワー浴後に全身清拭を行い、体調に変わりがないことを確認した。今日は早めに休むよう声掛けした。',
+  '訪問時、本人から「今日は少しだるい」と訴えがあり、体調を確認した。顔色がやや優れなかったため、本人と相談し、入浴は控えてシャワー浴とした。シャワー浴は短時間で済ませ、湯冷めしないよう室温に配慮した。シャワー浴後は水気をよく拭き取り、皮膚の状態を確認した。無理をせず休むよう声掛けした。',
+  '訪問時、本人の表情がすぐれず、体のだるさの訴えが聞かれた。体調を考慮して入浴は見合わせ、シャワー浴で対応した。シャワー浴の後は体が冷えないよう、手早く着衣を整えた。体調が悪化していないか様子を確認し、ゆっくり休むよう伝えた。',
+  '訪問時に体調を確認したところ、本人から疲れが出ているとの話があった。入浴は負担が大きいため、本人の了承を得てシャワー浴とした。シャワー浴の後、体調に変わりがないことを確認した。今日は早めに休むよう声掛けした。',
 ];
 // 体調不良の日の、入浴以外の訪問（見本の記録用紙の「体調不良時」のコメントから）
 const SICK_DAY = {
@@ -2774,12 +2774,12 @@ function applySick(rows, name, ym) {
     if (first && !first.sick && !sick.has(k)) { let s = SICK_NEXT[ni++ % SICK_NEXT.length]; if (K) s = s.replace(/本人/g, '利用者様'); first.text = s + String(first.text || '').replace(/^訪問時、[^。]*体調[^。]*。/, ''); first.sickNext = true; first.kpText = null; } });
   return pickd;
 }
-// 体調不良の日の入浴：入浴介助・洗髪の代わりにシャワー浴＋清拭
+// 体調不良の日の入浴：入浴介助・洗髪・清拭の代わりにシャワー浴だけ
 function sickFix(r, out) {
   if (r.sickDay) { const t = tmplFor(r), o = [...out]; ((t && t.sickItems) || []).filter(k => !/^入浴・清拭/.test(k)).forEach(k => { if (!o.includes(k) && !(r.kpOff || []).includes(k)) o.push(k); }); return o; }
   if (!r.sick) return out;
-  const o = out.filter(k => k !== '入浴・清拭|入浴介助' && k !== '入浴・清拭|洗髪');
-  ['入浴・清拭|シャワー浴', '入浴・清拭|清拭'].forEach(k => { if (!o.includes(k) && !(r.kpOff || []).includes(k)) o.push(k); });
+  const o = out.filter(k => k !== '入浴・清拭|入浴介助' && k !== '入浴・清拭|洗髪' && (k !== '入浴・清拭|清拭' || (r.kpOn || []).includes(k)));
+  ['入浴・清拭|シャワー浴'].forEach(k => { if (!o.includes(k) && !(r.kpOff || []).includes(k)) o.push(k); });
   return o;
 }
 function kpAll(r) { return sickFix(r, kpAll0(r)); }
@@ -3254,7 +3254,7 @@ async function buildRecords() {
   }
   // 次の訪問が続けて始まるときは、最後に「続けて〇〇に移った。」（全部の行ができてから）
   recRows.filter(r => r.on && r.text).forEach(r => { r.text = nextLink(r, r.text); });
-  // 体調不良の日（月2〜3日）を決めて、入浴をシャワー浴＋清拭に・次の日に体調確認の文
+  // 体調不良の日（月2〜3日）を決めて、入浴をシャワー浴に・次の日に体調確認の文
   [...new Set(recRows.map(r => ymd(r.date).slice(0, 7)))].forEach(ym => applySick(recRows, name, ym));
   // 同じ月の中で同じ文が出たら、2回目からは意味を変えずに言い回しを変える
   varyRecRows(recRows, name);
