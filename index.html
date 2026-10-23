@@ -330,6 +330,7 @@
       <label class="check"><input type="radio" name="kubunFilter" value="" checked onchange="refreshSavedList();refreshRecUsers()"> すべて</label>
       <label class="check"><input type="radio" name="kubunFilter" value="介護" onchange="refreshSavedList();refreshRecUsers()"> 介護</label>
       <label class="check"><input type="radio" name="kubunFilter" value="障害" onchange="refreshSavedList();refreshRecUsers()"> 障害</label>
+      <label class="check">担当者 <select id="staffFilter" onchange="refreshSavedList();refreshRecUsers()"><option value="">すべて</option></select></label>
     </div>
     <div class="saved-list">
       <select id="savedSelect" onchange="loadSaved(this.value)"><option value="">-- 選択 --</option></select>
@@ -567,6 +568,7 @@
       <h3 id="h-rokei">チェックの決まり（まとめ）</h3>
       <p><b>見本（記録用紙）の書き込み</b>：■と赤ペンの✓は付ける、赤の×は外す、丸囲みは「ときどき」（初めは付けない）。「どちらか」は訪問ごとに交互に1つ。家事の訪問は必ずゴミ出し。献立欄の「3品」などは献立の品数。買い物代行の日は預り・購入・お釣・内訳をだいたいの金額で入れる（手で入れた値が優先）。</p>
       <p><b>同じ文を書かない</b>：同じ利用者・同じ月の中で一度使った文は、2回目からは意味を変えずに言い回しを変える（例：「退室前に戸締まりや火の元を確認し、安全を確かめた」→「帰る前に火の元や戸締まりを確認し、危険がないことを確かめた」）。言い回しが尽きた様子・会話などの付け足しの文は、同じ種類のまだ使っていない文に替える。</p>
+      <p><b>担当者で絞り込み</b>：予定表タブの「担当者」で選ぶと、その人が訪問記録の担当者に入っている利用者だけが一覧（保存済み利用者・訪問記録の利用者）に出る（介護／障害の絞り込みと一緒に使える）。</p>
       <p><b>文の順番</b>：朝は起床→排泄→洗面→口腔ケア→着替え→食事→服薬、夜は食事→服薬→排泄→洗面→口腔ケア→着替え→就寝、入浴は準備→入浴→洗髪→着衣→整容→水分→浴室の掃除の順に並べる（最初の挨拶・体調と最後の退室・つなぎの文はそのまま）。</p>
       <p><b>チェックと文章</b>：チェックした項目（起床・更衣・洗面・口腔ケア・服薬・入浴・洗髪・就寝）が文章に出てこないときは、その文を足す。</p>
       <p><b>完食</b>：チェックは付けない（手で付けた時だけ）。</p>
@@ -726,7 +728,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261023113952';
+const APP_VER = '20261023115300';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -842,6 +844,22 @@ async function setKubun(name, kubun) {
   await putDoc('clients', docId(name), { ...prev, name, kubun, updatedAt: new Date().toISOString() });
   renderKubun(); refreshSavedList(); refreshRecUsers();
 }
+// 担当者で絞り込み：保存した訪問記録の担当者（シフトから入った人）がその利用者に入っているか
+function staffFilter() { const e = document.getElementById('staffFilter'); return e ? e.value : ''; }
+const nmz = x => String(x || '').replace(/[\s　]/g, ''), splitStaff = x => String(x || '').split(/[・,、\/]+/).map(nmz).filter(Boolean);
+function staffClients(st) {
+  const k = nmz(st), set = new Set();
+  Object.values(getColl('records')).forEach(d => { if ((d.rows || []).some(x => splitStaff(x.staff).includes(k))) set.add(d.name); });
+  return set;
+}
+function staffOk(n) { const st = staffFilter(); if (!st) return true; return staffClients(st).has(n); }
+function refreshStaffFilter() {
+  const sel = document.getElementById('staffFilter'); if (!sel) return;
+  const cur = sel.value, names = new Set();
+  Object.values(getColl('records')).forEach(d => (d.rows || []).forEach(x => String(x.staff || '').split(/[・,、\/]+/).map(y => y.trim()).filter(Boolean).forEach(y => names.add(y))));
+  const list = [...names].sort((a, b) => a.localeCompare(b, 'ja'));
+  sel.innerHTML = '<option value="">すべて</option>' + list.map(n => `<option value="${esc(n)}" ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('');
+}
 function kubunFilter() { const r = document.querySelector('input[name=kubunFilter]:checked'); return r ? r.value : ''; }
 function renderKubun() {
   const name = (state.name || '').trim(), k = name ? kubunOf(name) : '介護';
@@ -851,9 +869,10 @@ function renderKubun() {
 function refreshSavedList() {
   const sel = document.getElementById('savedSelect');
   const store = getStore();
+  refreshStaffFilter();
   const cur = state.name, f = kubunFilter();
   sel.innerHTML = '<option value="">-- 選択 --</option>' +
-    Object.keys(store).filter(n => !f || kubunOf(n) === f).sort((a, b) => a.localeCompare(b, 'ja')).map(n => `<option value="${esc(n)}" ${n === cur ? 'selected' : ''}>［${kubunOf(n)}］${esc(n)}</option>`).join('');
+    Object.keys(store).filter(n => (!f || kubunOf(n) === f) && staffOk(n)).sort((a, b) => a.localeCompare(b, 'ja')).map(n => `<option value="${esc(n)}" ${n === cur ? 'selected' : ''}>［${kubunOf(n)}］${esc(n)}</option>`).join('');
 }
 async function saveCurrent() {
   const name = (state.name || '').trim();
@@ -1974,7 +1993,7 @@ function setMode(m) {
 function refreshRecUsers() {
   const sel = document.getElementById('recUser');
   const f = kubunFilter();
-  const names = Object.keys(getStore()).filter(n => !f || kubunOf(n) === f || n === (state.name || '').trim()).sort((a, b) => a.localeCompare(b, 'ja'));
+  const names = Object.keys(getStore()).filter(n => ((!f || kubunOf(n) === f) && staffOk(n)) || n === (state.name || '').trim()).sort((a, b) => a.localeCompare(b, 'ja'));
   const cur = (state.name || '').trim();
   const opts = names.map(n => `<option value="${esc(n)}" ${n === cur ? 'selected' : ''}>［${kubunOf(n)}］${esc(n)}${assessOf(n) ? '' : '　⚠アセスなし'}</option>`);
   if (cur && !names.includes(cur)) opts.unshift(`<option value="" selected>${esc(cur)}（未保存）</option>`);
