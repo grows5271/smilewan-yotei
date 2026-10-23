@@ -728,7 +728,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261023115300';
+const APP_VER = '20261023160109';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -752,18 +752,27 @@ async function supaRpc(fn, args) {
   return r.status === 204 ? null : r.json().catch(() => null);
 }
 // claude.ai の db と同じ形（doc().set/delete・collection().onSnapshot）で使えるようにする
-function supaDB(pass) {
+function supaDB(pass, firstRows) {
   const subs = { schedules: [], settings: [] };
-  let timer = null, busy = false;
+  let timer = null, busy = false, fails = 0, retryT = null;
+  const deliver = rows => Object.keys(subs).forEach(k => { const docs = rows.filter(r => r.kind === k).map(r => ({ id: r.name, data: () => r.data })); subs[k].forEach(s => s.cb({ docs })); });
   async function refresh() {
     if (busy) return; busy = true;
     try {
       const rows = await supaRpc('smilewan_list', { p_pass: pass }) || [];
-      Object.keys(subs).forEach(k => { const docs = rows.filter(r => r.kind === k).map(r => ({ id: r.name, data: () => r.data })); subs[k].forEach(s => s.cb({ docs })); });
-    } catch (e) { Object.values(subs).flat().forEach(s => s.err && s.err(e)); }
+      fails = 0; clearTimeout(retryT); retryT = null; deliver(rows);
+    } catch (e) {
+      // 合言葉が違うときだけ切断。通信の一時的な失敗（サーバーの時間切れなど）は、今の内容をそのまま使って後で読み直す
+      if (e && e.code === 'badpass') { Object.values(subs).flat().forEach(s => s.err && s.err(e)); }
+      else { fails++; setSyncStatus(`☁ 共有と通信できませんでした（${fails}回目・再試行します）`, 'wait'); if (!retryT) retryT = setTimeout(() => { retryT = null; refresh(); }, Math.min(15000 * fails, 60000)); }
+    }
     finally { busy = false; }
   }
-  const start = () => { if (!timer) { setTimeout(refresh, 0); timer = setInterval(refresh, 30000); } }; // 30秒ごとに他の人の変更を反映
+  const start = () => { if (!timer) {
+    if (firstRows) { const r0 = firstRows; firstRows = null; setTimeout(() => deliver(r0), 0); } else setTimeout(refresh, 0);
+    timer = setInterval(() => { if (!document.hidden) refresh(); }, 120000); // 2分ごとに他の人の変更を反映（画面が隠れている間は休む）
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  } };
   return {
     doc(path) {
       const [kind, name] = path.split('/');
@@ -780,12 +789,14 @@ let supaMsg = '';
 async function supaConnect() {
   const pass = (lsGet('smilewan_pass') || '').trim();
   if (!pass) { supaMsg = '⚠ 共有に接続されていません。合言葉を入れて「接続」を押してください（このままだと入力はこの端末にだけ保存され、ほかの人には届きません）。'; return null; }
-  try { await supaRpc('smilewan_list', { p_pass: pass }); supaMsg = ''; return supaDB(pass); }
-  catch (e) {
-    if (e.code === 'badpass') { lsSet('smilewan_pass', ''); supaMsg = '⚠ 合言葉が違います。もう一度入れて「接続」を押してください。'; }
-    else supaMsg = '⚠ 保存先に接続できませんでした。通信状態を確認して、ページを再読み込みしてください。';
-    return null;
+  let last = null;
+  for (let k = 0; k < 3; k++) { // 一時的な通信の失敗は3回まで試し直す
+    try { const rows = await supaRpc('smilewan_list', { p_pass: pass }); supaMsg = ''; return supaDB(pass, rows || []); }
+    catch (e) { last = e; if (e.code === 'badpass') break; await new Promise(r => setTimeout(r, 2000 * (k + 1))); }
   }
+  if (last && last.code === 'badpass') { lsSet('smilewan_pass', ''); supaMsg = '⚠ 合言葉が違います。もう一度入れて「接続」を押してください。'; }
+  else supaMsg = '⚠ 保存先に接続できませんでした。通信状態を確認して、ページを再読み込みしてください。';
+  return null;
 }
 function connectWithPass() {
   const v = (document.getElementById('passInput').value || '').trim();
