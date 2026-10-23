@@ -566,6 +566,7 @@
       <p class="hint">カイポケへは直接入力できません。青い実施項目を見ながらチェックし、文章は📋でコピーして貼り付けます。</p>
 
       <h3 id="h-rokei">チェックの決まり（まとめ）</h3>
+      <p><b>用紙に無い曜日・時刻の訪問</b>：同じ人の、同じ種類（身体／家事／入浴／共に）で時刻が一番近い用紙（90分以内）を使う（例：土曜19:30の入浴→20:00の入浴の用紙）。通院は使わない。</p>
       <p><b>見本（記録用紙）の書き込み</b>：■と赤ペンの✓は付ける、赤の×は外す、丸囲みは「ときどき」（予定表のその訪問の内容に書いてあるときだけ付ける。例：買物に丸→予定に「代行」とあれば付ける）。「どちらか」は訪問ごとに交互に1つ。家事の訪問は必ずゴミ出し。献立欄の「3品」などは献立の品数。買い物代行の日は預り・購入・お釣・内訳をだいたいの金額で入れる（手で入れた値が優先）。</p>
       <p><b>同じ文を書かない</b>：同じ利用者・同じ月の中で一度使った文は、2回目からは意味を変えずに言い回しを変える（例：「退室前に戸締まりや火の元を確認し、安全を確かめた」→「帰る前に火の元や戸締まりを確認し、危険がないことを確かめた」）。言い回しが尽きた様子・会話などの付け足しの文は、同じ種類のまだ使っていない文に替える。</p>
       <p><b>担当者で絞り込み</b>：予定表タブの「担当者」で選ぶと、その人が訪問記録の担当者に入っている利用者だけが一覧（保存済み利用者・訪問記録の利用者）に出る（介護／障害の絞り込みと一緒に使える）。</p>
@@ -728,7 +729,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261023162931';
+const APP_VER = '20261023164220';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -2696,10 +2697,14 @@ function tmplFor(r) {
   if (!r || !r.date || !r.e) return null;
   const name = (state.name || '').trim(), dow = r.date.getDay(), st = hm(entryTime(r.e).s);
   if (st == null) return null;
-  const c = tmplList().filter(t => t.name === name && (t.days || []).includes(dow) && Math.abs(hm(t.start) - st) <= 10);
-  if (!c.length) return null;
   const fam = t => /家事/.test(t.type || '') ? '家事援助' : '身体介護';
-  return c.find(t => fam(t) === r.kind) || c[0];
+  const c = tmplList().filter(t => t.name === name && (t.days || []).includes(dow) && Math.abs(hm(t.start) - st) <= 10);
+  if (c.length) return c.find(t => fam(t) === r.kind) || c[0];
+  // 曜日や時刻が用紙と違う訪問（予定表の変更など）：同じ人の、同じ種類（身体／家事／入浴／共に）で時刻が一番近い用紙（90分以内）を使う
+  if (/通院/.test(r.e.type || '')) return null;
+  const kind = tmplKind(r.e.type, r.e.detail, r.kind), tk = t => tmplKind(t.type, '', fam(t));
+  const near = tmplList().filter(t => t.name === name && tk(t) === kind && Math.abs(hm(t.start) - st) <= 90).sort((a, b) => Math.abs(hm(a.start) - st) - Math.abs(hm(b.start) - st));
+  return near[0] || null;
 }
 // 見本で「ときどき」（丸囲み）の項目は、その訪問の予定の内容に書いてあるときだけ付ける（例：買物に丸→予定に「代行」とあれば付ける）
 const CIRC_RE = { '買物等|日常品等の買物': /買い物|買物|代行/, '買物等|薬の受取り': /薬の受取|薬の受け取|受け取り/, '自立支援|買い物・薬の受け取り': /買い物|買物|代行|薬/, '洗濯|洗濯': /洗濯/, '洗濯|乾燥（物干し）': /洗濯|干/, '入浴・清拭|シャワー浴': /シャワー/, '入浴・清拭|清拭': /清拭/, '身体整容|整容': /整容|髭|爪|髪/, '清掃|浴室': /浴室|風呂/, '衣類・寝具|衣類の整理': /衣類/, '衣類・寝具|シーツ・カバー交換': /シーツ/, '衣類・寝具|ベッドメイク': /ベッド/ };
