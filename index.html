@@ -566,7 +566,7 @@
       <p class="hint">カイポケへは直接入力できません。青い実施項目を見ながらチェックし、文章は📋でコピーして貼り付けます。</p>
 
       <h3 id="h-rokei">チェックの決まり（まとめ）</h3>
-      <p><b>見本（記録用紙）の書き込み</b>：■と赤ペンの✓は付ける、赤の×は外す、丸囲みは「ときどき」（初めは付けない）。「どちらか」は訪問ごとに交互に1つ。家事の訪問は必ずゴミ出し。献立欄の「3品」などは献立の品数。買い物代行の日は預り・購入・お釣・内訳をだいたいの金額で入れる（手で入れた値が優先）。</p>
+      <p><b>見本（記録用紙）の書き込み</b>：■と赤ペンの✓は付ける、赤の×は外す、丸囲みは「ときどき」（予定表のその訪問の内容に書いてあるときだけ付ける。例：買物に丸→予定に「代行」とあれば付ける）。「どちらか」は訪問ごとに交互に1つ。家事の訪問は必ずゴミ出し。献立欄の「3品」などは献立の品数。買い物代行の日は預り・購入・お釣・内訳をだいたいの金額で入れる（手で入れた値が優先）。</p>
       <p><b>同じ文を書かない</b>：同じ利用者・同じ月の中で一度使った文は、2回目からは意味を変えずに言い回しを変える（例：「退室前に戸締まりや火の元を確認し、安全を確かめた」→「帰る前に火の元や戸締まりを確認し、危険がないことを確かめた」）。言い回しが尽きた様子・会話などの付け足しの文は、同じ種類のまだ使っていない文に替える。</p>
       <p><b>担当者で絞り込み</b>：予定表タブの「担当者」で選ぶと、その人が訪問記録の担当者に入っている利用者だけが一覧（保存済み利用者・訪問記録の利用者）に出る（介護／障害の絞り込みと一緒に使える）。</p>
       <p><b>文の順番</b>：朝は起床→排泄→洗面→口腔ケア→着替え→食事→服薬、夜は食事→服薬→排泄→洗面→口腔ケア→着替え→就寝、入浴は準備→入浴→洗髪→着衣→整容→水分→浴室の掃除の順に並べる（最初の挨拶・体調と最後の退室・つなぎの文はそのまま）。</p>
@@ -728,7 +728,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261023162306';
+const APP_VER = '20261023162931';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -821,7 +821,8 @@ async function initCloud() {
     // 共有側にまだ無く、この端末だけにある予定表は自動で共有側へ送る（初回移行）
     const ls = localStore();
     // この端末にだけある予定表・この端末の方が新しい予定表は、共有側へ送る（つながっていない間の変更を取りこぼさない）
-    if (!cloud._migrated) Object.keys(ls).forEach(n => { const l = ls[n], c = m[n]; if (!c || (l.updatedAt && (!c.updatedAt || l.updatedAt > c.updatedAt))) { m[n] = { name: n, days: l.days, updatedAt: l.updatedAt }; DB.doc('schedules/' + docId(n)).set({ name: n, days: l.days, updatedAt: l.updatedAt || new Date().toISOString() }).catch(() => {}); } });
+    Object.keys(m).forEach(n => { if (isTomb('schedules', docId(n))) delete m[n]; }); // 消した物は、古い端末から戻ってきても出さない
+    if (!cloud._migrated) Object.keys(ls).forEach(n => { if (isTomb('schedules', docId(n))) return; const l = ls[n], c = m[n]; if (!c || (l.updatedAt && (!c.updatedAt || l.updatedAt > c.updatedAt))) { m[n] = { name: n, days: l.days, updatedAt: l.updatedAt }; DB.doc('schedules/' + docId(n)).set({ name: n, days: l.days, updatedAt: l.updatedAt || new Date().toISOString() }).catch(() => {}); } });
     cloud._migrated = true;
     refreshSavedList(); refreshUserPick(); if (mode === 'record') refreshRecUsers();
     setSyncStatus(`☁ 共有保存（予定表 ${Object.keys(m).length}名）`, 'ok');
@@ -836,7 +837,8 @@ async function initCloud() {
     let first = true;
     DB.collection(kind).onSnapshot(snap => {
       const m = {}; snap.docs.forEach(d => { m[d.id] = d.data(); });
-      if (first) { first = false; const l = localColl(kind); Object.keys(l).forEach(id => { const c = m[id], x = l[id]; if (!c || (x.updatedAt && (!c.updatedAt || x.updatedAt > c.updatedAt))) { m[id] = x; DB.doc(kind + '/' + id).set(x).catch(() => {}); } }); }
+      Object.keys(m).forEach(id => { if (isTomb(kind, id)) delete m[id]; });
+      if (first) { first = false; const l = localColl(kind); Object.keys(l).forEach(id => { if (isTomb(kind, id)) return; const c = m[id], x = l[id]; if (!c || (x.updatedAt && (!c.updatedAt || x.updatedAt > c.updatedAt))) { m[id] = x; DB.doc(kind + '/' + id).set(x).catch(() => {}); } }); }
       cloud[kind] = m;
       if (kind === 'clients') { renderClientBox(!clientEdited); renderNgBox(); renderAssessBox(); renderGlobStates(); renderKubun(); refreshSavedList(); if (recRows.length) renderRecordView(); } else refreshSavedMonths();
     }, () => {});
@@ -1071,6 +1073,8 @@ function csvClientInfo(r, heads) {
 }
 // ===== 利用者情報・訪問記録の保存（共有DB/Supabase があればそこへ、なければこの端末へ） =====
 function localColl(kind) { try { return JSON.parse(lsGet('smilewan_' + kind) || '{}'); } catch { return {}; } }
+// 消した予定表・記録の控え（設定 deleted）：古い端末の控えから共有へ戻らないようにする
+function isTomb(kind, id) { const l = getSetting('deleted', 'smilewan_deleted', []) || []; return Array.isArray(l) && l.includes(kind + '/' + id); }
 function getColl(kind) { return (DB && cloud[kind]) ? cloud[kind] : localColl(kind); }
 async function putDoc(kind, id, data) {
   data = { ...data, updatedAt: data.updatedAt || new Date().toISOString() };
@@ -2697,6 +2701,14 @@ function tmplFor(r) {
   const fam = t => /家事/.test(t.type || '') ? '家事援助' : '身体介護';
   return c.find(t => fam(t) === r.kind) || c[0];
 }
+// 見本で「ときどき」（丸囲み）の項目は、その訪問の予定の内容に書いてあるときだけ付ける（例：買物に丸→予定に「代行」とあれば付ける）
+const CIRC_RE = { '買物等|日常品等の買物': /買い物|買物|代行/, '買物等|薬の受取り': /薬の受取|薬の受け取|受け取り/, '自立支援|買い物・薬の受け取り': /買い物|買物|代行|薬/, '洗濯|洗濯': /洗濯/, '洗濯|乾燥（物干し）': /洗濯|干/, '入浴・清拭|シャワー浴': /シャワー/, '入浴・清拭|清拭': /清拭/, '身体整容|整容': /整容|髭|爪|髪/, '清掃|浴室': /浴室|風呂/, '衣類・寝具|衣類の整理': /衣類/, '衣類・寝具|シーツ・カバー交換': /シーツ/, '衣類・寝具|ベッドメイク': /ベッド/ };
+function withCircled(r, items) {
+  if (!items) return items; const t = tmplFor(r); if (!t || !(t.circled || []).length) return items;
+  const det = (r.e.type || '') + ' ' + (r.e.detail || '');
+  (t.circled || []).forEach(k => { const re = CIRC_RE[k] || new RegExp(k.split('|')[1].slice(0, 2)); if (re.test(det) && !items.includes(k)) items.push(k); });
+  return items;
+}
 function tmplItems(r) {
   const t = tmplFor(r); if (!t) return null;
   const dow = r.date.getDay();
@@ -2819,7 +2831,7 @@ function sickFix(r, out) {
 function kpAll(r) { return sickFix(r, kpAll0(r)).filter(k => k !== '食事|完食' || (r.kpOn || []).includes(k)); }
 function kpAll0(r) {
   // 見本がある訪問は、見本どおり（手で足した物は足し、手で外した物は外す）
-  const ti = tmplItems(r) || genItems(r); if (ti) return [...new Set([...ti, ...(r.kpOn || [])])].filter(k => !(r.kpOff || []).includes(k));
+  const ti = withCircled(r, tmplItems(r)) || genItems(r); if (ti) return [...new Set([...ti, ...(r.kpOn || [])])].filter(k => !(r.kpOff || []).includes(k));
   if (!r.kpText) kpFromText(r);
   // 予定表に「共に・一緒」とある身体介護は、家事を自立支援（共に行う）の欄へ。それ以外は共に行うの欄を使わない
   const tog = r.kind !== '家事援助' && visTogether(r.e);
