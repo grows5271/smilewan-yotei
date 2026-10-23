@@ -567,6 +567,7 @@
       <h3 id="h-rokei">チェックの決まり（まとめ）</h3>
       <p><b>見本（記録用紙）の書き込み</b>：■と赤ペンの✓は付ける、赤の×は外す、丸囲みは「ときどき」（初めは付けない）。「どちらか」は訪問ごとに交互に1つ。家事の訪問は必ずゴミ出し。献立欄の「3品」などは献立の品数。買い物代行の日は預り・購入・お釣・内訳をだいたいの金額で入れる（手で入れた値が優先）。</p>
       <p><b>同じ文を書かない</b>：同じ利用者・同じ月の中で一度使った文は、2回目からは意味を変えずに言い回しを変える（例：「退室前に戸締まりや火の元を確認し、安全を確かめた」→「帰る前に火の元や戸締まりを確認し、危険がないことを確かめた」）。言い回しが尽きた様子・会話などの付け足しの文は、同じ種類のまだ使っていない文に替える。</p>
+      <p><b>文の順番</b>：朝は起床→排泄→洗面→口腔ケア→着替え→食事→服薬、夜は食事→服薬→排泄→洗面→口腔ケア→着替え→就寝、入浴は準備→入浴→洗髪→着衣→整容→水分→浴室の掃除の順に並べる（最初の挨拶・体調と最後の退室・つなぎの文はそのまま）。</p>
       <p><b>チェックと文章</b>：チェックした項目（起床・更衣・洗面・口腔ケア・服薬・入浴・洗髪・就寝）が文章に出てこないときは、その文を足す。</p>
       <p><b>完食</b>：チェックは付けない（手で付けた時だけ）。</p>
       <p><b>体調不良の日</b>：1か月に2〜3日（共に行う訪問がある日は選ばない）、入浴の訪問を「シャワー浴」（入浴介助・洗髪・清拭は外す・顔色は不良）にし、文章も体調不良の内容に。同じ日のほかの訪問も「昨夜はあまり眠れず、しんどい」などの文から始め、顔色は不良（体調が良い・訴え無しの文は外す）。次の日の最初の訪問は「前日の体調不良について確認…」の文から始める。</p>
@@ -725,7 +726,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
 const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261023112658';
+const APP_VER = '20261023113952';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -3261,6 +3262,8 @@ async function buildRecords() {
   [...new Set(recRows.map(r => ymd(r.date).slice(0, 7)))].forEach(ym => applySick(recRows, name, ym));
   // チェックした項目が文章に無ければ足す
   recRows.forEach((r, i) => mentionFix(r, i));
+  // 文の順番を一日の流れにそろえる
+  recRows.forEach(r => orderFlow(r));
   // 同じ月の中で同じ文が出たら、2回目からは意味を変えずに言い回しを変える
   varyRecRows(recRows, name);
   // 出力しない行（シフトに無い予定）は文章を作っておく（チェックを入れたら使えるように）
@@ -4012,7 +4015,8 @@ function mentionFix(r, i) {
   const bath = kp.includes('入浴・清拭|入浴介助') || kp.includes('入浴・清拭|シャワー浴');
   let ss = String(r.text).split(/(?<=。)/).filter(x => x.trim());
   const keep = sickKeep(); let at = 0; while (at < ss.length && keep(ss[at].trim())) at++;
-  for (let n = 0; n < 3 && at < ss.length && /訪問|伺|挨拶|体調|過ごされ|表情|顔色/.test(ss[at]) && !MENTION.some(([, re]) => re.test(ss[at])); n++) at++;
+  if (at < ss.length && /^(訪問|伺|朝|昼|夕方|夜)[^。]*(時|際|と)、/.test(ss[at])) at++;
+  for (let n = 0; n < 2 && at < ss.length && /挨拶|体調|過ごされ|表情|顔色/.test(ss[at]) && !MENTION.some(([, re]) => re.test(ss[at])); n++) at++;
   const head = [], tail = [];
   MENTION.forEach(([k, re, pool, bathPool, last], j) => {
     if (!kp.includes(k) || re.test(ss.join(''))) return;
@@ -4024,6 +4028,32 @@ function mentionFix(r, i) {
   let end = ss.length; while (end > at && (LINK_RE.test(ss[end - 1]) || /退室|帰る|見送|最後に|終わりに/.test(ss[end - 1]))) end--;
   ss = [...ss.slice(0, at), ...head, ...ss.slice(at, end), ...tail, ...ss.slice(end)];
   r.text = ss.join('');
+}
+
+// ===== 文の順番を一日の流れにそろえる（朝：起床→排泄→洗面→口腔→更衣→食事→服薬／夜：食事→服薬→排泄→洗面→口腔→更衣→就寝／入浴：準備→入浴→洗髪→着衣→整容→水分→浴室清掃）。最初の挨拶・体調と、最後の退室・つなぎの文は動かさない =====
+const ORD_AM = [[/起床|起き上が|目覚め/, 1], [/排泄|トイレへ|トイレまで|トイレ誘導|おむつ|パッド|陰部/, 2], [/洗面|顔を洗|ホットタオル/, 3], [/口腔|歯磨き|義歯|うがい/, 4], [/更衣|着替え|着衣|着脱|身支度/, 5], [/朝食|昼食|夕食|配膳|調理|食事/, 6], [/入浴|浴槽|洗身|シャワー/, 8], [/洗髪/, 9]];
+const ORD_PM = [[/夕食|昼食|配膳|調理|食事/, 1], [/排泄|トイレへ|トイレまで|トイレ誘導|おむつ|パッド|陰部/, 3], [/洗面|顔を洗|ホットタオル/, 4], [/口腔|歯磨き|義歯|うがい/, 5], [/更衣|着替え|寝衣|着衣|着脱|身支度/, 6], [/就寝|寝る|ベッドへ|ベッドに|臥床|休まれ/, 7], [/入浴|浴槽|洗身|シャワー/, 0.5], [/洗髪/, 0.6]];
+const ORD_BATH = [[/入浴前|浴室の準備|湯温|お湯の温度|脱衣/, 1], [/入浴|浴槽|洗身|シャワー/, 2], [/洗髪/, 3], [/入浴後|着衣|更衣|着替え|保湿/, 4], [/髭|爪|整髪|ドライヤー|整容/, 5], [/水分/, 6], [/浴室の(清掃|掃除)|浴室を(清掃|掃除)/, 7]];
+function orderFlow(r) {
+  if (!r || !r.text || r.sick) return;
+  const kp = kpAll(r); if (!kp.some(k => /^(起床・就寝|身体整容|入浴・清拭|排泄|食事|服薬・医療|移動)\|/.test(k))) return;
+  const bath = (kp.includes('入浴・清拭|入浴介助') || kp.includes('入浴・清拭|シャワー浴') || /入浴|シャワー/.test(r.e.type || '')) && !kp.includes('起床・就寝|起床介助') && !kp.includes('起床・就寝|就寝介助') && !/朝食|昼食|夕食/.test(r.text);
+  const h = Math.floor((hm(entryTime(r.e).s) || 720) / 60), tab = bath ? ORD_BATH : h < 12 ? ORD_AM : ORD_PM;
+  const keep = sickKeep(), ss = String(r.text).split(/(?<=。)/).filter(x => x.trim());
+  const rk = x0 => { const x = x0.replace(/[、の]?(食後|食べ終えた後|食事の後|食事が済んでから|後、食事が済んでから)(に|は)?[^。]*(就寝|寝る)[^。]*/, ''); // 「食後に就寝の支度へ移った」は食事の文として扱う
+    if (/服薬|薬/.test(x) && !bath && !/就寝|寝る/.test(x)) return tab === ORD_AM ? 7 : 2; if (bath && /入浴後|着衣/.test(x)) return 4;
+    // 「〜から〜就寝の準備まで」のようにまとめて書いた文は、最後（就寝）の位置に
+    if (tab === ORD_PM && /就寝|寝る/.test(x) && tab.filter(([re]) => re.test(x)).length >= 2) return 7;
+    let best = null, pos = 1e9; tab.forEach(([re, v]) => { const m = x.match(re); if (m && m.index < pos) { pos = m.index; best = v; } }); return best; };
+  let head = 0; while (head < ss.length && keep(ss[head].trim())) head++;
+  const gi = ss.findIndex((x, i) => i >= head && i < head + 3 && /^(訪問|伺|朝|昼|夕方|夜)[^。]*(時|際|と)、/.test(x)); if (gi > head) { const [g] = ss.splice(gi, 1); ss.splice(head, 0, g); }
+  if (head < ss.length && /^(訪問|伺|朝|昼|夕方|夜)[^。]*(時|際|と)、/.test(ss[head])) head++;
+  while (head < ss.length && /体調|過ごされ|表情|顔色|挨拶/.test(ss[head]) && rk(ss[head]) == null) head++;
+  let end = ss.length; while (end > head && (LINK_RE.test(ss[end - 1]) || /退室|帰る|見送|最後に|終わりに|締めくくり/.test(ss[end - 1]))) end--;
+  // 様子・配慮・会話などの文は、支援の文の後（退室の前）にまとめる
+  const mid = ss.slice(head, end).map((x, i) => { const v = rk(x); return { x, v: v != null ? v : /^(体調|本人の起床状況|利用者様の起床状況)|体調を(確認|伺|確か|お聞き|尋ね)|体調面/.test(x) ? 0 : 50, i }; });
+  mid.sort((a, b) => (a.v - b.v) || (a.i - b.i));
+  r.text = [...ss.slice(0, head), ...mid.map(m => m.x), ...ss.slice(end)].join('');
 }
 // 言い回しが尽きた付け足しの文（様子・配慮・会話・退室）は、同じ種類のまだ使っていない文に替える。それも無ければ外す
 function varyFallback(k, r, used, KK) {
