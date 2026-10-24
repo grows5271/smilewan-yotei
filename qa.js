@@ -29,6 +29,7 @@ window.qaCheckRows = function (name) {
     if (!K && /利用者様/.test(t)) add(r, '呼び方', '障害なのに「利用者様」');
     // 5. 体調不良
     if (r.sick) {
+      if (typeof isPureBath === 'function' && !isPureBath(r)) add(r, '体調不良', '入浴だけでない訪問が体調不良になっている');
       if (!kp.includes('入浴・清拭|シャワー浴')) add(r, '体調不良', 'シャワー浴が無い');
       if (kp.includes('入浴・清拭|入浴介助')) add(r, '体調不良', '入浴介助が残っている');
       if (kp.includes('入浴・清拭|清拭') && !(r.kpOn || []).includes('入浴・清拭|清拭')) add(r, '体調不良', '清拭が残っている');
