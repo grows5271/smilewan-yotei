@@ -572,7 +572,7 @@
       <p><b>見本（記録用紙）の書き込み</b>：■と赤ペンの✓は付ける、赤の×は外す、丸囲みは「ときどき」（予定表のその訪問の内容に書いてあるときだけ付ける。例：買物に丸→予定に「代行」とあれば付ける）。「どちらか」は訪問ごとに交互に1つ。家事の訪問は必ずゴミ出し。献立欄の「3品」などは献立の品数。買い物代行の日は預り・購入・お釣・内訳をだいたいの金額で入れる（手で入れた値が優先）。</p>
       <p><b>同じ文を書かない</b>：同じ利用者・同じ月の中で一度使った文は、2回目からは意味を変えずに言い回しを変える（例：「退室前に戸締まりや火の元を確認し、安全を確かめた」→「帰る前に火の元や戸締まりを確認し、危険がないことを確かめた」）。言い回しが尽きた様子・会話などの付け足しの文は、同じ種類のまだ使っていない文に替える。</p>
       <p><b>担当者で絞り込み</b>：予定表タブの「担当者」で選ぶと、その人が訪問記録の担当者に入っている利用者だけが一覧（保存済み利用者・訪問記録の利用者）に出る（介護／障害の絞り込みと一緒に使える）。</p>
-      <p><b>見張り</b>：画面でエラーが起きたとき・記録を保存したときの点検結果を保存先（Googleドライブ）に残し、毎朝8時に問題があれば info@grows-co.com にメールで知らせる。「🔍 全件点検」で保存してある全員・全月をまとめて点検できる。</p>
+      <p><b>見張り・自動で直す</b>：記録を作ったとき・開いたとき・保存したときに点検し、決まりと合わない所はその場で正しい形に直して自動保存する（チェックに合わせて文章を足す／チェックの無い支援の文を外す・順番・NG・呼び方・重複・見本の項目・ゴミ出し・完食・共に行う・体調不良）。直せなかった所だけ「⚠」で一覧を出す。「🔍 全件点検」で保存してある全員・全月をまとめて点検して直す。画面で起きたエラーは保存先（Googleドライブ）に記録する。</p>
       <p><b>点検</b>：記録を作ったとき・開いたときに、見本どおりか・チェックと文章・NG表現・体調不良・共に行う・買物の金額・順番・重複を自動で調べ、合わない所があれば「⚠ 点検で〇件」と一覧を出す。</p>
       <p><b>文の順番</b>：朝は起床→排泄→洗面→口腔ケア→着替え→食事→服薬、夜は食事→服薬→排泄→洗面→口腔ケア→着替え→就寝、入浴は準備→入浴→洗髪→着衣→整容→水分→浴室の掃除の順に並べる（最初の挨拶・体調と最後の退室・つなぎの文はそのまま）。</p>
       <p><b>チェックと文章</b>：チェックした項目（起床・更衣・洗面・口腔ケア・服薬・入浴・洗髪・買物・就寝）が文章に出てこないときは、その文を足す。</p>
@@ -734,7 +734,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261024111659';
+const APP_VER = '20261024111923';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -4341,13 +4341,14 @@ async function qaAllSaved() {
   if (!DB || !DB.loadAllRecords) { alert('共有に接続してから押してください'); return; }
   if (recRows.length && !confirm('今開いている表は閉じます（保存済みの内容は消えません）。全件点検をしますか？')) return;
   const btn = document.getElementById('qaAllBtn'), label = btn.textContent; btn.disabled = true; btn.textContent = '点検中…';
-  const keepName = state.name, all = [], items = [];
+  const keepName = state.name, all = [], items = []; let fixedN = 0;
   try {
     await DB.loadAllRecords();
     const docs = Object.values(getColl('records')).filter(d => d.rows && d.rows.length).sort((a, b) => (a.name + a.month).localeCompare(b.name + b.month, 'ja'));
     for (const d of docs) {
       state.name = d.name; refreshSavedMonths(); const sel = document.getElementById('recSavedMonth'); sel.value = d.month; if (sel.value !== d.month) continue;
       const c = window.confirm; window.confirm = () => true; try { openSavedRecords(); } finally { window.confirm = c; }
+      const rp = autoRepair(d.name); if (rp.changed) { await saveRecords({ quiet: true }); fixedN += rp.fixed; }
       const q = qaCheckRows(d.name); q.out.forEach(i => all.push({ ...i, name: d.name })); items.push(...qaItemsFor(d.name).filter(x => x.month === d.month));
       btn.textContent = `点検中…${docs.indexOf(d) + 1}/${docs.length}`; await new Promise(r => setTimeout(r, 0));
     }
@@ -4355,17 +4356,57 @@ async function qaAllSaved() {
   } catch (e) { reportError('qaAllSaved: ' + (e && e.message || e), 'qa'); alert('点検の途中でエラーになりました：' + (e && e.message || e)); }
   finally { btn.disabled = false; btn.textContent = label; recRows = []; renderRecordView(); }
   const box = document.getElementById('recQa'); box.dataset.all = '1';
-  if (!all.length) { box.style.display = ''; box.open = false; box.querySelector('summary').textContent = '✅ 全件点検：決まりと合わない所はありませんでした'; box.querySelector('ul').innerHTML = ''; return; }
-  box.style.display = ''; box.open = true; box.querySelector('summary').textContent = `⚠ 全件点検：${new Set(all.map(i => i.name)).size}人・${all.length}件、決まりと合わない所があります`;
+  if (!all.length) { box.style.display = ''; box.open = false; box.querySelector('summary').textContent = fixedN ? `✅ 全件点検：${fixedN} 件を自動で直して保存しました。残りはありません` : '✅ 全件点検：決まりと合わない所はありませんでした'; box.querySelector('ul').innerHTML = ''; return; }
+  box.style.display = ''; box.open = true; box.querySelector('summary').textContent = `⚠ 全件点検：自動で直せなかった所が ${new Set(all.map(i => i.name)).size}人・${all.length}件あります${fixedN ? `（${fixedN} 件は自動で直して保存しました）` : ''}`;
   box.querySelector('ul').innerHTML = all.slice(0, 300).map(i => `<li>${esc(i.name)} ${esc(i.date)} ${esc(i.start)} ${esc(i.type || '')}【${esc(i.kind)}】${esc(i.msg)}</li>`).join('');
+}
+
+// ===== 自動で直す：点検で見つかった所を、その場で正しい形に直す（直した後にもう一度点検して、残った物だけ画面に出す） =====
+function autoRepair(name) {
+  const q = qaCheckRows(name); if (!q.out.length) return { found: 0, fixed: 0, left: [] };
+  const K = kubunOf(name) === '介護', key = r => ymd(r.date) + ' ' + (r.e.start || entryTime(r.e).s || ''), map = new Map(recRows.map(r => [key(r), r]));
+  const sig = r => [r.text, (r.kpOn || []).join(','), (r.kpOff || []).join(','), r.sick ? 1 : 0].join('\u0001'), before = new Map(recRows.map(r => [r, sig(r)]));
+  const addOn = (r, k) => { r.kpOn = [...new Set([...(r.kpOn || []), k])]; r.kpOff = (r.kpOff || []).filter(x => x !== k); };
+  const addOff = (r, k) => { r.kpOff = [...new Set([...(r.kpOff || []), k])]; r.kpOn = (r.kpOn || []).filter(x => x !== k); };
+  const textRows = new Set(), orderRows = new Set(); let needVary = false, needSick = false;
+  q.out.forEach(i => {
+    const r = map.get(i.date + ' ' + i.start); if (!r) return;
+    const m = (i.msg.match(/「([^」]+)」/) || [])[1];
+    if (i.kind === '見本と違う' && m) addOn(r, m);
+    else if (i.kind === 'ゴミ出し') addOn(r, '清掃|ゴミ出し');
+    else if (i.kind === '完食') addOff(r, '食事|完食');
+    else if (i.kind === '共に行う') kpAll(r).filter(k => TOGETHER_RE.test(k)).forEach(k => addOff(r, k));
+    else if (i.kind === '呼び方') r.text = K ? String(r.text).replace(/本人/g, '利用者様') : String(r.text).replace(/利用者様/g, '本人');
+    else if (i.kind === '体調不良') { if (/文章に清拭/.test(i.msg)) r.text = String(r.text).split(/(?<=。)/).filter(x => !/清拭/.test(x)).join(''); else needSick = true; }
+    else if (i.kind === '重複') { const seen = new Set(); r.text = String(r.text).split(/(?<=。)/).filter(x => { if (!x.trim() || seen.has(x)) return false; seen.add(x); return true; }).join(''); }
+    else if (i.kind === '文章' && /句読点/.test(i.msg)) r.text = String(r.text).replace(/。。+/g, '。').replace(/、。/g, '。').replace(/、、+/g, '、');
+    else if (i.kind === '文章' && /空/.test(i.msg)) r.text = uniqueText(r, recRows.filter(x => x !== r && x.on));
+    else if (i.kind === 'チェックと文章' || i.kind === '文章とチェック') textRows.add(r);
+    else if (i.kind === '順番') orderRows.add(r);
+    else if (i.kind === 'NG表現') needVary = true;
+  });
+  if (needSick) [...new Set(recRows.map(r => ymd(r.date).slice(0, 7)))].forEach(ym => applySick(recRows, name, ym));
+  [...textRows].forEach((r, i) => mentionFix(r, i));
+  [...textRows, ...orderRows].forEach(r => orderFlow(r));
+  if (needVary) varyRecRows(recRows, name);
+  [...textRows].forEach((r, i) => mentionFix(r, i));
+  const changed = recRows.filter(r => before.get(r) !== sig(r)).length;
+  const left = qaCheckRows(name).out;
+  return { found: q.out.length, fixed: Math.max(0, q.out.length - left.length), changed, left };
 }
 function showRecQa() {
   const box = document.getElementById('recQa'); if (!box) return;
   const name = (state.name || '').trim(); if (!name || !recRows.length) { if (box.dataset.all !== '1') box.style.display = 'none'; return; }
   box.dataset.all = '';
-  let q; try { q = qaCheckRows(name); } catch (e) { q = { out: [{ date: '', start: '', kind: '点検', msg: '点検できませんでした：' + (e && e.message || e) }] }; }
-  if (!q.out.length) { box.style.display = 'none'; return; }
-  box.style.display = ''; box.querySelector('summary').textContent = `⚠ 点検で ${q.out.length} 件、決まりと合わない所があります（押すと一覧）`;
+  let q, rep = null;
+  try { rep = autoRepair(name); q = { out: rep.left }; if (rep.changed) { renderRecordView(); markRecDirty(); } }
+  catch (e) { reportError('autoRepair: ' + (e && e.message || e), 'qa'); q = { out: [{ date: '', start: '', kind: '点検', msg: '点検できませんでした：' + (e && e.message || e) }] }; }
+  if (!q.out.length) {
+    if (rep && rep.fixed) { box.style.display = ''; box.open = false; box.querySelector('summary').textContent = `✅ 決まりと合わない所 ${rep.fixed} 件を自動で直しました（保存も自動）`; box.querySelector('ul').innerHTML = ''; }
+    else box.style.display = 'none';
+    return;
+  }
+  box.style.display = ''; box.querySelector('summary').textContent = `⚠ 自動で直せなかった所が ${q.out.length} 件あります（押すと一覧）${rep && rep.fixed ? `／${rep.fixed} 件は自動で直しました` : ''}`;
   box.querySelector('ul').innerHTML = q.out.slice(0, 200).map(i => `<li>${esc(i.date)} ${esc(i.start)} ${esc(i.type || '')}【${esc(i.kind)}】${esc(i.msg)}</li>`).join('');
 }
 function renderRecordView() {
