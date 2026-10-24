@@ -732,7 +732,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261024110325';
+const APP_VER = '20261024110348';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -2841,7 +2841,7 @@ function applySick(rows, name, ym) {
   // 前に入れた体調不良の文（その日・次の日）を先頭から外す（続けて入っていても全部）
   const preRe = new RegExp('^(' + [...SICK_DAY_ALL, ...SICK_NEXT].map(x => esc_(K ? x.replace(/本人/g, '利用者様') : x)).join('|') + ')');
   on.forEach(r => { if (r.sickDay || r.sickNext) { let t = String(r.text || ''), b; do { b = t; t = t.replace(preRe, ''); } while (t !== b); r.text = t; r.sickDay = false; r.sickNext = false; } });
-  on.forEach(r => { if (r.sick && !isPureBath(r)) { r.sick = false; r.text = uniqueText(r, on.filter(x => x !== r)); r.kpText = null; } r.sick = false; if (r.sickNext) { r.text = String(r.text || '').replace(new RegExp('^(' + SICK_NEXT.map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')'), ''); r.sickNext = false; } });
+  const wasSick = new Set(on.filter(r => r.sick)); on.forEach(r => { r.sick = false; if (r.sickNext) { r.text = String(r.text || '').replace(new RegExp('^(' + SICK_NEXT.map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')'), ''); r.sickNext = false; } });
   const base = seed % SICK_BATH.length; on.filter(r => sick.has(ymd(r.date)) && isPureBath(r)).sort((a, b) => a.date - b.date).forEach((r, i) => { r.sick = true; let t = SICK_BATH[(base + i) % SICK_BATH.length]; if (K) t = t.replace(/本人/g, '利用者様'); r.text = t; r.kpText = null; });
   // 同じ日の入浴以外の訪問：体調不良の様子の文を先頭に（顔色は不良）
   let di = seed % 5; on.filter(r => sick.has(ymd(r.date)) && !r.sick).forEach(r => {
@@ -2849,6 +2849,8 @@ function applySick(rows, name, ym) {
     let s = SICK_DAY[key][di++ % SICK_DAY[key].length]; if (K) s = s.replace(/本人/g, '利用者様');
     r.text = s + String(r.text || '').replace(/^訪問時、[^。]*体調[^。]*。/, '').replace(/[^。]*(顔色(は|が)?良|体調(は|に|面)?(は)?(良好|安定|変わり|問題|特に)|(訴え|不調)[^。]*(聞かれな|見られな|なかった|無く|なく|ない|無い|なし)|特に(変わ|問題|異常))[^。]*。/g, '');
     r.sickDay = true; r.kpText = null; });
+  // 前は体調不良だったが今回選ばれなかった訪問は、体調不良の文章を普通の文章に作り直す
+  wasSick.forEach(r => { if (!r.sick) { r.text = uniqueText(r, on.filter(x => x !== r)); r.kpText = null; } });
   // 次の日の最初の訪問
   let ni = seed % SICK_NEXT.length; [...sick].sort().forEach(d => { const nd = new Date(d + 'T00:00:00'); nd.setDate(nd.getDate() + 1); const k = ymd(nd);
     const first = on.filter(r => ymd(r.date) === k).sort((a, b) => (entryTime(a.e).s || '').localeCompare(entryTime(b.e).s || ''))[0];
