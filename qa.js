@@ -17,8 +17,9 @@ window.qaCheckRows = function (name) {
     });
     // 2. チェックと文章
     MENTION.forEach(([k, re]) => { if (kp.includes(k) && !re.test(t)) add(r, 'チェックと文章', `「${k.split('|')[1]}」にチェックがあるのに文章に無い`); });
+    const tNoLink = t.split(/(?<=。)/).filter(x => !LINK_RE.test(x)).join('');
     [['入浴・清拭|入浴介助', /入浴介助を行|浴槽への出入り|浴槽に/], ['入浴・清拭|洗髪', /洗髪/], ['起床・就寝|起床介助', /起床介助|起き上がり/], ['起床・就寝|就寝介助', /就寝介助|就寝の準備を手伝/]].forEach(([k, re]) => {
-      if (!kp.includes(k) && re.test(t) && !r.sick) add(r, '文章とチェック', `文章に「${t.match(re)[0]}」があるのに「${k.split('|')[1]}」にチェックが無い`); });
+      if (!kp.includes(k) && re.test(tNoLink) && !r.sick) add(r, '文章とチェック', `文章に「${tNoLink.match(re)[0]}」があるのに「${k.split('|')[1]}」にチェックが無い`); });
     // 3. NG・完食
     NG.forEach(w => { if (w && t.includes(w)) add(r, 'NG表現', `「${w}」`); });
     if (kp.includes('食事|完食') && !(r.kpOn || []).includes('食事|完食')) add(r, '完食', '完食にチェック');
@@ -34,7 +35,7 @@ window.qaCheckRows = function (name) {
       if (/清拭/.test(t)) add(r, '体調不良', '文章に清拭');
     }
     // 6. 共に行う：共にの訪問以外で共に行う項目／共に行う項目と同じ家事が普通の欄にも
-    const tog = kp.filter(k => TOGETHER_RE.test(k));
+    const tog = kp.filter(k => TOGETHER_RE.test(k) && !(tm && (tm.checked || []).includes(k)));
     if (tog.length && !visTogether(r.e) && !(tm && /共に/.test(tm.type || ''))) add(r, '共に行う', `共にの訪問でないのに「${tog.map(k => k.split('|')[1]).join('・')}」`);
     // 7. 買物の金額
     if (kp.includes('買物等|日常品等の買物')) {
