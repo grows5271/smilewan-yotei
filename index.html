@@ -732,7 +732,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261024110348';
+const APP_VER = '20261024110802';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -2810,7 +2810,7 @@ function genItems(r) {
 // ===== 体調不良の日：1か月に2〜3日、入浴の訪問を「シャワー浴」にする（共に行う訪問がある日は選ばない）。次の日の最初の訪問で体調を確認した文を入れる =====
 const isBathRow = r => /入浴|シャワー/.test((r.e.type || '') + ' ' + (r.e.detail || '')) || (tmplItems(r) || []).includes('入浴・清拭|入浴介助');
 // 体調不良の日にする入浴は、入浴だけの訪問（起床・朝食・就寝などと一緒の訪問は、文章全体を入れ替えると他の支援が抜けるので選ばない）
-const isPureBath = r => isBathRow(r) && !/起床|朝食|昼食|夕食|就寝|調理|食事/.test((r.e.detail || '') + ' ' + (r.e.type || '').replace(/入浴/g, '')) && !(tmplItems(r) || []).some(k => /^(起床・就寝|調理)\|/.test(k));
+const isPureBath = r => isBathRow(r) && !/起床|朝食|昼食|夕食|就寝|調理/.test((r.e.detail || '') + ' ' + (r.e.type || '').replace(/入浴/g, '')) && !(tmplItems(r) || []).some(k => /^(起床・就寝|調理)\|/.test(k));
 const SICK_BATH = [
   '訪問時、本人から「今日は少しだるい」と訴えがあり、体調を確認した。顔色がやや優れなかったため、本人と相談し、入浴は控えてシャワー浴とした。シャワー浴は短時間で済ませ、湯冷めしないよう室温に配慮した。シャワー浴後は水気をよく拭き取り、皮膚の状態を確認した。無理をせず休むよう声掛けした。',
   '訪問時、本人の表情がすぐれず、体のだるさの訴えが聞かれた。体調を考慮して入浴は見合わせ、シャワー浴で対応した。シャワー浴の後は体が冷えないよう、手早く着衣を整えた。体調が悪化していないか様子を確認し、ゆっくり休むよう伝えた。',
