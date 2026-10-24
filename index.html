@@ -408,6 +408,7 @@
       <label>利用者（保存済みから選択）</label>
       <select id="recUser" onchange="loadSaved(this.value)"></select>
       <div id="recAsWarn" class="hint" style="display:none;color:var(--danger);font-weight:bold"></div>
+      <details id="recSchedQa" class="hint" style="display:none;color:#b26b00"><summary style="font-weight:bold;cursor:pointer"></summary><ul style="margin:4px 0 0;padding-left:18px"></ul></details>
       <details id="recQa" class="hint" style="display:none;color:var(--danger)"><summary style="font-weight:bold;cursor:pointer"></summary><ul style="margin:4px 0 0;padding-left:18px"></ul></details>
       <label>📚 保存した訪問記録（この利用者）</label>
       <div class="row"><select id="recSavedMonth"><option value="">（保存した記録はありません）</option></select><button class="small fixed" onclick="openSavedRecords()">開く</button></div>
@@ -572,6 +573,8 @@
       <p><b>見本（記録用紙）の書き込み</b>：■と赤ペンの✓は付ける、赤の×は外す、丸囲みは「ときどき」（予定表のその訪問の内容に書いてあるときだけ付ける。例：買物に丸→予定に「代行」とあれば付ける）。「どちらか」は訪問ごとに交互に1つ。家事の訪問は必ずゴミ出し。献立欄の「3品」などは献立の品数。買い物代行の日は預り・購入・お釣・内訳をだいたいの金額で入れる（手で入れた値が優先）。</p>
       <p><b>同じ文を書かない</b>：同じ利用者・同じ月の中で一度使った文は、2回目からは意味を変えずに言い回しを変える（例：「退室前に戸締まりや火の元を確認し、安全を確かめた」→「帰る前に火の元や戸締まりを確認し、危険がないことを確かめた」）。言い回しが尽きた様子・会話などの付け足しの文は、同じ種類のまだ使っていない文に替える。</p>
       <p><b>担当者で絞り込み</b>：予定表タブの「担当者」で選ぶと、その人が訪問記録の担当者に入っている利用者だけが一覧（保存済み利用者・訪問記録の利用者）に出る（介護／障害の絞り込みと一緒に使える）。</p>
+      <p><b>毎朝の点検</b>：毎朝6:30に事業所のMacで全員・全月を点検して直す。Macが動いていなかった日は、7:30以降に最初にツールを開いた人の画面の裏（見えない枠）で同じ点検をする（その人の操作には影響しない）。</p>
+      <p><b>予定表の確認</b>：記録を作ったとき、予定表の時刻欄が空・時刻なし・種別が空や不明・シフトにあって予定表に無い訪問・予定表にあってシフトに無い予定・似た名前を「⚠ 予定表の確認」に出す（作るのは止めない）。</p>
       <p><b>二重登録の注意</b>：予定表・利用者情報・訪問記録を新しい名前で保存するとき、空白や全角半角の違い・1文字違い・名字と名前の1文字目が同じ名前がすでにあれば確認を出す。名前が読めていない（記号で始まる等）ときも確認を出す。一覧では似た名前に「⚠似た名前あり」を付ける。</p>
       <p><b>見張り・自動で直す</b>：記録を作ったとき・開いたとき・保存したときに点検し、決まりと合わない所はその場で正しい形に直して自動保存する（チェックに合わせて文章を足す／チェックの無い支援の文を外す・順番・NG・呼び方・重複・見本の項目・ゴミ出し・完食・共に行う・体調不良）。直せなかった所だけ「⚠」で一覧を出す。「🔍 全件点検」で保存してある全員・全月をまとめて点検して直す。画面で起きたエラーは保存先（Googleドライブ）に記録する。</p>
       <p><b>点検</b>：記録を作ったとき・開いたときに、見本どおりか・チェックと文章・NG表現・体調不良・共に行う・買物の金額・順番・重複を自動で調べ、合わない所があれば「⚠ 点検で〇件」と一覧を出す。</p>
@@ -736,7 +739,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261024115953';
+const APP_VER = '20261024120815';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -840,6 +843,29 @@ function changePass() {
   document.getElementById('syncBannerMsg').textContent = '新しい合言葉を入れて「接続」を押してください。';
   document.getElementById('passInput').focus();
 }
+
+// ===== 毎朝の点検の代わり：その日にまだ点検されていなければ、最初にツールを開いた人の画面の裏（見えない枠）で点検して直す =====
+const AUTOQA = /[?&]autoqa=1/.test(location.search);
+let _morningTried = false;
+async function maybeMorningQa() {
+  if (AUTOQA || _morningTried || !DB || !GAS.url) return; _morningTried = true;
+  const now = new Date(), jst = new Date(now.getTime() + 9 * 3600e3), today = jst.toISOString().slice(0, 10);
+  if (jst.getUTCHours() < 7 || (jst.getUTCHours() === 7 && jst.getUTCMinutes() < 30)) return; // 6:30のMacの点検を待つ
+  try {
+    const pass = (lsGet('smilewan_pass') || '').trim(), st = await gasCall({ pass, op: 'status' });
+    const jstDay = t => new Date(new Date(t).getTime() + 9 * 3600e3).toISOString().slice(0, 10);
+    const done = (st.log || []).some(x => (x.where === 'morning' || (x.where === 'morning-start' && Date.now() - new Date(x.t).getTime() < 30 * 60e3)) && jstDay(x.t) === today);
+    if (done) return;
+    await gasCall({ pass, op: 'log', item: { where: 'morning-start', ver: APP_VER, msg: '朝の点検をこの画面の裏で始めました' } });
+    const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;width:1px;height:1px;left:-9999px;top:-9999px;border:0'; f.src = location.pathname + '?autoqa=1';
+    document.body.appendChild(f); setTimeout(() => f.remove(), 40 * 60e3);
+  } catch (e) { reportError('maybeMorningQa: ' + (e && e.message || e), 'morning'); }
+}
+async function runAutoQa() { // 見えない枠の中：全員・全月を点検して直す
+  for (let i = 0; i < 120 && !(DB && Object.keys(getStore()).length); i++) await new Promise(r => setTimeout(r, 1000));
+  window.confirm = () => true; window.alert = () => {}; window.dupConfirm = () => true;
+  try { setMode('record'); await qaAllSaved({ auto: true }); } catch (e) { reportError('runAutoQa: ' + (e && e.message || e), 'morning'); }
+}
 async function initCloud() {
   try { if (window.claude && typeof window.claude.use === 'function') DB = await window.claude.use('db'); } catch { DB = null; }
   if (!DB && supaOn()) { setSyncStatus('☁ 保存先に接続中…', 'wait'); DB = await supaConnect(); }
@@ -862,6 +888,7 @@ async function initCloud() {
     snap.docs.forEach(d => { cloud.settings[d.id] = d.data(); });
     if (document.getElementById('recStaff').options.length) refreshStaffSelect();
     refreshUserPick(); if (recRows.length) renderRecordView(); renderClientBox(true); renderNgBox();
+    if (AUTOQA) { if (!window._autoQaStarted) { window._autoQaStarted = true; setTimeout(runAutoQa, 3000); } } else setTimeout(maybeMorningQa, 20000);
   }, () => {});
   // 利用者情報・訪問記録（この端末にだけある分は初回に共有側へ送る）
   ['clients', 'records'].forEach(kind => {
@@ -3367,13 +3394,15 @@ async function buildRecords() {
   recRows.forEach(r => orderFlow(r));
   // 同じ月の中で同じ文が出たら、2回目からは意味を変えずに言い回しを変える
   varyRecRows(recRows, name);
+  // 言い換えで言葉が変わると順番の判定も変わるので、最後にもう一度並べる
+  recRows.forEach(r => orderFlow(r));
   // 出力しない行（シフトに無い予定）は文章を作っておく（チェックを入れたら使えるように）
   recRows.filter(r => !r.on && !r.text).forEach(r => { r.text = uniqueText(r, recRows.filter(x => x.on)); });
   recRows.sort((a, b) => (b.date - a.date) || ((b.e.start || '') > (a.e.start || '') ? 1 : -1));
   if (info) info.textContent = Object.values(useShift).some(Boolean)
     ? `シフトの日時で作りました（${nShift}件${nAdd ? `・うち予定表に無い訪問${nAdd}件` : ''}）。${nMiss ? `シフトに無い予定${nMiss}件はチェックを外しています。` : ''}`
     : 'この期間のシフトが無いので、週間予定表の曜日・時刻で作りました。';
-  renderRecordView(); markRecDirty(); showRecQa();
+  renderRecordView(); markRecDirty(); showRecQa(); showSchedQa(name);
   if (!Object.values(useShift).every(Boolean)) fillStaffFromShift();
 }
 
@@ -4422,6 +4451,30 @@ function autoRepair(name) {
   const changed = recRows.filter(r => before.get(r) !== sig(r)).length;
   const left = qaCheckRows(name).out;
   return { found: q.out.length, fixed: Math.max(0, q.out.length - left.length), changed, left };
+}
+
+// ===== 予定表の点検：記録を作る前に、予定表とシフトの気になる所を出す（作るのは止めない） =====
+const TYPE_OK = /身体|家事|生活|入浴|シャワー|通院|共に|移動|重度|同行/;
+function scheduleQa(name) {
+  const W = '日月火水木金土', out = [];
+  [0, 1, 2, 3, 4, 5, 6].forEach(w => dayEntries(state.days[w]).forEach(e => {
+    const t = entryTime(e).s, what = `${W[w]}曜 ${t || '（時刻なし）'} ${e.type || '（種別なし）'}`;
+    if (!e.start && t) out.push(`${what}：開始時刻の欄が空です（内容欄の「${t}」を使って作ります）。時刻欄に入れてください`);
+    else if (!t && (e.type || e.detail)) out.push(`${what}：時刻が無いので記録になりません`);
+    if (t && !e.type) out.push(`${what}：種別が空です`);
+    else if (e.type && !TYPE_OK.test(e.type)) out.push(`${what}：種別「${e.type}」が身体・家事・入浴・通院・共に のどれか分かりません`);
+  }));
+  const add = recRows.filter(r => /予定表に無い訪問/.test(r.flag || '')), miss = recRows.filter(r => /シフトに無い予定/.test(r.flag || ''));
+  if (add.length) out.push(`シフトにあって予定表に無い訪問が ${add.length} 件（${add.slice(0, 5).map(r => ymd(r.date).slice(5) + ' ' + (r.e.start || '')).join('・')}${add.length > 5 ? '…' : ''}）：近い予定を手本に作りました。予定表に足すと正確になります`);
+  if (miss.length) out.push(`予定表にあってシフトに無い予定が ${miss.length} 件（${miss.slice(0, 5).map(r => ymd(r.date).slice(5) + ' ' + (r.e.start || entryTime(r.e).s || '')).join('・')}${miss.length > 5 ? '…' : ''}）：記録にしていません`);
+  if (similarNames(name).length) out.push(`似た名前の利用者がいます：${similarNames(name).join('・')}`);
+  return out;
+}
+function showSchedQa(name) {
+  const box = document.getElementById('recSchedQa'); if (!box) return; const out = scheduleQa(name);
+  if (!out.length) { box.style.display = 'none'; return; }
+  box.style.display = ''; box.querySelector('summary').textContent = `⚠ 予定表の確認 ${out.length} 件（押すと一覧）`;
+  box.querySelector('ul').innerHTML = out.map(x => `<li>${esc(x)}</li>`).join('');
 }
 function showRecQa() {
   const box = document.getElementById('recQa'); if (!box) return;
