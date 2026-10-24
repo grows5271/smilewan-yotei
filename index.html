@@ -315,7 +315,7 @@
       <input type="file" id="userCsv" accept=".csv,text/csv" style="display:none" onchange="importUserCsv(this)">
     </div>
     <div id="paperStatus2" class="hint" style="display:none;margin-bottom:8px"></div>
-    <details id="sbBox">
+    <details id="sbBox" style="display:none">
       <summary>🗄 Supabase バックアップ <span id="sbStatus" class="sync local">未設定</span></summary>
       <div class="hint" style="margin:6px 0">保存のたびにSupabaseへも自動でコピーします（ローカル版のみ。サイト版は通信制限のため不可）。</div>
       <div class="toolbar" style="margin-bottom:4px">
@@ -727,9 +727,10 @@ async function setSetting(key, localKey, list, opt = {}) {
 }
 // ===== Supabase 保存（GitHub Pages 版）: 合言葉つきの関数(RPC)経由で読み書き =====
 // url/key は build-site.sh が site.config.json から書き込む（claude.ai 版・ローカル版では空のまま）
-const SUPA = {"url": "https://yasmqridfwantepadetx.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhc21xcmlkZndhbnRlcGFkZXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NDcwMzIsImV4cCI6MjEwNjIyMzAzMn0.d0MUIs0V0o__95GkPGeqJPKfUSKShxpCwUmcxWKnHYI"};
+const SUPA = { url: '', key: '' }; // 旧（使わない）
+const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261023164220';
+const APP_VER = '20261024100339';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -746,43 +747,65 @@ async function checkVer() {
   return appOutdated;
 }
 setInterval(checkVer, 3 * 60 * 1000); window.addEventListener('focus', () => checkVer()); setTimeout(checkVer, 5000);
-function supaOn() { return !!(SUPA.url && SUPA.key) && !(window.claude && typeof window.claude.use === 'function'); }
-async function supaRpc(fn, args) {
-  const r = await fetch(SUPA.url.replace(/\/$/, '') + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { apikey: SUPA.key, Authorization: 'Bearer ' + SUPA.key, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
-  if (!r.ok) { const t = await r.text(); const e = new Error(t.slice(0, 200)); if (/invalid passcode/.test(t)) e.code = 'badpass'; throw e; }
-  return r.status === 204 ? null : r.json().catch(() => null);
+function supaOn() { return !!GAS.url && !(window.claude && typeof window.claude.use === 'function'); }
+// 保存先（GAS）への1回の問い合わせ。text/plain で送る（ブラウザの事前確認が要らない形）
+async function gasCall(body) {
+  const r = await fetch(GAS.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
+  const t = await r.text(); let j;
+  try { j = JSON.parse(t); } catch { const e = new Error('保存先の返事が読めませんでした'); e.code = /Authorization|承認|ログイン|Sign in/i.test(t) ? 'noauth' : 'badresp'; throw e; }
+  if (!j.ok) { const e = new Error(j.error || 'error'); if (/passcode/.test(j.error || '')) e.code = 'badpass'; throw e; }
+  return j;
 }
-// claude.ai の db と同じ形（doc().set/delete・collection().onSnapshot）で使えるようにする
-function supaDB(pass, firstRows) {
-  const subs = { schedules: [], settings: [] };
-  let timer = null, busy = false, fails = 0, retryT = null;
-  const deliver = rows => Object.keys(subs).forEach(k => { const docs = rows.filter(r => r.kind === k).map(r => ({ id: r.name, data: () => r.data })); subs[k].forEach(s => s.cb({ docs })); });
+const SMALL_KINDS = ['schedules', 'clients', 'settings'];
+// Googleドライブ保存先を、前の共有データベースと同じ形（doc().set/delete・collection().onSnapshot）で使えるようにする
+//   ・小さい物（予定表・利用者情報・設定）は最初に1回まとめて読む
+//   ・訪問記録は利用者を選んだときにその人の分だけ読む（通信量を抑える）
+//   ・2分ごとに更新日時の一覧（小さい）だけ読み、変わった物だけ読み直す
+function gasDB(pass, first) {
+  const subs = {}; let timer = null, busy = false, fails = 0, retryT = null, meta = (first && first.meta) || {};
+  const cache = {}; ((first && first.docs) || []).forEach(d => { (cache[d.kind] = cache[d.kind] || {})[d.name] = d.data; });
+  cloud.recordsMeta = meta;
+  const deliver = kinds => (kinds || Object.keys(subs)).forEach(k => { const docs = Object.entries(cache[k] || {}).map(([id, data]) => ({ id, data: () => data })); (subs[k] || []).forEach(sb => sb.cb({ docs })); });
+  const split = id => { const i = id.indexOf('/'); return [id.slice(0, i), id.slice(i + 1)]; };
   async function refresh() {
     if (busy) return; busy = true;
     try {
-      const rows = await supaRpc('smilewan_list', { p_pass: pass }) || [];
-      fails = 0; clearTimeout(retryT); retryT = null; deliver(rows);
+      const j = await gasCall({ pass, op: 'meta' }); fails = 0; clearTimeout(retryT); retryT = null;
+      const nm = j.meta || {}, changed = new Set(), ids = new Set([...Object.keys(nm), ...Object.keys(meta)]);
+      for (const id of ids) {
+        const [kind, name] = split(id), a = meta[id], b = nm[id];
+        if (!b) { if (cache[kind] && cache[kind][name]) { delete cache[kind][name]; changed.add(kind); } continue; }
+        if (!a || a.u !== b.u) {
+          if (kind === 'records' && !(cache.records && cache.records[name])) continue; // まだ読んでいない人の記録は、その人を選んだときに読む
+          const g = await gasCall({ pass, op: 'get', kind, name }); if (g.doc) { (cache[kind] = cache[kind] || {})[name] = g.doc.data; changed.add(kind); }
+        }
+      }
+      meta = nm; cloud.recordsMeta = meta; if (changed.size) deliver([...changed]);
+      if (changed.size || true) refreshStaffFilter();
     } catch (e) {
-      // 合言葉が違うときだけ切断。通信の一時的な失敗（サーバーの時間切れなど）は、今の内容をそのまま使って後で読み直す
-      if (e && e.code === 'badpass') { Object.values(subs).flat().forEach(s => s.err && s.err(e)); }
-      else { fails++; setSyncStatus(`☁ 共有と通信できませんでした（${fails}回目・再試行します）`, 'wait'); if (!retryT) retryT = setTimeout(() => { retryT = null; refresh(); }, Math.min(15000 * fails, 60000)); }
-    }
-    finally { busy = false; }
+      if (e && e.code === 'badpass') { Object.values(subs).flat().forEach(sb => sb.err && sb.err(e)); }
+      else { fails++; setSyncStatus(`☁ 保存先と通信できませんでした（${fails}回目・再試行します）`, 'wait'); if (!retryT) retryT = setTimeout(() => { retryT = null; refresh(); }, Math.min(15000 * fails, 60000)); }
+    } finally { busy = false; }
   }
   const start = () => { if (!timer) {
-    if (firstRows) { const r0 = firstRows; firstRows = null; setTimeout(() => deliver(r0), 0); } else setTimeout(refresh, 0);
+    setTimeout(() => deliver(), 0);
     timer = setInterval(() => { if (!document.hidden) refresh(); }, 120000); // 2分ごとに他の人の変更を反映（画面が隠れている間は休む）
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   } };
   return {
     doc(path) {
-      const [kind, name] = path.split('/');
+      const [kind, name] = split(path);
       return {
-        set: async data => { await supaRpc('smilewan_put', { p_pass: pass, p_kind: kind, p_name: name, p_data: data }); refresh(); },
-        delete: async () => { await supaRpc('smilewan_del', { p_pass: pass, p_kind: kind, p_name: name }); refresh(); },
+        set: async data => { await gasCall({ pass, op: 'put', kind, name, data }); (cache[kind] = cache[kind] || {})[name] = data; meta[kind + '/' + name] = { ...(meta[kind + '/' + name] || {}), u: data.updatedAt, n: data.name }; cloud.recordsMeta = meta; deliver([kind]); },
+        delete: async () => { await gasCall({ pass, op: 'del', kind, name }); if (cache[kind]) delete cache[kind][name]; delete meta[kind + '/' + name]; deliver([kind]); },
       };
     },
     collection(kind) { return { onSnapshot(cb, err) { (subs[kind] = subs[kind] || []).push({ cb, err }); start(); } }; },
+    // 利用者1人分の訪問記録を読む（選んだとき）
+    async loadRecords(client) { const j = await gasCall({ pass, op: 'records', client }); (j.docs || []).forEach(d => { (cache.records = cache.records || {})[d.name] = d.data; }); deliver(['records']); return (j.docs || []).length; },
+    // 全員分の記録を読む（保守用・重い）
+    async loadAllRecords() { const j = await gasCall({ pass, op: 'list', kinds: ['records'] }); (j.docs || []).forEach(d => { (cache.records = cache.records || {})[d.name] = d.data; }); if (j.meta) { meta = j.meta; cloud.recordsMeta = meta; } deliver(['records']); return (j.docs || []).length; },
+    meta() { return meta; },
   };
 }
 // 合言葉はポップアップ(prompt)を使わず、画面上の入力欄で受け取る（ポップアップが出ないブラウザがあるため）
@@ -792,10 +815,11 @@ async function supaConnect() {
   if (!pass) { supaMsg = '⚠ 共有に接続されていません。合言葉を入れて「接続」を押してください（このままだと入力はこの端末にだけ保存され、ほかの人には届きません）。'; return null; }
   let last = null;
   for (let k = 0; k < 3; k++) { // 一時的な通信の失敗は3回まで試し直す
-    try { const rows = await supaRpc('smilewan_list', { p_pass: pass }); supaMsg = ''; return supaDB(pass, rows || []); }
-    catch (e) { last = e; if (e.code === 'badpass') break; await new Promise(r => setTimeout(r, 2000 * (k + 1))); }
+    try { const j = await gasCall({ pass, op: 'list', kinds: SMALL_KINDS }); supaMsg = ''; return gasDB(pass, j); }
+    catch (e) { last = e; if (e.code === 'badpass' || e.code === 'noauth') break; await new Promise(r => setTimeout(r, 2000 * (k + 1))); }
   }
   if (last && last.code === 'badpass') { lsSet('smilewan_pass', ''); supaMsg = '⚠ 合言葉が違います。もう一度入れて「接続」を押してください。'; }
+  else if (last && last.code === 'noauth') supaMsg = '⚠ 保存先（Googleドライブ）の承認がまだです。管理者に連絡してください。';
   else supaMsg = '⚠ 保存先に接続できませんでした。通信状態を確認して、ページを再読み込みしてください。';
   return null;
 }
@@ -814,7 +838,7 @@ async function initCloud() {
   try { if (window.claude && typeof window.claude.use === 'function') DB = await window.claude.use('db'); } catch { DB = null; }
   if (!DB && supaOn()) { setSyncStatus('☁ 保存先に接続中…', 'wait'); DB = await supaConnect(); }
   if (!DB) { setSyncStatus(supaOn() ? '💾 この端末に保存（共有に未接続）' : '💾 この端末に保存（共有なし）', 'local'); return; }
-  setSyncStatus('☁ 共有データベースに接続中…', 'wait');
+  setSyncStatus('☁ 保存先（Googleドライブ）に接続中…', 'wait');
   DB.collection('schedules').onSnapshot(snap => {
     const m = {};
     snap.docs.forEach(d => { const b = d.data(); if (b && b.name && Array.isArray(b.days)) m[b.name] = { name: b.name, days: b.days, updatedAt: b.updatedAt }; });
@@ -839,7 +863,7 @@ async function initCloud() {
     DB.collection(kind).onSnapshot(snap => {
       const m = {}; snap.docs.forEach(d => { m[d.id] = d.data(); });
       Object.keys(m).forEach(id => { if (isTomb(kind, id)) delete m[id]; });
-      if (first) { first = false; const l = localColl(kind); Object.keys(l).forEach(id => { if (isTomb(kind, id)) return; const c = m[id], x = l[id]; if (!c || (x.updatedAt && (!c.updatedAt || x.updatedAt > c.updatedAt))) { m[id] = x; DB.doc(kind + '/' + id).set(x).catch(() => {}); } }); }
+      if (first) { first = false; const l = localColl(kind); Object.keys(l).forEach(id => { if (isTomb(kind, id)) return; const mt = (cloud.recordsMeta || {})[kind + '/' + id]; const c = m[id] || (mt ? { updatedAt: mt.u } : null), x = l[id]; if (!c || (x.updatedAt && (!c.updatedAt || x.updatedAt > c.updatedAt))) { m[id] = x; DB.doc(kind + '/' + id).set(x).catch(() => {}); } }); }
       cloud[kind] = m;
       if (kind === 'clients') { renderClientBox(!clientEdited); renderNgBox(); renderAssessBox(); renderGlobStates(); renderKubun(); refreshSavedList(); if (recRows.length) renderRecordView(); } else refreshSavedMonths();
     }, () => {});
@@ -863,6 +887,7 @@ function staffFilter() { const e = document.getElementById('staffFilter'); retur
 const nmz = x => String(x || '').replace(/[\s　]/g, ''), splitStaff = x => String(x || '').split(/[・,、\/]+/).map(nmz).filter(Boolean);
 function staffClients(st) {
   const k = nmz(st), set = new Set();
+  Object.values(cloud.recordsMeta || {}).forEach(m => { if ((m.s || []).map(nmz).includes(k) && m.n) set.add(m.n); });
   Object.values(getColl('records')).forEach(d => { if ((d.rows || []).some(x => splitStaff(x.staff).includes(k))) set.add(d.name); });
   return set;
 }
@@ -870,6 +895,7 @@ function staffOk(n) { const st = staffFilter(); if (!st) return true; return sta
 function refreshStaffFilter() {
   const sel = document.getElementById('staffFilter'); if (!sel) return;
   const cur = sel.value, names = new Set();
+  Object.values(cloud.recordsMeta || {}).forEach(m => (m.s || []).forEach(y => names.add(y)));
   Object.values(getColl('records')).forEach(d => (d.rows || []).forEach(x => String(x.staff || '').split(/[・,、\/]+/).map(y => y.trim()).filter(Boolean).forEach(y => names.add(y))));
   const list = [...names].sort((a, b) => a.localeCompare(b, 'ja'));
   sel.innerHTML = '<option value="">すべて</option>' + list.map(n => `<option value="${esc(n)}" ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('');
@@ -897,6 +923,7 @@ async function saveCurrent() {
 }
 function loadSaved(name) {
   if (!name) return;
+  if (DB && DB.loadRecords && !(getColl('records') && Object.values(getColl('records')).some(d => d.name === name))) DB.loadRecords(name).then(() => { refreshSavedMonths(); }).catch(() => {});
   const store = getStore();
   if (store[name]) { state = JSON.parse(JSON.stringify({ name: store[name].name || name, days: store[name].days })); document.getElementById('userName').value = state.name; currentDay = 1; recRows = []; render(); if (mode === 'record') { refreshRecUsers(); renderRecordView(); } }
 }
