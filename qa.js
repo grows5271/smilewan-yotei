@@ -51,6 +51,7 @@ window.qaCheckRows = function (name) {
       if (a >= 0 && t2.slice(a).search(/服薬|薬を|の薬|洗面|歯磨き|口腔|夕食|配膳/) > 0 && !/眠前薬|寝る前の薬/.test(t2.slice(a))) add(r, '順番', '就寝の後に服薬・洗面・食事'); }
     { const ss0 = t.split(/(?<=。)/).filter(x => x.trim()); const ci = ss0.findIndex(x => typeof CLOSE_RE !== 'undefined' && CLOSE_RE.test(x) && !LINK_RE.test(x));
       if (ci >= 0 && ss0.slice(ci + 1).some(x => /代行|購入|掃除|清掃|洗濯|調理|配膳|入浴|洗髪|更衣|着替え|服薬/.test(x) && !LINK_RE.test(x) && !/「/.test(x))) add(r, '順番', '締めの文の後に支援の文'); }
+    if (typeof orderFlow === 'function' && !r.sick) { const c = { ...r, e: r.e, text: t }; try { orderFlow(c); } catch (e) {} if (c.text !== t) add(r, '順番', '支援の流れの順になっていない'); }
     // 9. 同じ文が2回（同じ訪問の中）・空の文
     const ss = t.split(/(?<=。)/).filter(x => x.trim()); const inRow = new Set();
     ss.forEach(x => { sents++; if (inRow.has(x)) add(r, '重複', `同じ訪問に同じ文：${x.slice(0, 30)}`); inRow.add(x); if (seen.has(x)) dup++; seen.add(x); });
