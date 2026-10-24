@@ -734,7 +734,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261024113116';
+const APP_VER = '20261024113546';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -4352,8 +4352,11 @@ async function qaAllSaved() {
     const docs = Object.values(getColl('records')).filter(d => d.rows && d.rows.length).sort((a, b) => (a.name + a.month).localeCompare(b.name + b.month, 'ja'));
     for (const d of docs) {
       state.name = d.name; refreshSavedMonths(); const sel = document.getElementById('recSavedMonth'); sel.value = d.month; if (sel.value !== d.month) continue;
-      const c = window.confirm; window.confirm = () => true; try { openSavedRecords(); } finally { window.confirm = c; }
-      const rp = autoRepair(d.name); if (rp.changed) { await saveRecords({ quiet: true }); fixedN += rp.fixed; }
+      const stored = new Map(d.rows.map(x => [x.date + ' ' + (x.start || ''), [x.text, (x.kpOn || []).join(','), (x.kpOff || []).join(',')].join('\u0001')]));
+      const c = window.confirm; window.confirm = () => true; try { openSavedRecords(); } finally { window.confirm = c; } // 開いた時点で自動で直る
+      clearTimeout(recTimer); const rp = autoRepair(d.name);
+      const ch = recRows.filter(r => { const k = ymd(r.date) + ' ' + (r.e.start || ''); return stored.has(k) && stored.get(k) !== [r.text, (r.kpOn || []).join(','), (r.kpOff || []).join(',')].join('\u0001'); }).length;
+      if (ch) { await saveRecords({ quiet: true }); clearTimeout(recTimer); fixedN += ch; }
       const q = qaCheckRows(d.name); q.out.forEach(i => all.push({ ...i, name: d.name })); items.push(...qaItemsFor(d.name).filter(x => x.month === d.month));
       btn.textContent = `点検中…${docs.indexOf(d) + 1}/${docs.length}`; await new Promise(r => setTimeout(r, 0));
     }
@@ -4361,8 +4364,8 @@ async function qaAllSaved() {
   } catch (e) { reportError('qaAllSaved: ' + (e && e.message || e), 'qa'); alert('点検の途中でエラーになりました：' + (e && e.message || e)); }
   finally { btn.disabled = false; btn.textContent = label; recRows = []; renderRecordView(); }
   const box = document.getElementById('recQa'); box.dataset.all = '1';
-  if (!all.length) { box.style.display = ''; box.open = false; box.querySelector('summary').textContent = fixedN ? `✅ 全件点検：${fixedN} 件を自動で直して保存しました。残りはありません` : '✅ 全件点検：決まりと合わない所はありませんでした'; box.querySelector('ul').innerHTML = ''; return; }
-  box.style.display = ''; box.open = true; box.querySelector('summary').textContent = `⚠ 全件点検：自動で直せなかった所が ${new Set(all.map(i => i.name)).size}人・${all.length}件あります${fixedN ? `（${fixedN} 件は自動で直して保存しました）` : ''}`;
+  if (!all.length) { box.style.display = ''; box.open = false; box.querySelector('summary').textContent = fixedN ? `✅ 全件点検：${fixedN} 訪問を自動で直して保存しました。残りはありません` : '✅ 全件点検：決まりと合わない所はありませんでした'; box.querySelector('ul').innerHTML = ''; return; }
+  box.style.display = ''; box.open = true; box.querySelector('summary').textContent = `⚠ 全件点検：自動で直せなかった所が ${new Set(all.map(i => i.name)).size}人・${all.length}件あります${fixedN ? `（${fixedN} 訪問は自動で直して保存しました）` : ''}`;
   box.querySelector('ul').innerHTML = all.slice(0, 300).map(i => `<li>${esc(i.name)} ${esc(i.date)} ${esc(i.start)} ${esc(i.type || '')}【${esc(i.kind)}】${esc(i.msg)}</li>`).join('');
 }
 
