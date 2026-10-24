@@ -739,7 +739,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261024120815';
+const APP_VER = '20261024121306';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -4460,7 +4460,7 @@ function scheduleQa(name) {
   [0, 1, 2, 3, 4, 5, 6].forEach(w => dayEntries(state.days[w]).forEach(e => {
     const t = entryTime(e).s, what = `${W[w]}曜 ${t || '（時刻なし）'} ${e.type || '（種別なし）'}`;
     if (!e.start && t) out.push(`${what}：開始時刻の欄が空です（内容欄の「${t}」を使って作ります）。時刻欄に入れてください`);
-    else if (!t && (e.type || e.detail)) out.push(`${what}：時刻が無いので記録になりません`);
+    else if (!t && (e.type || e.detail)) out.push(`${what}：予定表に時刻がありません（シフトに無い月は記録になりません）`);
     if (t && !e.type) out.push(`${what}：種別が空です`);
     else if (e.type && !TYPE_OK.test(e.type)) out.push(`${what}：種別「${e.type}」が身体・家事・入浴・通院・共に のどれか分かりません`);
   }));
