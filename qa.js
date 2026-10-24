@@ -46,7 +46,7 @@ window.qaCheckRows = function (name) {
     }
     // 8. 時刻の流れ
     const h = Math.floor((hm(entryTime(r.e).s) || 720) / 60), pos = re => { const m = t.match(re); return m ? m.index : -1; };
-    if (h < 12) { const a = pos(/起床|起き上が/), b = pos(/朝食|配膳/); if (a >= 0 && b >= 0 && a > b) add(r, '順番', '起床が朝食より後'); }
+    if (h < 12) { const tn = t.split(/(?<=。)/).filter(x => !LINK_RE.test(x)).join(''), a = tn.search(/起床|起き上が/), b = tn.search(/朝食|配膳/); if (a >= 0 && b >= 0 && a > b) add(r, '順番', '起床が朝食より後'); }
     else { const t2 = t.replace(/[、の]?(食後|食べ終えた後|食事の後|食事が済んでから)(に|は)?[^。]*(就寝|寝る)[^。]*/g, ''), a = t2.search(/就寝|ベッドへ|ベッドに/);
       if (a >= 0 && t2.slice(a).search(/服薬|薬を|の薬|洗面|歯磨き|口腔|夕食|配膳/) > 0 && !/眠前薬|寝る前の薬/.test(t2.slice(a))) add(r, '順番', '就寝の後に服薬・洗面・食事'); }
     { const ss0 = t.split(/(?<=。)/).filter(x => x.trim()); const ci = ss0.findIndex(x => typeof CLOSE_RE !== 'undefined' && CLOSE_RE.test(x) && !LINK_RE.test(x));
