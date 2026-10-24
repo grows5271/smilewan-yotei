@@ -730,7 +730,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261024103338';
+const APP_VER = '20261024103609';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -3846,6 +3846,8 @@ function varyCands(s, seed, max = 400) {
 // 同じ利用者の1か月分：前に使った文と同じ文は、言い回しを変えた文にする（rows は日時の順）。keep(文) が true の文はそのまま
 function varyRows(rows, seedStr, keep, fb, K, ng) {
   const fk = x => K && x ? x.replace(/本人/g, '利用者様') : x, bad = x => (ng || []).some(w => w && x.includes(w));
+  // 言い換えで、チェックに関わる言葉（起床・更衣・洗面…）が消えないようにする
+  const kwOk = (a, b) => (typeof MENTION === 'undefined' ? [] : MENTION).every(([, re]) => !re.test(a) || re.test(b));
   const used = new Set(); let seed = 0; for (const ch of seedStr) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
   let left = 0;
   rows.forEach((r, ri) => {
@@ -3855,9 +3857,9 @@ function varyRows(rows, seedStr, keep, fb, K, ng) {
       if (!used.has(k) && !bad(k)) { used.add(k); return s; }
       const sd = (seed + ri * 131 + si * 17) >>> 0, alts = sentAlts(k), pool = [...varyCands(k, sd), ...alts.flatMap((a, ai) => [a, ...varyCands(a, sd + ai)])];
       // 文ごとの書き換えを先に混ぜて使う（同じ形が続かないように）
-      const c = [...alts, ...pool].map(fk).find(x => !used.has(x) && !bad(x));
+      const c = [...alts, ...pool].map(fk).find(x => !used.has(x) && !bad(x) && kwOk(k, x));
       if (c) { used.add(c); return c; }
-      const f0 = fb ? fk(fb(k, r, used, K)) : null, f = f0 && bad(f0) ? '' : f0; if (f != null) { if (f) used.add(f); return f; }
+      const f0 = fb ? fk(fb(k, r, used, K)) : null, f = f0 && (bad(f0) || !kwOk(k, f0)) ? (kwOk(k, '') ? '' : null) : f0; if (f != null) { if (f) used.add(f); return f; }
       if (bad(k)) return ''; // NGの言葉が入った文で、言い換えも無い物は外す
       left++; return s;
     });
@@ -4074,7 +4076,7 @@ function sentAlts(s) {
 
 // ===== チェックした項目は文章にも必ず書く：チェックがあるのに文章に出てこない項目は、その文を足す（起床は最初の方、就寝は最後の方） =====
 const MENTION = [
-  ['起床・就寝|起床介助', /起床|起き上が|起きて|目覚め|起こ/, ['起床の声掛けを行い、本人のペースで起きていただいた。', '声掛けにて起床を促し、起き上がりの様子を見守った。', '起床の声掛けをすると、本人自身で起き上がられた。', '起床を促し、ベッドからの起き上がりを見守った。', '声を掛けて起床を促し、ゆっくり起き上がっていただいた。', '起床の声掛けを行い、起き上がる際にふらつきがないか見守った。']],
+  ['起床・就寝|起床介助', /起床|起き上が|起きて|起きた|目覚め|起こ/, ['起床の声掛けを行い、本人のペースで起きていただいた。', '声掛けにて起床を促し、起き上がりの様子を見守った。', '起床の声掛けをすると、本人自身で起き上がられた。', '起床を促し、ベッドからの起き上がりを見守った。', '声を掛けて起床を促し、ゆっくり起き上がっていただいた。', '起床の声掛けを行い、起き上がる際にふらつきがないか見守った。']],
   ['身体整容|更衣介助', /更衣|着替え|着衣|着脱|脱衣|寝衣/, ['更衣の声掛けを行い、着替えを見守った。', '着替えについて声を掛け、必要な部分を手伝った。', '更衣を促し、衣類の着脱を見守った。', '衣類を準備し、着替えを手伝った。', '着替えは本人のペースで行っていただき、必要な所を支援した。'], ['入浴後の着衣を手伝った。', '入浴前後の着替えを支援した。', '入浴後は着衣を整え、体が冷えないようにした。', '脱衣と入浴後の着衣を手伝った。']],
   ['身体整容|洗面', /洗面|顔を洗|ホットタオル/, ['洗面の声掛けを行い、本人に行っていただいた。', '洗面を促し、終わるまで見守った。', '声を掛けて洗面をしていただいた。', '洗面の準備をし、本人に行っていただいた。']],
   ['身体整容|口腔ケア', /口腔|歯磨き|義歯|うがい/, ['歯磨きを声掛けで促し、本人に行っていただいた。', '口腔ケアの声掛けを行い、仕上がりを確認した。', '歯磨きの準備をし、本人のペースで行っていただいた。', '口腔ケアを促し、終わるまで見守った。']],
