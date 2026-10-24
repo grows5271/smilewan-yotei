@@ -59,6 +59,7 @@ window.qaCheckRows = function (name) {
     if (/。。|、。|、、/.test(t)) add(r, '文章', '句読点の重なり');
     // 10. 家事の訪問はゴミ出し
     if (r.kind === '家事援助' && tm && !kp.includes('清掃|ゴミ出し')) add(r, 'ゴミ出し', '家事なのにゴミ出しが無い');
+    if (r.kind === '家事援助' && kp.some(k => k.startsWith('清掃|')) && !kp.includes('清掃|居室') && !(r.kpOff || []).includes('清掃|居室')) add(r, '居室', '家事の清掃なのに居室が無い');
   });
   // 11. 体調不良の日と共に行う日
   const togDays = new Set(rows.filter(r => r.kind !== '家事援助' && visTogether(r.e)).map(r => ymd(r.date)));
