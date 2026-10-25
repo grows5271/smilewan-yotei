@@ -739,7 +739,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261025131459';
+const APP_VER = '20261025134311';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -2344,6 +2344,8 @@ const KP = [
 const catLabel = c => c; // 自立支援の欄は「共に行う」の項目だけなので、名前も「共に行う」
 const TOGETHER_RE = /^自立支援\|(掃除|洗濯|ベッドメイク|衣類の整理・被服の補修|一般的な調理・配下膳|買い物・薬の受け取り)$/;
 const isTogether = kp => kp.some(k => TOGETHER_RE.test(k));
+// 画面・コピー用の並び：自立支援は「声掛け・見守り」と「共に行う」に分けて見出しを付ける（中身のキーは自立支援|…のまま）
+const KPD = () => KP.flatMap(([c, items]) => c === '自立支援' ? [['声掛け・見守り', c, items.filter(it => !TOGETHER_RE.test(c + '|' + it))], ['共に行う', c, items.filter(it => TOGETHER_RE.test(c + '|' + it))]] : [[catLabel(c), c, items]]);
 function autoKP(e) {
   const t = (e.type || '') + '\n' + (e.detail || ''), has = re => re.test(t), out = new Set(), add = (c, i) => out.add(c + '|' + i);
   const together = has(/共に|一緒/);
@@ -2453,14 +2455,14 @@ function kpFieldsHtml(r) {
 }
 function kpGroupsHtml(r, i) {
   const kp = kpAll(r), all = !!r.showAllKp;
-  return KP.map(([c, items]) => {
+  return KPD().map(([lb, c, items]) => {
     const on = items.filter(it => kp.includes(c + '|' + it)); if (!on.length && !all) return '';
-    return `<span class="kpg"><b>${catLabel(c)}</b>${(all ? items : on).map(it => { const k = c + '|' + it; return `<span class="chip ${kp.includes(k) ? 'on' : ''}" data-k="${esc(k)}" onclick="toggleKP(${i},this.dataset.k)">${esc(it)}</span>`; }).join('')}</span>`;
+    return `<span class="kpg"><b>${esc(lb)}</b>${(all ? items : on).map(it => { const k = c + '|' + it; return `<span class="chip ${kp.includes(k) ? 'on' : ''}" data-k="${esc(k)}" onclick="toggleKP(${i},this.dataset.k)">${esc(it)}</span>`; }).join('')}</span>`;
   }).join('') || '<span class="hint" style="margin:0">実施項目なし（「すべての項目を表示」から選べます）</span>';
 }
 function kpLinesHtml(r) {
   const kp = kpAll(r);
-  return KP.map(([c, items]) => { const on = items.filter(it => kp.includes(c + '|' + it)); return on.length ? `<div><b>${catLabel(c)}</b> ${on.map(x => { const w = (r.kpSrc || {})[c + '|' + x] || ''; return `<i title="${esc(w + (ROKEI[c + '|' + x] ? '\n基準：' + ROKEI[c + '|' + x] : ''))}"${/要確認/.test(w) ? ' class="chkwarn"' : /^関連/.test(w) ? ' class="rel"' : ''}>☑${esc(x)}${/要確認/.test(w) ? '⚠' : ''}</i>`; }).join('')}</div>` : ''; }).join('');
+  return KPD().map(([lb, c, items]) => { const on = items.filter(it => kp.includes(c + '|' + it)); return on.length ? `<div><b>${esc(lb)}</b> ${on.map(x => { const w = (r.kpSrc || {})[c + '|' + x] || ''; return `<i title="${esc(w + (ROKEI[c + '|' + x] ? '\n基準：' + ROKEI[c + '|' + x] : ''))}"${/要確認/.test(w) ? ' class="chkwarn"' : /^関連/.test(w) ? ' class="rel"' : ''}>☑${esc(x)}${/要確認/.test(w) ? '⚠' : ''}</i>`; }).join('')}</div>` : ''; }).join('');
 }
 function kpFieldsLine(r) {
   const v = vOf(r), x = [], f = (k, val, warn) => x.push(`<span${warn ? ' class="warn"' : ''}>${k} ${esc(val)}</span>`);
@@ -2490,12 +2492,12 @@ function recCheckRow(r, i) {
   </div></td></tr>`;
 }
 function checkText(r) {
-  const kp = kpAll(r), f = kpFieldsLine(r).replace(/<[^>]+>/g, ''), g = KP.map(([c, items]) => { const on = items.filter(it => kp.includes(c + '|' + it)); return on.length ? `${catLabel(c)} ${on.map(x => '☑' + x).join(' ')}` : ''; }).filter(Boolean);
+  const kp = kpAll(r), f = kpFieldsLine(r).replace(/<[^>]+>/g, ''), g = KPD().map(([lb, c, items]) => { const on = items.filter(it => kp.includes(c + '|' + it)); return on.length ? `${esc(lb)} ${on.map(x => '☑' + x).join(' ')}` : ''; }).filter(Boolean);
   return [f, ...g].join('／');
 }
 function kaipokeText(r) {
   const kp = kpAll(r), x = [vSummary(r)];
-  KP.forEach(([c, items]) => { const on = items.filter(it => kp.includes(c + '|' + it)); if (on.length) x.push(`${catLabel(c)}：${on.join('・')}`); });
+  KPD().forEach(([lb, c, items]) => { const on = items.filter(it => kp.includes(c + '|' + it)); if (on.length) x.push(`${esc(lb)}：${on.join('・')}`); });
   return x.join('\n');
 }
 function recItemChips(r, i) {
@@ -2507,7 +2509,7 @@ let kpPopRow = -1;
 function renderKpPop(i) {
   const pop = document.getElementById('kpPop'), kp = kpAll(recRows[i]);
   pop.innerHTML = `<div class="head"><b>カイポケの実施項目（押して選ぶ・外す）</b><button class="small" onclick="document.getElementById('kpPop').style.display='none';kpPopRow=-1">閉じる</button></div>` +
-    KP.map(([c, items]) => `<div class="cat">${catLabel(c)}</div><div class="chips">${items.map(it => { const k = c + '|' + it, w = (recRows[i].kpSrc || {})[k] || ''; return `<span class="chip ${kp.includes(k) ? 'on' : ''}" title="${esc((w ? w + '\n' : '') + (ROKEI[k] ? '基準：' + ROKEI[k] : ''))}" data-k="${esc(k)}" onclick="toggleKP(${i},this.dataset.k)">${esc(it)}</span>`; }).join('')}</div>`).join('') +
+    KPD().map(([lb, c, items]) => `<div class="cat">${esc(lb)}</div><div class="chips">${items.map(it => { const k = c + '|' + it, w = (recRows[i].kpSrc || {})[k] || ''; return `<span class="chip ${kp.includes(k) ? 'on' : ''}" title="${esc((w ? w + '\n' : '') + (ROKEI[k] ? '基準：' + ROKEI[k] : ''))}" data-k="${esc(k)}" onclick="toggleKP(${i},this.dataset.k)">${esc(it)}</span>`; }).join('')}</div>`).join('') +
     `<div class="hint" style="margin-top:6px">項目にマウスを乗せると、選んだ理由（予定表・アセスメント・文章・関連）と、老計第10号の基準（その支援に含まれる一連の流れ）が出ます。</div>`;
 }
 function openKpPop(i, btn) {
@@ -4314,10 +4316,10 @@ function renderCheckList(v) {
     days.map(d => {
       const ix = d.rows, Vs = ix.map(i => vOf(recRows[i]));
       const fld = (label, f) => `<tr class="fld"><th>${label}</th>${ix.map((i, n) => `<td>${esc(f(Vs[n], recRows[i]) || '—')}</td>`).join('')}</tr>`;
-      const body = KP.map(([c, items]) => {
+      const body = KPD().map(([lb, c, items]) => {
         const rows = items.filter(it => !ckOnlyOn || ix.some(i => kpAll(recRows[i]).includes(c + '|' + it)));
         if (!rows.length) return '';
-        return `<tr class="cat"><th colspan="${ix.length + 1}">${catLabel(c)}</th></tr>` + rows.map(it => `<tr><th>${esc(it)}</th>${ix.map(i => cell(i, c + '|' + it)).join('')}</tr>`).join('');
+        return `<tr class="cat"><th colspan="${ix.length + 1}">${esc(lb)}</th></tr>` + rows.map(it => `<tr><th>${esc(it)}</th>${ix.map(i => cell(i, c + '|' + it)).join('')}</tr>`).join('');
       }).join('');
       return `<div class="cl-day"><h3>${d.date.getMonth() + 1}月${d.date.getDate()}日（${DAYS[d.date.getDay()]}）</h3>
         <table class="cl-table"><tr><th>項目</th>${ix.map(i => `<th class="${recRows[i].on ? '' : 'off'}">${esc(recRows[i].e.start || '')}〜${esc(recRows[i].e.end || '')}<br><small>${esc(recLabel(recRows[i]))}${recRows[i].on ? '' : '（出力しない）'}</small></th>`).join('')}</tr>
