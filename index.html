@@ -739,7 +739,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261024142010';
+const APP_VER = '20261025105201';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -2856,7 +2856,8 @@ function genItems(r) {
   return out;
 }
 // ===== 体調不良の日：1か月に2〜3日、入浴の訪問を「シャワー浴」にする（共に行う訪問がある日は選ばない）。次の日の最初の訪問で体調を確認した文を入れる =====
-const isBathRow = r => /入浴|シャワー/.test((r.e.type || '') + ' ' + (r.e.detail || '')) || (tmplItems(r) || []).includes('入浴・清拭|入浴介助');
+// 家事の訪問（「入浴後の片付け」など）は入浴の訪問にしない
+const isBathRow = r => r.kind !== '家事援助' && /入浴|シャワー/.test(((r.e.type || '') + ' ' + (r.e.detail || '')).replace(/(入浴|シャワー)(後|の後)?の?(片付け|片づけ|掃除|清掃)/g, '')) || (tmplItems(r) || []).includes('入浴・清拭|入浴介助');
 // 体調不良の日にする入浴は、入浴だけの訪問（起床・朝食・就寝などと一緒の訪問は、文章全体を入れ替えると他の支援が抜けるので選ばない）
 const isPureBath = r => isBathRow(r) && !/起床|朝食|昼食|夕食|就寝|調理/.test((r.e.detail || '') + ' ' + (r.e.type || '').replace(/入浴/g, '')) && !(tmplItems(r) || []).some(k => /^(起床・就寝|調理)\|/.test(k));
 const SICK_BATH = [
