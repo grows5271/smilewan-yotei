@@ -402,7 +402,7 @@
         <button onclick="if(dupConfirm()){saveRecords({quiet:true});window.print()}">🖨 印刷</button>
         <button onclick="if(event.shiftKey)paperSelfTest();else document.getElementById('paperFile').click()">📄 紙(PDF)から取込</button>
       </div>
-      <div class="hint" style="margin:2px 0 4px">Wordは、訪問ごとに文章の下へチェック欄（記録欄と全項目の☑／☐）を入れます。チェックリストだけが欲しいときは「✅ チェックリスト」から。</div>
+      <div class="hint" style="margin:2px 0 4px">Wordは、1訪問を1ページに収めて書き出します（日付・名前・区分の見出し＋チェック欄＋特記事項の文章）。チェックリストだけが欲しいときは「✅ チェックリスト」から。</div>
       <input type="file" id="paperFile" accept="application/pdf,image/*" style="display:none" onchange="importPaper(this)">
       <div id="paperStatus" class="hint" style="display:none"></div>
       <label>利用者（保存済みから選択）</label>
@@ -560,7 +560,7 @@
         <tr><th>ボタン</th><th>できること</th></tr>
         <tr><td>💾 記録を保存</td><td>利用者ごと・月ごとに保存（全員で共有）。同じ日時は上書き</td></tr>
         <tr><td>📚 保存した訪問記録 → 開く</td><td>過去の月の記録を呼び出して出し直し・修正</td></tr>
-        <tr><td>📄 文章をWord</td><td>特記事項の形。日付ごとに【時間帯・区分】時刻　種別（共に行う訪問は「（共に）」）→カイポケの訪問記録と同じ並びの表（提供時間・サービス名・加算・予定変更・顔色・発汗・バイタル・その他→排泄…買物等の全項目☑／☐→特記事項＝文章）。1行目の区分（介護／障害）は左の「区分」で選ぶ</td></tr>
+        <tr><td>📄 文章をWord</td><td>1訪問を1ページに収めて書き出す。特記事項の形。訪問ごとに【時間帯・区分】時刻　種別（共に行う訪問は「（共に）」）→カイポケの訪問記録と同じ並びの表（提供時間・サービス名・加算・予定変更・顔色・発汗・バイタル・その他→排泄…買物等の全項目☑／☐→特記事項＝文章）。1行目の区分（介護／障害）は左の「区分」で選ぶ</td></tr>
         <tr><td>📄 文章をPDF</td><td>日時・担当・種別・文章のA4縦PDF</td></tr>
         <tr><td>✅ チェックリストをPDF／Excel</td><td>チェックだけの一覧（PDF＝訪問ごとの☑、Excel＝1行1訪問・全項目に○）</td></tr>
         <tr><td>🖨 印刷</td><td>画面の表をそのまま印刷</td></tr>
@@ -739,7 +739,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261025105201';
+const APP_VER = '20261025112658';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -759,11 +759,15 @@ setInterval(checkVer, 3 * 60 * 1000); window.addEventListener('focus', () => che
 function supaOn() { return !!GAS.url && !(window.claude && typeof window.claude.use === 'function'); }
 // 保存先（GAS）への1回の問い合わせ。text/plain で送る（ブラウザの事前確認が要らない形）
 async function gasCall(body) {
-  const r = await fetch(GAS.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
-  const t = await r.text(); let j;
-  try { j = JSON.parse(t); } catch { const e = new Error('保存先の返事が読めませんでした'); e.code = /Authorization|承認|ログイン|Sign in/i.test(t) ? 'noauth' : 'badresp'; throw e; }
-  if (!j.ok) { const e = new Error(j.error || 'error'); if (/passcode/.test(j.error || '')) e.code = 'badpass'; throw e; }
-  return j;
+  // Googleの返事が途中で消えると、保存先の案内（app/folder だけ）が返る。空の結果と取り違えないよう、そのときは試し直す
+  for (let k = 0; ; k++) {
+    const r = await fetch(GAS.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
+    const t = await r.text(); let j;
+    try { j = JSON.parse(t); } catch { const e = new Error('保存先の返事が読めませんでした'); e.code = /Authorization|承認|ログイン|Sign in/i.test(t) ? 'noauth' : 'badresp'; throw e; }
+    if (j.ok && j.app && body.op !== 'ping') { if (k < 5) { await new Promise(res => setTimeout(res, 1500 * (k + 1))); continue; } const e = new Error('保存先の返事が届きませんでした（時間をおいてもう一度）'); e.code = 'lost'; throw e; }
+    if (!j.ok) { const e = new Error(j.error || 'error'); if (/passcode/.test(j.error || '')) e.code = 'badpass'; throw e; }
+    return j;
+  }
 }
 const SMALL_KINDS = ['schedules', 'clients', 'settings'];
 // Googleドライブ保存先を、前の共有データベースと同じ形（doc().set/delete・collection().onSnapshot）で使えるようにする
@@ -813,7 +817,12 @@ function gasDB(pass, first) {
     // 利用者1人分の訪問記録を読む（選んだとき）
     async loadRecords(client) { const j = await gasCall({ pass, op: 'records', client }); (j.docs || []).forEach(d => { (cache.records = cache.records || {})[d.name] = d.data; }); deliver(['records']); return (j.docs || []).length; },
     // 全員分の記録を読む（保守用・重い）
-    async loadAllRecords() { const j = await gasCall({ pass, op: 'list', kinds: ['records'] }); (j.docs || []).forEach(d => { (cache.records = cache.records || {})[d.name] = d.data; }); if (j.meta) { meta = j.meta; cloud.recordsMeta = meta; } deliver(['records']); return (j.docs || []).length; },
+    async loadAllRecords() { // 一度に全部だと返事が大きすぎて届かないことがあるので、1人ずつ（4人同時）読む
+      const m = await gasCall({ pass, op: 'meta' }); if (m.meta) { meta = m.meta; cloud.recordsMeta = meta; }
+      const names = [...new Set(Object.keys(meta).filter(id => id.startsWith('records/')).map(id => meta[id].n).filter(Boolean))]; let n = 0;
+      for (let i = 0; i < names.length; i += 4) (await Promise.all(names.slice(i, i + 4).map(c => gasCall({ pass, op: 'records', client: c })))).forEach(j => (j.docs || []).forEach(d => { (cache.records = cache.records || {})[d.name] = d.data; n++; }));
+      const want = Object.keys(meta).filter(id => id.startsWith('records/')).length; if (n < want) throw new Error(`記録を全部読めませんでした（${n}/${want}）`);
+      deliver(['records']); return n; },
     meta() { return meta; },
   };
 }
@@ -4347,6 +4356,7 @@ window.qaCheckRows = function (name) {
       if (v.顔色 !== '不良') add(r, '体調不良', '顔色が不良でない');
       if (/清拭/.test(t)) add(r, '体調不良', '文章に清拭');
     }
+    if (r.kind === '家事援助' && (r.sick || kp.includes('入浴・清拭|シャワー浴') || /シャワー浴/.test(t))) add(r, '体調不良', '家事の訪問にシャワー浴（シャワー浴は身体の訪問だけ）');
     // 6. 共に行う：共にの訪問以外で共に行う項目／共に行う項目と同じ家事が普通の欄にも
     const tog = kp.filter(k => TOGETHER_RE.test(k) && !(tm && (tm.checked || []).includes(k)));
     if (tog.length && !visTogether(r.e) && !(tm && /共に/.test(tm.type || ''))) add(r, '共に行う', `共にの訪問でないのに「${tog.map(k => k.split('|')[1]).join('・')}」`);
@@ -4443,6 +4453,7 @@ function autoRepair(name) {
     else if (i.kind === '完食') addOff(r, '食事|完食');
     else if (i.kind === '共に行う') kpAll(r).filter(k => TOGETHER_RE.test(k)).forEach(k => addOff(r, k));
     else if (i.kind === '呼び方') r.text = K ? String(r.text).replace(/本人/g, '利用者様') : String(r.text).replace(/利用者様/g, '本人');
+    else if (i.kind === '体調不良' && /家事の訪問にシャワー浴/.test(i.msg)) { r.sick = false; r.kpOff = [...new Set([...(r.kpOff || []), '入浴・清拭|シャワー浴'])]; r.kpOn = (r.kpOn || []).filter(x => x !== '入浴・清拭|シャワー浴'); r.text = String(r.text).split(/(?<=。)/).filter(x => !/シャワー浴|入浴は(控え|見合わせ)/.test(x)).join('') || uniqueText(r, recRows.filter(x => x !== r && x.on)); needSick = true; }
     else if (i.kind === '体調不良') { if (/文章に清拭/.test(i.msg)) r.text = String(r.text).split(/(?<=。)/).filter(x => !/清拭/.test(x)).join(''); else needSick = true; }
     else if (i.kind === '重複') { const seen = new Set(); r.text = String(r.text).split(/(?<=。)/).filter(x => { if (!x.trim() || seen.has(x)) return false; seen.add(x); return true; }).join(''); }
     else if (i.kind === '文章' && /句読点/.test(i.msg)) r.text = String(r.text).replace(/。。+/g, '。').replace(/、。/g, '。').replace(/、、+/g, '、');
@@ -4754,14 +4765,14 @@ function docxWhat(r) {
 // カイポケの訪問記録と同じ並び・同じ欄で出す（上から：提供時間〜その他 → 排泄 … 買物等 → 特記事項）
 function docxCheckTable(D, r, FONT) {
   const kp = kpAll(r), v = vOf(r), f = { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, on = k => kp.includes(k);
-  const t = (text, o = {}) => new D.TextRun({ text, font: f, size: 17, ...o });
+  const t = (text, o = {}) => new D.TextRun({ text, font: f, size: 18, ...o }); // 1訪問が1ページに収まる大きさ（行の高さは固定）
   const line = { style: D.BorderStyle.SINGLE, size: 4, color: '999999' }, borders = { top: line, bottom: line, left: line, right: line };
-  const cell = (children, w, shade) => new D.TableCell({ children: [new D.Paragraph({ children })], width: { size: w, type: D.WidthType.DXA }, borders, margins: { top: 30, bottom: 30, left: 80, right: 80 }, ...(shade ? { shading: { fill: 'F2F2F2', type: D.ShadingType.CLEAR, color: 'auto' } } : {}) });
+  const cell = (children, w, shade, line = 260) => new D.TableCell({ children: [new D.Paragraph({ children, spacing: { before: 0, after: 0, line, lineRule: D.LineRuleType.EXACT } })], width: { size: w, type: D.WidthType.DXA }, borders, margins: { top: 20, bottom: 20, left: 70, right: 70 }, ...(shade ? { shading: { fill: 'F2F2F2', type: D.ShadingType.CLEAR, color: 'auto' } } : {}) });
   const box = (label, yes, j) => t((j ? '　' : '') + (yes ? '☑' : '☐') + label, yes ? { bold: true } : { color: '777777' });
   const opt = (label, val) => t('　' + label + '：' + (val || '　　'), val ? { bold: true } : { color: '777777' });
   const pick = (opts, val) => opts.map((o, j) => box(o, Array.isArray(val) ? val.includes(o) : val === o, j));
   const items = (c, list) => list.map((it, j) => box(it, on(c + '|' + it), j));
-  const rows = [], row = (label, runs) => rows.push(new D.TableRow({ children: [cell([t(label, { bold: true })], 1800, 1), cell(runs, 6704)] }));
+  const rows = [], row = (label, runs, line) => rows.push(new D.TableRow({ cantSplit: true, children: [cell([t(label, { bold: true })], 1750, 1, line), cell(runs, 8156, 0, line)] }));
   const tm = entryTime(r.e);
   row('サービス提供時間', [t(`${tm.s || ''} 〜 ${tm.e || ''}`)]);
   row('サービス名', [t(r.kind || '')]);
@@ -4784,8 +4795,8 @@ function docxCheckTable(D, r, FONT) {
   row('衣類・寝具', items('衣類・寝具', ['ベッドメイク', 'シーツ・カバー交換', '布団干し', '衣類の整理', '被服の補修']));
   row('調理', [...items('調理', ['調理', '下拵え', '配・下膳']), opt('献立', on('調理|調理') ? v.献立 : '')]);
   row('買物等', [...items('買物等', ['日常品等の買物', '薬の受取り']), opt('預り', v.預り && v.預り + '円'), opt('購入', v.購入 && v.購入 + '円'), opt('お釣', v.お釣 && v.お釣 + '円'), opt('内訳', v.内訳)]);
-  row('特記事項', [t(String(r.text || '').replace(/\n/g, ''), { size: 19 })]);
-  return new D.Table({ rows, width: { size: 8504, type: D.WidthType.DXA }, columnWidths: [1800, 6704] });
+  row('特記事項', [t(String(r.text || '').replace(/\n/g, ''), { size: 20 })], 300);
+  return new D.Table({ rows, width: { size: 9906, type: D.WidthType.DXA }, columnWidths: [1750, 8156] });
 }
 async function exportRecordsDocx() {
   const rows = recRows.filter(r => r.on);
@@ -4803,21 +4814,17 @@ async function exportRecordsDocx() {
     const run = (text, bold, brk) => new D.TextRun({ text, bold, break: brk ? 1 : 0, font: { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, size: 21 });
     // 日付の早い順、同じ日は時刻順
     const sorted = [...rows].sort((a, b) => (a.date - b.date) || (a.e.start || '').localeCompare(b.e.start || ''));
-    const days = []; sorted.forEach(r => { const k = ymd(r.date); const d = days.find(x => x.k === k); d ? d.rows.push(r) : days.push({ k, date: r.date, rows: [r] }); });
+    // 1訪問を1ページに（日付・名前・区分の見出し＋表。次の訪問は次のページから）
     const children = [];
-    days.forEach((d, i) => {
-      const head = `${d.date.getMonth() + 1}月${d.date.getDate()}日（${DAYS[d.date.getDay()]}）`;
-      const firstLine = kubun === '介護' ? `　　　　　　　${flat}　介護` : `　${flat}`;
-      children.push(new D.Paragraph({ children: [run(head, true), ...(i === 0 ? [run(firstLine, true)] : [])] }));
-      d.rows.forEach(r => {
-        children.push(new D.Paragraph({ children: [run(`【${recLabel(r)}】${docxTime(r)}　${docxKind(r)}`, true)] })); // 文章は表の一番下の「特記事項」に入れる（カイポケと同じ並び）
-        children.push(docxCheckTable(D, r, FONT), new D.Paragraph({ children: [] }));
-      });
-      if (i < days.length - 1) children.push(new D.Paragraph({ children: [] }));
+    sorted.forEach((r, i) => {
+      const head = `${r.date.getMonth() + 1}月${r.date.getDate()}日（${DAYS[r.date.getDay()]}）　${flat}${kubun === '介護' ? '　介護' : ''}`;
+      children.push(new D.Paragraph({ pageBreakBefore: i > 0, keepNext: true, spacing: { after: 40 }, children: [run(head, true)] }));
+      children.push(new D.Paragraph({ keepNext: true, spacing: { after: 80 }, children: [run(`【${recLabel(r)}】${docxTime(r)}　${docxKind(r)}`, true)] })); // 文章は表の一番下の「特記事項」に入れる（カイポケと同じ並び）
+      children.push(docxCheckTable(D, r, FONT));
     });
     const doc = new D.Document({
       styles: { default: { document: { run: { font: { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, size: 21 } } } },
-      sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1985, right: 1701, bottom: 1701, left: 1701, header: 851, footer: 992 } } }, children }],
+      sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 850, right: 1000, bottom: 850, left: 1000, header: 500, footer: 500 } } }, children }],
     });
     const blob = await D.Packer.toBlob(doc);
     const m = sorted[0].date.getMonth() + 1;
