@@ -739,7 +739,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261025112658';
+const APP_VER = '20261025113319';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -817,10 +817,10 @@ function gasDB(pass, first) {
     // 利用者1人分の訪問記録を読む（選んだとき）
     async loadRecords(client) { const j = await gasCall({ pass, op: 'records', client }); (j.docs || []).forEach(d => { (cache.records = cache.records || {})[d.name] = d.data; }); deliver(['records']); return (j.docs || []).length; },
     // 全員分の記録を読む（保守用・重い）
-    async loadAllRecords() { // 一度に全部だと返事が大きすぎて届かないことがあるので、1人ずつ（4人同時）読む
+    async loadAllRecords() { // 一度に全部だと返事が大きすぎて届かないことがあるので、1人ずつ順に読む
       const m = await gasCall({ pass, op: 'meta' }); if (m.meta) { meta = m.meta; cloud.recordsMeta = meta; }
       const names = [...new Set(Object.keys(meta).filter(id => id.startsWith('records/')).map(id => meta[id].n).filter(Boolean))]; let n = 0;
-      for (let i = 0; i < names.length; i += 4) (await Promise.all(names.slice(i, i + 4).map(c => gasCall({ pass, op: 'records', client: c })))).forEach(j => (j.docs || []).forEach(d => { (cache.records = cache.records || {})[d.name] = d.data; n++; }));
+      for (const c of names) { const j = await gasCall({ pass, op: 'records', client: c }); (j.docs || []).forEach(d => { (cache.records = cache.records || {})[d.name] = d.data; n++; }); }
       const want = Object.keys(meta).filter(id => id.startsWith('records/')).length; if (n < want) throw new Error(`記録を全部読めませんでした（${n}/${want}）`);
       deliver(['records']); return n; },
     meta() { return meta; },
