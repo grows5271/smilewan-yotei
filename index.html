@@ -402,7 +402,7 @@
         <button onclick="if(dupConfirm()){saveRecords({quiet:true});window.print()}">🖨 印刷</button>
         <button onclick="if(event.shiftKey)paperSelfTest();else document.getElementById('paperFile').click()">📄 紙(PDF)から取込</button>
       </div>
-      <div class="hint" style="margin:2px 0 4px">Wordは、訪問を続けて1枚にぎっしり並べます（1枚に2訪問ほど。1つの訪問はページの途中で切れません。名前は各ページの上）。チェックリストだけが欲しいときは「✅ チェックリスト」から。</div>
+      <div class="hint" style="margin:2px 0 4px">Wordは、1訪問を1ページにぎっしり書き出します（特記事項の欄をページの下まで伸ばして、空白を残しません）。チェックリストだけが欲しいときは「✅ チェックリスト」から。</div>
       <input type="file" id="paperFile" accept="application/pdf,image/*" style="display:none" onchange="importPaper(this)">
       <div id="paperStatus" class="hint" style="display:none"></div>
       <label>利用者（保存済みから選択）</label>
@@ -560,7 +560,7 @@
         <tr><th>ボタン</th><th>できること</th></tr>
         <tr><td>💾 記録を保存</td><td>利用者ごと・月ごとに保存（全員で共有）。同じ日時は上書き</td></tr>
         <tr><td>📚 保存した訪問記録 → 開く</td><td>過去の月の記録を呼び出して出し直し・修正</td></tr>
-        <tr><td>📄 文章をWord</td><td>訪問を続けて1枚にぎっしり（1枚に2訪問ほど・訪問の途中で切れない）。特記事項の形。訪問ごとに【時間帯・区分】時刻　種別（共に行う訪問は「（共に）」）→カイポケの訪問記録と同じ並びの表（提供時間・サービス名・加算・予定変更・顔色・発汗・バイタル・その他→排泄…買物等の全項目☑／☐→特記事項＝文章）。1行目の区分（介護／障害）は左の「区分」で選ぶ</td></tr>
+        <tr><td>📄 文章をWord</td><td>1訪問を1ページにぎっしり（特記事項の欄をページの下まで伸ばす）。特記事項の形。訪問ごとに【時間帯・区分】時刻　種別（共に行う訪問は「（共に）」）→カイポケの訪問記録と同じ並びの表（提供時間・サービス名・加算・予定変更・顔色・発汗・バイタル・その他→排泄…買物等の全項目☑／☐→特記事項＝文章）。1行目の区分（介護／障害）は左の「区分」で選ぶ</td></tr>
         <tr><td>📄 文章をPDF</td><td>日時・担当・種別・文章のA4縦PDF</td></tr>
         <tr><td>✅ チェックリストをPDF／Excel</td><td>チェックだけの一覧（PDF＝訪問ごとの☑、Excel＝1行1訪問・全項目に○）</td></tr>
         <tr><td>🖨 印刷</td><td>画面の表をそのまま印刷</td></tr>
@@ -739,7 +739,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261025130555';
+const APP_VER = '20261025131459';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -4777,39 +4777,48 @@ function docxWhat(r) {
 }
 // 特記事項の下に入れるチェック欄（カイポケと同じ並び。全項目を ☑／☐ で出す）
 // カイポケの訪問記録と同じ並び・同じ欄で出す（上から：提供時間〜その他 → 排泄 … 買物等 → 特記事項）
-function docxCheckTable(D, r, FONT) {
-  // 1枚にぎっしり（1枚に2訪問ほど）：短い欄は2つずつ横に並べ、文字8pt・行の高さ固定。表は途中でページが切れないよう、最後の行以外を「次の段落と同じページ」にする
+function docxCheckTable(D, r, FONT, avail) {
+  // 1訪問を1ページにぎっしり：文字9.5pt・行の高さ固定。チェック欄の行数をおよそ数え、最後の「特記事項」の欄をページの下まで伸ばす
   const kp = kpAll(r), v = vOf(r), f = { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, on = k => kp.includes(k);
-  const t = (text, o = {}) => new D.TextRun({ text, font: f, size: 16, ...o });
+  let acc = 0; const wlen = s => [...String(s || '')].reduce((n, c) => n + (c.charCodeAt(0) > 0xff ? 1 : 0.55), 0);
+  const t = (text, o = {}) => { acc += wlen(text); return new D.TextRun({ text, font: f, size: 19, ...o }); };
   const line = { style: D.BorderStyle.SINGLE, size: 4, color: '999999' }, borders = { top: line, bottom: line, left: line, right: line };
-  const L = 1450, V = 3503, VF = V * 2 + L; // 見出し欄・値の欄（半分）・値の欄（全幅）
-  const cell = (children, w, o = {}) => new D.TableCell({ children: [new D.Paragraph({ children, keepNext: !o.last, keepLines: true, spacing: { before: 0, after: 0, line: o.line || 200, lineRule: D.LineRuleType.EXACT } })], width: { size: w, type: D.WidthType.DXA }, borders, margins: { top: 15, bottom: 15, left: 60, right: 60 }, ...(o.span ? { columnSpan: o.span } : {}), ...(o.shade ? { shading: { fill: 'F2F2F2', type: D.ShadingType.CLEAR, color: 'auto' } } : {}) });
+  const LW = 1750, VW = 8156, LINE = 270, PAD = 75, CPL = 40; // 見出し欄・値の欄の幅、行の高さ、上下の余白、1行の字数（少なめに見積もる）
+  const cell = (children, w, shade, ln = LINE) => new D.TableCell({ children: [new D.Paragraph({ children, spacing: { before: 0, after: 0, line: ln, lineRule: D.LineRuleType.EXACT } })], width: { size: w, type: D.WidthType.DXA }, borders, margins: { top: 30, bottom: 30, left: 70, right: 70 }, ...(shade ? { shading: { fill: 'F2F2F2', type: D.ShadingType.CLEAR, color: 'auto' } } : {}) });
   const box = (label, yes, j) => t((j ? '　' : '') + (yes ? '☑' : '☐') + label, yes ? { bold: true } : { color: '777777' });
   const opt = (label, val) => t('　' + label + '：' + (val || '　　'), val ? { bold: true } : { color: '777777' });
   const pick = (opts, val) => opts.map((o, j) => box(o, Array.isArray(val) ? val.includes(o) : val === o, j));
   const items = (c, list) => list.map((it, j) => box(it, on(c + '|' + it), j));
-  const lab = s => [t(s, { bold: true })];
-  const rows = [];
-  const row1 = (label, runs, o = {}) => rows.push(new D.TableRow({ cantSplit: true, children: [cell(lab(label), L, { ...o, shade: 1 }), cell(runs, VF, { ...o, span: 3 })] }));
-  const row2 = (l1, r1, l2, r2) => rows.push(new D.TableRow({ cantSplit: true, children: [cell(lab(l1), L, { shade: 1 }), cell(r1, V), cell(lab(l2), L, { shade: 1 }), cell(r2, V)] }));
+  const rows = []; let used = 0;
+  const row = (label, runs) => { const n = Math.max(1, Math.ceil(acc / CPL)); used += n * LINE + PAD; acc = 0; rows.push(new D.TableRow({ cantSplit: true, children: [cell([t(label, { bold: true })], LW, 1), cell(runs, VW)] })); acc = 0; };
   const tm = entryTime(r.e);
-  row2('サービス提供時間', [t(`${tm.s || ''} 〜 ${tm.e || ''}`)], 'サービス名', [t(r.kind || '')]);
-  row2('特定加算', pick(['初回', '緊急'], v.加算 || []), '予定の変更', pick(['有', '無'], v.変更 || '無'));
-  row2('顔色', pick(['良', '不良'], v.顔色), '発汗', pick(['有', '無'], v.発汗));
-  row2('バイタル', [t('体温：' + (v.体温 ? v.体温 + '℃' : '　　℃')), t('　血圧：' + (v.血圧上 ? `${v.血圧上}/${v.血圧下 || ''}` : '　　/　　') + ' mmHg')], 'その他', pick(['環境整備', '相談援助', '情報収集・提供', '記録'], v.その他 || []));
-  row1('排泄', [...items('排泄', ['トイレ介助', 'ポータブルトイレ介助', 'おむつ交換', 'パッド交換', 'リネン等交換', '陰部清潔介助', '尿器洗浄']), opt('排尿 回数', v.排尿回数 && v.排尿回数 + '回'), opt('量', v.排尿量 && v.排尿量 + 'cc'), opt('排便 回数', v.排便回数 && v.排便回数 + '回'), opt('状態', v.排便状態)]);
-  row1('食事', [box('姿勢の確保', on('食事|姿勢の確保'), 0), box('摂食介助', on('食事|摂食介助'), 1), t('（'), ...pick(['全部', '一部'], v.摂食), t('）'), opt('食事量', v.食事量), box('水分補給', on('食事|水分補給'), 1), t(v.水分 ? ` ${v.水分}cc` : ''), box('完食', on('食事|完食'), 1), box('食べ残しあり', on('食事|食べ残しあり'), 1)]);
-  row1('入浴・清拭', [...items('入浴・清拭', ['入浴介助', 'シャワー浴', '洗髪', '部分浴']), t('（'), ...pick(['手', '足'], v.部分浴), t('）'), box('清拭', on('入浴・清拭|清拭'), 1), t('（'), ...pick(['全身', '部分'], v.清拭), t('）')]);
-  row1('身体整容', [...items('身体整容', ['洗面', '口腔ケア', '更衣介助', '整容']), t('（'), ...pick(['爪', '耳', '髭', '髪', '化粧'], v.整容 || []), t('）')]);
-  row1('移動', items('移動', ['体位変換', '移乗介助', '移動介助', '外出準備介助', '帰宅受入介助', '通院介助', '買物介助']));
-  row2('起床・就寝', items('起床・就寝', ['起床介助', '就寝介助']), '調理', [...items('調理', ['調理', '下拵え', '配・下膳']), opt('献立', on('調理|調理') ? v.献立 : '')]);
-  row1('服薬・医療', items('服薬・医療', ['服薬介助・確認', '薬の塗布', '点眼', '痰の吸引', '浣腸', '経管栄養', '院内介助', '見守り']));
-  row1('自立支援', [t('共に行う：'), ...items('自立支援', ['掃除', '洗濯', 'ベッドメイク', '衣類の整理・被服の補修', '一般的な調理・配下膳', '買い物・薬の受け取り']), t('　声掛け・見守り：'), ...items('自立支援', ['排泄・食事', '清拭・入浴・身体整容', '通院・外出介助', '起床就寝介助', '服薬'])]);
-  row1('清掃', items('清掃', ['居室', 'トイレ', 'ポータブルトイレ', '卓上', '台所', '浴室', '玄関', 'ゴミ出し']));
-  row2('洗濯', items('洗濯', ['洗濯', '乾燥（物干し）', '取入れ・収納', 'アイロン']), '衣類・寝具', items('衣類・寝具', ['ベッドメイク', 'シーツ・カバー交換', '布団干し', '衣類の整理', '被服の補修']));
-  row1('買物等', [...items('買物等', ['日常品等の買物', '薬の受取り']), opt('預り', v.預り && v.預り + '円'), opt('購入', v.購入 && v.購入 + '円'), opt('お釣', v.お釣 && v.お釣 + '円'), opt('内訳', v.内訳)]);
-  row1('特記事項', [t(String(r.text || '').replace(/\n/g, ''), { size: 18 })], { line: 240, last: true });
-  return new D.Table({ rows, width: { size: VF + L, type: D.WidthType.DXA }, columnWidths: [L, V, L, V], layout: D.TableLayoutType.FIXED });
+  acc = 0;
+  row('サービス提供時間', [t(`${tm.s || ''} 〜 ${tm.e || ''}`)]);
+  row('サービス名', [t(r.kind || '')]);
+  row('特定加算', pick(['初回', '緊急'], v.加算 || []));
+  row('予定の変更', pick(['有', '無'], v.変更 || '無'));
+  row('顔色', pick(['良', '不良'], v.顔色));
+  row('発汗', pick(['有', '無'], v.発汗));
+  row('バイタル', [t('体温：' + (v.体温 ? v.体温 + '℃' : '　　℃')), t('　血圧：' + (v.血圧上 ? `${v.血圧上}/${v.血圧下 || ''}` : '　　/　　') + ' mmHg')]);
+  row('その他', pick(['環境整備', '相談援助', '情報収集・提供', '記録'], v.その他 || []));
+  row('排泄', [...items('排泄', ['トイレ介助', 'ポータブルトイレ介助', 'おむつ交換', 'パッド交換', 'リネン等交換', '陰部清潔介助', '尿器洗浄']), opt('排尿 回数', v.排尿回数 && v.排尿回数 + '回'), opt('量', v.排尿量 && v.排尿量 + 'cc'), opt('排便 回数', v.排便回数 && v.排便回数 + '回'), opt('状態', v.排便状態)]);
+  row('食事', [box('姿勢の確保', on('食事|姿勢の確保'), 0), box('摂食介助', on('食事|摂食介助'), 1), t('（'), ...pick(['全部', '一部'], v.摂食), t('）'), opt('食事量', v.食事量), box('水分補給', on('食事|水分補給'), 1), t(v.水分 ? ` ${v.水分}cc` : ''), box('完食', on('食事|完食'), 1), box('食べ残しあり', on('食事|食べ残しあり'), 1)]);
+  row('入浴・清拭', [...items('入浴・清拭', ['入浴介助', 'シャワー浴', '洗髪', '部分浴']), t('（'), ...pick(['手', '足'], v.部分浴), t('）'), box('清拭', on('入浴・清拭|清拭'), 1), t('（'), ...pick(['全身', '部分'], v.清拭), t('）')]);
+  row('身体整容', [...items('身体整容', ['洗面', '口腔ケア', '更衣介助', '整容']), t('（'), ...pick(['爪', '耳', '髭', '髪', '化粧'], v.整容 || []), t('）')]);
+  row('移動', items('移動', ['体位変換', '移乗介助', '移動介助', '外出準備介助', '帰宅受入介助', '通院介助', '買物介助']));
+  row('起床・就寝', items('起床・就寝', ['起床介助', '就寝介助']));
+  row('服薬・医療', items('服薬・医療', ['服薬介助・確認', '薬の塗布', '点眼', '痰の吸引', '浣腸', '経管栄養', '院内介助', '見守り']));
+  row('自立支援', [t('共に行う：'), ...items('自立支援', ['掃除', '洗濯', 'ベッドメイク', '衣類の整理・被服の補修', '一般的な調理・配下膳', '買い物・薬の受け取り']), t('　声掛け・見守り：'), ...items('自立支援', ['排泄・食事', '清拭・入浴・身体整容', '通院・外出介助', '起床就寝介助', '服薬'])]);
+  row('清掃', items('清掃', ['居室', 'トイレ', 'ポータブルトイレ', '卓上', '台所', '浴室', '玄関', 'ゴミ出し']));
+  row('洗濯', items('洗濯', ['洗濯', '乾燥（物干し）', '取入れ・収納', 'アイロン']));
+  row('衣類・寝具', items('衣類・寝具', ['ベッドメイク', 'シーツ・カバー交換', '布団干し', '衣類の整理', '被服の補修']));
+  row('調理', [...items('調理', ['調理', '下拵え', '配・下膳']), opt('献立', on('調理|調理') ? v.献立 : '')]);
+  row('買物等', [...items('買物等', ['日常品等の買物', '薬の受取り']), opt('預り', v.預り && v.預り + '円'), opt('購入', v.購入 && v.購入 + '円'), opt('お釣', v.お釣 && v.お釣 + '円'), opt('内訳', v.内訳)]);
+  // 特記事項（文章）：10.5pt。残りの高さいっぱいまで欄を伸ばす（文章が長くて入らないときは自然な高さ）
+  const text = String(r.text || '').replace(/\n/g, ''), TL = 330, natural = Math.max(3, Math.ceil(wlen(text) / 37)) * TL + PAD;
+  const minH = Math.max(natural, Math.floor((avail || 0) - used - 100));
+  rows.push(new D.TableRow({ cantSplit: true, height: { value: minH, rule: D.HeightRule.ATLEAST }, children: [cell([t('特記事項', { bold: true })], LW, 1), cell([t(text, { size: 21 })], VW, 0, TL)] }));
+  return new D.Table({ rows, width: { size: LW + VW, type: D.WidthType.DXA }, columnWidths: [LW, VW], layout: D.TableLayoutType.FIXED });
 }
 async function exportRecordsDocx() {
   const rows = recRows.filter(r => r.on);
@@ -4824,23 +4833,26 @@ async function exportRecordsDocx() {
     const name = (state.name || '').trim(), flat = name.replace(/[\s　]+/g, '');
     const kubun = document.getElementById('recKubun').value;
     const FONT = window._docxFont || '游明朝';
-    const run = (text, bold, size = 18) => new D.TextRun({ text, bold, font: { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, size });
+    const run = (text, bold) => new D.TextRun({ text, bold, font: { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, size: 22 });
     // 日付の早い順、同じ日は時刻順
     const sorted = [...rows].sort((a, b) => (a.date - b.date) || (a.e.start || '').localeCompare(b.e.start || ''));
-    const m = sorted[0].date.getMonth() + 1;
-    // 訪問を続けて詰めて並べる（1枚にぎっしり）。1つの訪問はページの途中で切れない（入らないときは次のページへ）
+    // 1訪問を1ページにぎっしり（見出し2行＋表。表の最後の「特記事項」の欄をページの下まで伸ばす。次の訪問は次のページから）
+    const PAGE_H = 16838, M_TOP = 850, M_BOT = 850, HL = 330;
     const children = [];
     sorted.forEach((r, i) => {
-      const head = `${r.date.getMonth() + 1}月${r.date.getDate()}日（${DAYS[r.date.getDay()]}）【${recLabel(r)}】${docxTime(r)}　${docxKind(r)}`;
-      children.push(new D.Paragraph({ keepNext: true, keepLines: true, spacing: { before: i ? 160 : 0, after: 30 }, children: [run(head, true)] })); // 文章は表の一番下の「特記事項」に入れる（カイポケと同じ並び）
-      children.push(docxCheckTable(D, r, FONT));
+      const head = `${r.date.getMonth() + 1}月${r.date.getDate()}日（${DAYS[r.date.getDay()]}）　${flat}${kubun === '介護' ? '　介護' : ''}`;
+      const head2 = `【${recLabel(r)}】${docxTime(r)}　${docxKind(r)}`;
+      const hLines = 1 + Math.max(1, Math.ceil([...head2].length / 42));
+      children.push(new D.Paragraph({ pageBreakBefore: i > 0, keepNext: true, spacing: { before: 0, after: 40, line: HL, lineRule: D.LineRuleType.EXACT }, children: [run(head, true)] }));
+      children.push(new D.Paragraph({ keepNext: true, spacing: { before: 0, after: 100, line: HL, lineRule: D.LineRuleType.EXACT }, children: [run(head2, true)] })); // 文章は表の一番下の「特記事項」に入れる（カイポケと同じ並び）
+      children.push(docxCheckTable(D, r, FONT, PAGE_H - M_TOP - M_BOT - hLines * HL - 140));
     });
-    const header = new D.Header({ children: [new D.Paragraph({ children: [run(`${flat}${kubun === '介護' ? '　介護' : ''}　${m}月 特記事項`, true, 18)] })] });
     const doc = new D.Document({
-      styles: { default: { document: { run: { font: { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, size: 18 } } } },
-      sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 850, right: 1000, bottom: 700, left: 1000, header: 450, footer: 400 } } }, headers: { default: header }, children }],
+      styles: { default: { document: { run: { font: { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, size: 21 } } } },
+      sections: [{ properties: { page: { size: { width: 11906, height: PAGE_H }, margin: { top: M_TOP, right: 1000, bottom: M_BOT, left: 1000, header: 450, footer: 450 } } }, children }],
     });
     const blob = await D.Packer.toBlob(doc);
+    const m = sorted[0].date.getMonth() + 1;
     await download(blob, `${kubun === '介護' ? '介護　' : ''}${flat}${m}月特記事項.docx`);
   } catch (e) {
     alert('Wordを作成できませんでした: ' + ((e && e.message) || e));
