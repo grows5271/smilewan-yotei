@@ -36,6 +36,7 @@ window.qaCheckRows = function (name) {
       if (v.顔色 !== '不良') add(r, '体調不良', '顔色が不良でない');
       if (/清拭/.test(t)) add(r, '体調不良', '文章に清拭');
     }
+    if (r.kind === '家事援助' && (r.sick || kp.includes('入浴・清拭|シャワー浴') || /シャワー浴/.test(t))) add(r, '体調不良', '家事の訪問にシャワー浴（シャワー浴は身体の訪問だけ）');
     // 6. 共に行う：共にの訪問以外で共に行う項目／共に行う項目と同じ家事が普通の欄にも
     const tog = kp.filter(k => TOGETHER_RE.test(k) && !(tm && (tm.checked || []).includes(k)));
     if (tog.length && !visTogether(r.e) && !(tm && /共に/.test(tm.type || ''))) add(r, '共に行う', `共にの訪問でないのに「${tog.map(k => k.split('|')[1]).join('・')}」`);
