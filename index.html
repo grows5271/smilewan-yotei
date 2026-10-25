@@ -739,7 +739,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261025121454';
+const APP_VER = '20261025123947';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -2794,7 +2794,8 @@ function tmplFor(r) {
   // 曜日や時刻が用紙と違う訪問（予定表の変更など）：同じ人の、同じ種類（身体／家事／入浴／共に）で時刻が一番近い用紙（90分以内）を使う
   if (/通院/.test(r.e.type || '')) return null;
   const kind = tmplKind(r.e.type, r.e.detail, r.kind), tk = t => tmplKind(t.type, '', fam(t));
-  const near = tmplList().filter(t => t.name === name && tk(t) === kind && Math.abs(hm(t.start) - st) <= 90).sort((a, b) => Math.abs(hm(a.start) - st) - Math.abs(hm(b.start) - st));
+  const kinds = [kind, ...(/入浴|シャワー/.test(r.e.detail || '') && !/家事/.test(r.e.type || '') ? ['入浴'] : [])]; // 種別が「身体」でも内容に入浴とあれば入浴の用紙も
+  const near = tmplList().filter(t => t.name === name && kinds.includes(tk(t)) && Math.abs(hm(t.start) - st) <= 90).sort((a, b) => Math.abs(hm(a.start) - st) - Math.abs(hm(b.start) - st));
   return near[0] || null;
 }
 // 見本で「ときどき」（丸囲み）の項目は、その訪問の予定の内容に書いてあるときだけ付ける（例：買物に丸→予定に「代行」とあれば付ける）
@@ -2865,7 +2866,7 @@ function genItems(r) {
   const house = [];
   GEN_HOUSE.forEach(([re, has, cat]) => { if (!re.test(det)) return; const ps = all.filter(t => (t.checked || []).some(has)); if (ps.length) house.push(...freq(ps, k => cat.test(k))); });
   if (key === '共に') out.push(...house.map(TO_TOGETHER)); else if (key === '家事') out.push(...house);
-  out = [...new Set(out)].filter(k => !assessBlock(name, k));
+  out = [...new Set(out)].filter(k => !assessBlock(name, k)).filter(k => !(k === '起床・就寝|起床介助' && (tod === '夕' || tod === '夜')) && !(k === '起床・就寝|就寝介助' && tod === '朝')); // 夕方・夜に起床介助、朝に就寝介助は付けない
   r._genFrom = `似た訪問の見本${pool.length}件（${key}・${tod}）`;
   return out;
 }
