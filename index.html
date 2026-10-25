@@ -739,7 +739,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261025113319';
+const APP_VER = '20261025121454';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -809,7 +809,7 @@ function gasDB(pass, first) {
     doc(path) {
       const [kind, name] = split(path);
       return {
-        set: async data => { await gasCall({ pass, op: 'put', kind, name, data }); (cache[kind] = cache[kind] || {})[name] = data; meta[kind + '/' + name] = { ...(meta[kind + '/' + name] || {}), u: data.updatedAt, n: data.name }; cloud.recordsMeta = meta; deliver([kind]); },
+        set: async data => { const j = await gasCall({ pass, op: 'put', kind, name, data }); if (j.skipped && j.skipped.length) { refresh(); const e = new Error('保存先にもっと新しい内容があったため保存しませんでした。画面を読み直してください'); e.code = 'stale'; throw e; } (cache[kind] = cache[kind] || {})[name] = data; meta[kind + '/' + name] = { ...(meta[kind + '/' + name] || {}), u: data.updatedAt, n: data.name }; cloud.recordsMeta = meta; deliver([kind]); },
         delete: async () => { await gasCall({ pass, op: 'del', kind, name }); if (cache[kind]) delete cache[kind][name]; delete meta[kind + '/' + name]; deliver([kind]); },
       };
     },
@@ -888,7 +888,7 @@ async function initCloud() {
     const ls = localStore();
     // この端末にだけある予定表・この端末の方が新しい予定表は、共有側へ送る（つながっていない間の変更を取りこぼさない）
     Object.keys(m).forEach(n => { if (isTomb('schedules', docId(n))) delete m[n]; }); // 消した物は、古い端末から戻ってきても出さない
-    if (!cloud._migrated) Object.keys(ls).forEach(n => { if (isTomb('schedules', docId(n))) return; const l = ls[n], c = m[n]; if (!c || (l.updatedAt && (!c.updatedAt || l.updatedAt > c.updatedAt))) { m[n] = { name: n, days: l.days, updatedAt: l.updatedAt }; DB.doc('schedules/' + docId(n)).set({ name: n, days: l.days, updatedAt: l.updatedAt || new Date().toISOString() }).catch(() => {}); } });
+    if (!cloud._migrated && Object.keys(m).length) Object.keys(ls).forEach(n => { if (isTomb('schedules', docId(n))) return; const l = ls[n], c = m[n]; if (!c || (l.updatedAt && (!c.updatedAt || l.updatedAt > c.updatedAt))) { m[n] = { name: n, days: l.days, updatedAt: l.updatedAt }; DB.doc('schedules/' + docId(n)).set({ name: n, days: l.days, updatedAt: l.updatedAt || new Date().toISOString() }).catch(() => {}); } });
     cloud._migrated = true;
     refreshSavedList(); refreshUserPick(); if (mode === 'record') refreshRecUsers();
     setSyncStatus(`☁ 共有保存（予定表 ${Object.keys(m).length}名）`, 'ok');
@@ -905,6 +905,8 @@ async function initCloud() {
     DB.collection(kind).onSnapshot(snap => {
       const m = {}; snap.docs.forEach(d => { m[d.id] = d.data(); });
       Object.keys(m).forEach(id => { if (isTomb(kind, id)) delete m[id]; });
+      // 共有側の一覧（meta）が読めていないとき（通信の失敗など）は、この端末の写しを送らない（古い写しで上書きしないため）
+      if (first && !Object.keys(cloud.recordsMeta || {}).some(id => id.startsWith(kind + '/'))) first = false;
       if (first) { first = false; const l = localColl(kind); Object.keys(l).forEach(id => { if (isTomb(kind, id)) return; const mt = (cloud.recordsMeta || {})[kind + '/' + id]; const c = m[id] || (mt ? { updatedAt: mt.u } : null), x = l[id]; if (!c || (x.updatedAt && (!c.updatedAt || x.updatedAt > c.updatedAt))) { m[id] = x; DB.doc(kind + '/' + id).set(x).catch(() => {}); } }); }
       cloud[kind] = m;
       if (kind === 'clients') { renderClientBox(!clientEdited); renderNgBox(); renderAssessBox(); renderGlobStates(); renderKubun(); refreshSavedList(); if (recRows.length) renderRecordView(); } else refreshSavedMonths();
@@ -1163,7 +1165,7 @@ function confirmNewName(n, what) {
   return confirm(`⚠ 二重登録の注意\n「${n}」と似た名前がすでに登録されています：${sim.map(x => '「' + x + '」').join('・')}\n\n同じ人なら「キャンセル」を押して、一覧からその人を選んでください。\n別の人なら「OK」で${what}を保存します。`);
 }
 async function putDoc(kind, id, data) {
-  data = { ...data, updatedAt: data.updatedAt || new Date().toISOString() };
+  data = { ...data, updatedAt: new Date().toISOString() }; // 保存するたびに今の時刻（保存先は古い時刻の書き込みを受け付けない）
   if ((kind === 'clients' || kind === 'records') && data.name && !(getColl(kind) || {})[id] && !(kind === 'records' && Object.values(getColl('records') || {}).some(d => d.name === data.name)) && !Object.keys(getStore()).includes(data.name) && !confirmNewName(data.name, kind === 'clients' ? '利用者情報' : '訪問記録')) return false;
   const l = localColl(kind); l[id] = data; lsSet('smilewan_' + kind, JSON.stringify(l));
   if (DB) { cloud[kind] = { ...(cloud[kind] || {}), [id]: data }; return dbWrite(() => DB.doc(kind + '/' + id).set(data), '共有保存'); }
@@ -1456,6 +1458,9 @@ async function saveRecords(opt = {}) {
     const id = docId(name) + '_' + month, prev = getColl('records')[id];
     const map = new Map((prev?.rows || []).map(x => [x.date + ' ' + x.start, x]));
     rs.forEach(r => { const x = { date: ymd(r.date), start: r.e.start || '', end: r.e.end || '', type: r.e.type || '', detail: r.e.detail || '', staff: r.staff || '', kind: r.kind, text: r.text || '', flag: r.flag || '', kp: kpOf(r), kpText: kpAll(r).filter(k => !kpOf(r).includes(k)), vin: r.vin || {}, kpOff: r.kpOff || [], kpOn: r.kpOn || [], sick: !!r.sick, sickNext: !!r.sickNext, sickDay: !!r.sickDay, vinText: r.vinText || null, v: vOf(r) }; map.set(x.date + ' ' + x.start, x); n++; });
+    // 前に保存した行のうち、今の行と同じ日・同じ時刻の物（時刻欄が空だった古い行など）は外す（同じ訪問が二重にならないように）
+    { const eff = x => x.start || entryTime({ ...emptyEntry(), type: x.type, start: x.start, end: x.end, detail: x.detail }).s || '', cur = new Set(rs.map(r => ymd(r.date) + ' ' + (r.e.start || '')));
+      [...map.entries()].forEach(([k, x]) => { if (cur.has(k)) return; const t = eff(x); if (t && rs.some(r => ymd(r.date) === x.date && (entryTime(r.e).s || '') === t)) map.delete(k); }); }
     const list = [...map.values()].sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
     ok = (await putDoc('records', id, { name, month, rows: list, updatedAt: new Date().toISOString() })) && ok;
   }
@@ -4382,6 +4387,9 @@ window.qaCheckRows = function (name) {
     if (r.kind === '家事援助' && tm && !kp.includes('清掃|ゴミ出し')) add(r, 'ゴミ出し', '家事なのにゴミ出しが無い');
     if (r.kind === '家事援助' && kp.some(k => k.startsWith('清掃|')) && !kp.includes('清掃|居室') && !(r.kpOff || []).includes('清掃|居室')) add(r, '居室', '家事の清掃なのに居室が無い');
   });
+  // 12. 同じ日・同じ時刻の訪問が2つ（時刻欄が空の古い行と、時刻の入った行）
+  { const g = new Map(); rows.forEach(r => { const s = entryTime(r.e).s; if (!s) return; const k = ymd(r.date) + ' ' + s; g.set(k, [...(g.get(k) || []), r]); });
+    g.forEach(v => { if (v.length > 1 && v.some(r => r.e.start)) v.filter(r => !r.e.start).forEach(r => add(r, '二重の訪問', '同じ日・同じ時刻に訪問が2つ（時刻欄が空の古い行）')); }); }
   // 11. 体調不良の日と共に行う日
   const togDays = new Set(rows.filter(r => r.kind !== '家事援助' && visTogether(r.e)).map(r => ymd(r.date)));
   rows.filter(r => r.sick && togDays.has(ymd(r.date))).forEach(r => add(r, '体調不良', '共に行う日に体調不良'));
@@ -4415,15 +4423,19 @@ async function qaAllSaved(opt = {}) {
   try {
     await DB.loadAllRecords();
     const docs = Object.values(getColl('records')).filter(d => d.rows && d.rows.length).sort((a, b) => (a.name + a.month).localeCompare(b.name + b.month, 'ja'));
-    for (const d of docs) {
+    let lastName = null;
+    for (const d0 of docs) {
+      // 直す直前にその人の記録を読み直す（点検中にほかの人が保存した内容を、古い写しで上書きしない）
+      if (d0.name !== lastName) { lastName = d0.name; try { await DB.loadRecords(d0.name); } catch (e) { reportError('qaAllSaved reload: ' + (e && e.message || e), 'qa'); continue; } }
+      const d = Object.values(getColl('records')).find(x => x.name === d0.name && x.month === d0.month) || d0;
       state.name = d.name; refreshSavedMonths(); const sel = document.getElementById('recSavedMonth'); sel.value = d.month; if (sel.value !== d.month) continue;
-      const stored = new Map(d.rows.map(x => [x.date + ' ' + (x.start || ''), [x.text, (x.kpOn || []).join(','), (x.kpOff || []).join(',')].join('\u0001')]));
+      const stored = new Map(d.rows.map(x => [x.date + ' ' + (x.start || ''), [x.text, (x.kpOn || []).join(','), (x.kpOff || []).join(','), x.on === false ? 0 : 1].join('\u0001')]));
       const c = window.confirm; window.confirm = () => true; try { openSavedRecords(); } finally { window.confirm = c; } // 開いた時点で自動で直る
       clearTimeout(recTimer); const rp = autoRepair(d.name);
-      const ch = recRows.filter(r => { const k = ymd(r.date) + ' ' + (r.e.start || ''); return stored.has(k) && stored.get(k) !== [r.text, (r.kpOn || []).join(','), (r.kpOff || []).join(',')].join('\u0001'); }).length;
+      const ch = recRows.filter(r => { const k = ymd(r.date) + ' ' + (r.e.start || ''); return stored.has(k) && stored.get(k) !== [r.text, (r.kpOn || []).join(','), (r.kpOff || []).join(','), r.on === false ? 0 : 1].join('\u0001'); }).length;
       if (ch) { await saveRecords({ quiet: true }); clearTimeout(recTimer); fixedN += ch; }
       const q = qaCheckRows(d.name); q.out.forEach(i => all.push({ ...i, name: d.name })); items.push(...qaItemsFor(d.name).filter(x => x.month === d.month));
-      btn.textContent = `点検中…${docs.indexOf(d) + 1}/${docs.length}`; await new Promise(r => setTimeout(r, 0));
+      btn.textContent = `点検中…${docs.indexOf(d0) + 1}/${docs.length}`; await new Promise(r => setTimeout(r, 0));
     }
     gasCall({ pass: (lsGet('smilewan_pass') || '').trim(), op: 'qa', items }).catch(() => {});
     if (opt.auto) gasCall({ pass: (lsGet('smilewan_pass') || '').trim(), op: 'log', item: { where: 'morning', ver: APP_VER, msg: `朝の点検：${items.length}か月分を点検・${fixedN}訪問を自動で直した・直せなかった所${all.length}件` } }).catch(() => {});
@@ -4439,7 +4451,7 @@ async function qaAllSaved(opt = {}) {
 // ===== 自動で直す：点検で見つかった所を、その場で正しい形に直す（直した後にもう一度点検して、残った物だけ画面に出す） =====
 function autoRepair(name) {
   const q = qaCheckRows(name); if (!q.out.length) return { found: 0, fixed: 0, left: [] };
-  const K = kubunOf(name) === '介護', key = r => ymd(r.date) + ' ' + (r.e.start || entryTime(r.e).s || ''), map = new Map(recRows.map(r => [key(r), r]));
+  const K = kubunOf(name) === '介護', key = r => ymd(r.date) + ' ' + (r.e.start || entryTime(r.e).s || ''), map = new Map(recRows.filter(r => r.on).sort((a, b) => (a.e.start ? 1 : 0) - (b.e.start ? 1 : 0)).map(r => [key(r), r])); // 同じ日・同じ時刻が2つあるときは時刻欄の入った行を直す
   const sig = r => [r.text, (r.kpOn || []).join(','), (r.kpOff || []).join(','), r.sick ? 1 : 0].join('\u0001'), before = new Map(recRows.map(r => [r, sig(r)]));
   const addOn = (r, k) => { r.kpOn = [...new Set([...(r.kpOn || []), k])]; r.kpOff = (r.kpOff || []).filter(x => x !== k); };
   const addOff = (r, k) => { r.kpOff = [...new Set([...(r.kpOff || []), k])]; r.kpOn = (r.kpOn || []).filter(x => x !== k); };
@@ -4448,6 +4460,7 @@ function autoRepair(name) {
     const r = map.get(i.date + ' ' + i.start); if (!r) return;
     const m = (i.msg.match(/「([^」]+)」/) || [])[1];
     if (i.kind === '見本と違う' && m) addOn(r, m);
+    else if (i.kind === '二重の訪問') recRows.filter(x => x.on && ymd(x.date) === i.date && !x.e.start && entryTime(x.e).s === i.start).forEach(x => { x.on = false; x.flag = '二重（時刻の入った行を使う）'; });
     else if (i.kind === 'ゴミ出し') addOn(r, '清掃|ゴミ出し');
     else if (i.kind === '居室') { addOn(r, '清掃|居室'); textRows.add(r); }
     else if (i.kind === '完食') addOff(r, '食事|完食');
