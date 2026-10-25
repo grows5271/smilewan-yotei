@@ -62,6 +62,9 @@ window.qaCheckRows = function (name) {
     if (r.kind === '家事援助' && tm && !kp.includes('清掃|ゴミ出し')) add(r, 'ゴミ出し', '家事なのにゴミ出しが無い');
     if (r.kind === '家事援助' && kp.some(k => k.startsWith('清掃|')) && !kp.includes('清掃|居室') && !(r.kpOff || []).includes('清掃|居室')) add(r, '居室', '家事の清掃なのに居室が無い');
   });
+  // 12. 同じ日・同じ時刻の訪問が2つ（時刻欄が空の古い行と、時刻の入った行）
+  { const g = new Map(); rows.forEach(r => { const s = entryTime(r.e).s; if (!s) return; const k = ymd(r.date) + ' ' + s; g.set(k, [...(g.get(k) || []), r]); });
+    g.forEach(v => { if (v.length > 1 && v.some(r => r.e.start)) v.filter(r => !r.e.start).forEach(r => add(r, '二重の訪問', '同じ日・同じ時刻に訪問が2つ（時刻欄が空の古い行）')); }); }
   // 11. 体調不良の日と共に行う日
   const togDays = new Set(rows.filter(r => r.kind !== '家事援助' && visTogether(r.e)).map(r => ymd(r.date)));
   rows.filter(r => r.sick && togDays.has(ymd(r.date))).forEach(r => add(r, '体調不良', '共に行う日に体調不良'));
