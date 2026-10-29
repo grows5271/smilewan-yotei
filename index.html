@@ -761,7 +761,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261029095826';
+const APP_VER = '20261029113535';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1881,6 +1881,127 @@ function procKP(p, tog) {
   // 共に行う訪問の家事は自立支援（共に行う）に。それ以外は普通の家事の欄
   const res = new Map(); out.forEach((why, k) => res.set(body && tog ? TO_TOGETHER(k) : k, why));
   return res;
+}
+// ===== 業務手順書の言い回しを記録の文章に入れる（10/29 ユーザー指示） =====
+//   チェックは記録用紙のまま。チェックの無い支援の文・本人がやること（手順書の右端の欄）は入れない
+//   re＝手順書の手順（ヘルパーの欄）の言葉、ctx＝訪問の種類（bath 入浴／body 入浴以外の身体／house 家事）、need＝チェックにどれか1つ要る、
+//   noSick＝体調不良（シャワー浴）の日は使わない、grp＝同じ組は1つだけ、has＝もう書いてあるかの見分け、swap＝同じ意味の決まった文があれば置き換える
+//   say＝記録の文（「本人」で書き、介護の利用者は「利用者様」に直す）。関数のときは (手順の文, 行, チェック, 本人と一緒か) を受け取る
+const PB_BATH = ['入浴・清拭|入浴介助', '入浴・清拭|シャワー浴'], PB_CLEAN = ['清掃|居室', '自立支援|掃除'], PB_MED = ['服薬・医療|服薬介助・確認', '服薬・医療|見守り', '自立支援|服薬'];
+const PB_COOK = ['調理|調理', '自立支援|一般的な調理・配下膳'], PB_SHOP = ['買物等|日常品等の買物', '自立支援|買い物・薬の受け取り'], PB_CLOTH = ['衣類・寝具|衣類の整理', '自立支援|衣類の整理・被服の補修'];
+const PLAN_PHRASES = [
+  // 入浴
+  { re: /お湯(はり|張り|し[、，]|を?張)|湯[舟船]にお湯/, ctx: 'bath', need: ['入浴・清拭|入浴介助'], noSick: true, has: /お湯(を)?(は|張)|お湯はり/,
+    say: ['入浴前に湯舟にお湯をはり、浴室の準備を整えた。', '入浴前の準備として、湯舟にお湯をはった。', '入浴前に湯舟のお湯はりを行い、湯温を確認した。'] },
+  { re: /着替え(など|等)?の(準備|用意)|着替えを(準備|用意)/, ctx: 'bath', need: ['身体整容|更衣介助'], has: /着替え[^。]{0,6}(用意|準備)/,
+    say: ['入浴前に、お風呂上がりの着替えを用意した。', '入浴前に、着替えやタオルを準備した。'] },
+  { re: /脱(衣|着)(時|等)?(の)?見守|脱衣時[、，]?見守/, ctx: 'bath', need: PB_BATH, has: /脱衣[^。]*見守/, swap: /^更衣は(本人|利用者様)(に行っていただき|主体で行っていただき)/,
+    say: ['脱衣の際は、ふらつきがないよう側で見守った。', '脱衣時は転倒に注意し、そばで見守った。', '脱衣は本人に行っていただき、側で見守った。'] },
+  { re: /流す時/, ctx: 'bath', need: PB_BATH, grp: 'wash', has: /流す時/, swap: /^洗身(・洗髪)?(時は|は(本人|利用者様)が可能な範囲)/,
+    say: (st, r, kp) => kp.includes('入浴・清拭|洗髪') ? ['洗身・洗髪はご自身で洗われ、流す時に一部お手伝いした。'] : ['洗身はご自身で洗われ、流す時に一部お手伝いした。'] },
+  { re: /(洗髪|洗身)[^。]{0,12}(一部|お手伝い|介助|見守)/, ctx: 'bath', need: PB_BATH, grp: 'wash', has: /(洗髪|洗身)[^。]*(一部|お手伝い|洗いにくい|届きにくい)/, swap: /^洗身(・洗髪)?(時は|は(本人|利用者様)が可能な範囲)/,
+    say: (st, r, kp) => kp.includes('入浴・清拭|洗髪') ? ['洗身・洗髪は本人ができる所は自身で洗っていただき、洗いにくい所を一部お手伝いした。', '洗身・洗髪は声掛けしながら見守り、背中など届きにくい所をお手伝いした。']
+                                                      : ['洗身は本人ができる所は自身で洗っていただき、背中など洗いにくい所を一部お手伝いした。', '洗身は声掛けしながら見守り、背中など届きにくい所をお手伝いした。'] },
+  { re: /湯[舟船]に(つか|浸か|入)/, ctx: 'bath', need: ['入浴・清拭|入浴介助'], noSick: true, has: /(湯[舟船]|浴槽)に(ゆっくり)?(つか|浸か)/, swap: /^浴槽内では(本人|利用者様)のペースで/,
+    say: ['浴槽につかって温まっていただき、のぼせがないよう様子を確認した。', '浴槽にゆっくりつかっていただき、顔色や様子を見守った。'] },
+  { re: /脱(衣)?所(にて|で)待機/, ctx: 'bath', need: ['入浴・清拭|入浴介助'], noSick: true, has: /脱衣所で待機/,
+    say: ['入浴中は脱衣所で待機し、様子に気を配った。', '入浴中は脱衣所で待機し、声掛けしながら様子を確認した。'] },
+  { re: /(体|からだ|身体)(ふき|拭き)/, ctx: 'bath', need: PB_BATH, has: /水気を(しっかり)?(拭|ふ)き取|バスタオル/,
+    say: ['入浴後はバスタオルで水気を拭き取った。', '入浴後は水気をしっかり拭き取り、湯冷めしないよう配慮した。'] },
+  { re: /ドライヤー/, ctx: 'bath', need: ['入浴・清拭|洗髪'], has: /ドライヤー|髪を乾か/,
+    say: st => /一部|介助/.test(st) ? ['洗髪後はドライヤーで髪を乾かすのを一部お手伝いした。', '入浴後、ドライヤーで髪を乾かすのを手伝った。'] : ['入浴後、ドライヤーで髪を乾かすのを見守った。'] },
+  { re: /髭剃り|ひげ剃り/, ctx: 'bath', need: ['身体整容|整容'], has: /髭|ひげ/, say: ['髭剃りは本人に行っていただき、剃り残しを一部お手伝いした。', '入浴時に髭剃りを一部お手伝いした。'] },
+  { re: /水分補給/, need: ['食事|水分補給'], has: /水分/, say: ['水分補給を促し、飲まれたことを確認した。', 'こまめに水分補給をするよう促した。'] },
+  // 入浴以外の身体（朝・夜）
+  { re: /起床後すぐは動けない/, ctx: 'body', need: ['起床・就寝|起床介助', '自立支援|起床就寝介助'], has: /起床(後すぐ|直後)は/,
+    say: ['起床後すぐは動きにくいため、様子を見ながら声掛けした。', '起床直後は動きにくいため、無理のないよう様子を見ながら声掛けを行った。'] },
+  { re: /着替え(を|など|等)?(の)?(準備|用意)し|着る服など用意|日中着/, ctx: 'body', need: ['身体整容|更衣介助'], has: /(着る服|着替え)を用意|日中の服/, swap: /^(更衣について声掛けを行うと|起床後の更衣を促し|更衣の声掛けを行)/,
+    say: (st, r) => planHour(r) >= 16 ? ['寝る時に着る服を用意し、着替えていただいた。'] : /日中着/.test(st) && !/用意|準備/.test(st) ? ['日中の服に着替えていただいた。'] : ['着替えを用意し、日中の服に着替えていただいた。', '日中に着る服を用意し、着替えていただいた。'] },
+  { re: /(朝食|昼食|夕食|夕ご飯)(を)?(の)?(確認|食べ|少し食べ)[^。]{0,14}(服薬|薬)|食後に[、，]?服薬/, ctx: 'body', need: PB_MED, grp: 'meal', has: /(朝食|昼食|夕食)を[^。]{0,10}(確認|食べ|済ま)[^。]*(服薬|薬)/, swap: /^服薬(について|についても|状況を|の声掛けを行い)(?![^。]*見守)/,
+    say: st => { const m = (st.match(/朝食|昼食|夕食/) || [/夕ご飯/.test(st) ? '夕食' : '食事'])[0]; return [`${m}を食べられたことを確認してから、服薬の声掛けを行った。`, `${m}を済まされたことを確認し、服薬の声掛けをした。`]; } },
+  { re: /夕(食|ご飯)の確認/, ctx: 'body', grp: 'meal', has: /夕食[^。]*確認/, say: ['夕食を食べられたか確認した。', '夕食は済まされたか本人に確認した。'] },
+  { re: /眠前薬(の)?(セット|準備)/, need: PB_MED, has: /眠前薬を?(セット|準備|用意)/, swap: /^(眠前薬(を確認し|について声掛け)|服薬(について|についても|状況を|の声掛けを行い))(?![^。]*見守)/, say: ['眠前薬をセットし、服薬の声掛けを行った。', '眠前薬を準備し、飲む時間を本人と確認した。'] },
+  { re: /傾聴/, has: /傾聴/, say: ['本人の話に耳を傾け、傾聴しながら支援した。', '必要に応じて本人の話を傾聴した。'] },
+  // 掃除・洗濯
+  { re: /クイックルワイパー/, need: PB_CLEAN, has: /クイックルワイパー/, swap: /^(居室に掃除機をかけ|居室の掃除を行い、床や生活スペースを整えた)/,
+    say: (st, r, kp, tog) => tog ? ['居室の床は、本人と一緒にクイックルワイパーで拭いた。'] : ['居室に掃除機をかけ、床はクイックルワイパーで拭き上げた。', '居室の床はクイックルワイパーで拭き、きれいにした。'] },
+  { re: /雑巾/, need: PB_CLEAN, has: /雑巾/, swap: /^(居室に掃除機をかけ|居室の掃除を行い、床や生活スペースを整えた)/, say: (st, r, kp, tog) => tog ? ['居室の床は、本人と一緒に雑巾で拭いた。'] : ['居室に掃除機をかけ、床は雑巾で拭いた。'] },
+  { re: /小物/, need: PB_CLEAN, has: /小物/, say: (st, r, kp, tog) => tog ? ['居室の小物などの片付けを、本人と一緒に行った。'] : ['居室の小物などを片付け、整理した。', '居室の小物類を片付けて整理整頓した。'] },
+  { re: /(掃除|片付け)(する|る)?場所を(決め|一緒)|一緒に(掃除|片付け)(する|る)場所/, need: [...PB_CLEAN, '清掃|トイレ', '清掃|浴室'], has: /場所を[^。]*決め/,
+    say: (st, r, kp, tog) => tog ? ['本人と一緒に、掃除する場所を決めてから進めた。'] : ['掃除する場所を本人と相談して決めてから進めた。'] },
+  { re: /タンス/, need: PB_CLOTH, has: /タンス/, say: ['タンスの中の衣類を整頓した。', 'タンスの中の衣類を整頓し、取り出しやすくした。'] },
+  { re: /洗濯(中|している間)に/, need: ['洗濯|洗濯'], has: /洗濯(機を回している|の)間に|洗濯中に/, say: ['洗濯機を回している間に、衣類の整頓を行った。', '洗濯の間に、乾いた洗濯物を畳んで片付けた。'] },
+  { re: /お急ぎ/, need: ['洗濯|洗濯'], has: /お急ぎ/, say: ['洗濯はお急ぎコースで回した。', '洗濯機をお急ぎコースで回し、洗濯を行った。'] },
+  { re: /分別/, need: ['清掃|ゴミ出し', '自立支援|掃除'], has: /分別/, swap: /^(ゴミをまとめ、ゴミ出しを行った|室内のゴミを集めて出した)$/, say: (st, r, kp, tog) => tog ? ['ゴミの分別を本人と一緒に行った。'] : ['ゴミを分別してまとめ、ゴミ出しを行った。', 'ゴミを分別し、まとめて出した。'] },
+  { re: /退出時[、，]?ご?み捨て|退出時[^。]*ゴミ/, need: ['清掃|ゴミ出し'], has: /退出時/, say: ['ゴミは退出時に捨てた。'] },
+  { re: /曜日をお伝え/, need: ['清掃|ゴミ出し', '自立支援|掃除'], has: /曜日/, say: ['次のゴミ出しの曜日を本人にお伝えした。'] },
+  { re: /食器拭き/, need: ['清掃|台所', '調理|配・下膳', '自立支援|一般的な調理・配下膳', '自立支援|掃除'], has: /食器を拭/, say: ['洗い物の後、食器を拭いて片付けた。'] },
+  // 調理
+  { re: /(メニュー|料理|献立)(を|は)?(一緒に)?決め/, need: PB_COOK, has: /(メニュー|献立)(を|は)[^。]*決め/, swap: /^(冷蔵庫内の食材を確認し、(本人|利用者様)が食べやすい内容|(本人|利用者様)に献立を伝えると|(本人|利用者様)から食事について希望を確認)/,
+    say: st => /一緒/.test(st) ? ['献立は本人と一緒に決めた。'] : /冷蔵庫/.test(st) ? ['作るメニューは、冷蔵庫の食材を本人と確認して決めていただいた。', '献立は、冷蔵庫の中を本人と確認して決めていただいた。'] : ['作るメニューは本人に決めていただいた。', '献立は本人に決めていただいた。'] },
+  { re: /[2-4](～[3-4])?品/, need: PB_COOK, has: /[2-4２-４](～[3-4３-４])?品/,
+    say: (st, r, kp, tog) => { const n = st.match(/[2-4](～[3-4])?/)[0]; return tog ? [`${n}品を本人と一緒に作った。`] : /多め/.test(st) && /冷蔵庫/.test(st) ? [`${n}品を少し多めに作り、残りは冷蔵庫に保管した。`, `${n}品を調理し、多めに作った分は冷蔵庫に保管した。`] : /おかず/.test(st) ? [`おかずを${n}品作った。`] : [`${n}品を調理した。`]; } },
+  { re: /(昼食|夕食)(分)?(は|を)?テーブルに/, need: ['調理|配・下膳', '調理|調理'], has: /テーブルに(用意|準備)/,
+    say: st => { const m = st.match(/昼食|夕食/)[0]; return /夕食分は冷蔵庫/.test(st) ? [`${m}はテーブルに用意し、夕食分は冷蔵庫に保管した。`] : [`${m}分はテーブルに用意した。`, `${m}はすぐ食べられるようテーブルに準備した。`]; } },
+  { re: /パン/, need: ['調理|調理', '調理|配・下膳'], has: /パン/, say: st => /コーヒ/.test(st) ? ['朝食にパンとコーヒーを用意した。'] : ['朝食にパンを用意した。'] },
+  { re: /温め/, need: ['調理|調理', '調理|配・下膳', '食事|摂食介助', '自立支援|排泄・食事'], has: /温め/, say: st => [`${(st.match(/朝食|昼食|夕食/) || ['食事'])[0]}を温めて用意した。`] },
+  { re: /できる事を自身で[^。]*(片付|洗い物)/, need: ['自立支援|一般的な調理・配下膳'], has: /洗い物[^。]*お手伝い/, say: ['調理はできることを本人に行っていただき、片付けや洗い物をお手伝いした。'] },
+  // 買い物
+  { re: /スーパ|すーぱ|ドラ(ッ)?クストア/, need: PB_SHOP, has: /スーパー|ドラッグストア/, swap: /^(必要な食品や日用品を(本人|利用者様)と確認し、買い物代行を行った|必要な食品や日用品を確認して買い物代行を行い)$|^買い物代行を行った$/,
+    say: st => /ドラ(ッ)?ク/.test(st) ? ['必要な品物を本人と確認し、近くのスーパーやドラッグストアで買い物を代行した。', '近隣のスーパー・ドラッグストアで、必要な品物の買い物を代行した。'] : ['必要な品物を本人と確認し、近くのスーパーで買い物を代行した。'] },
+  { re: /レシート|お釣り|おつり/, need: PB_SHOP, has: /レシート/, swap: /^(購入品は(本人|利用者様)に確認していただきながら収納した|買い物代行を行い、購入品を(本人|利用者様)と確認して収納した)/,
+    say: ['帰宅後、購入品・レシート・お釣りを本人と一緒に確認し、購入品を片付けた。', '帰宅後は購入品とレシート・お釣りを本人と確認し、所定の場所に片付けた。'] },
+  { re: /代金(を)?預か/, need: PB_SHOP, has: /預か/, say: ['買い物代金をお預かりし、買い物を代行した。'] },
+  // 通院
+  { re: /電車/, need: ['移動|通院介助'], has: /電車/, say: ['電車を利用して、受診先まで本人に付き添った。', '自宅から駅まで歩き、電車で受診先へ移動した。'] },
+  { re: /受付[・、]?診察|会計/, need: ['服薬・医療|院内介助'], has: /受付/, say: ['受付・診察・会計の間、本人に付き添った。'] },
+  { re: /お薬受け取り|薬局/, need: ['買物等|薬の受取り', '服薬・医療|院内介助'], has: /薬を受け取/, say: ['処方された薬を受け取り、本人と内容を確認した。'] },
+  { re: /通院の片付け/, need: ['移動|通院介助'], has: /通院の荷物/, say: ['帰宅後は通院の荷物を片付けた。'] },
+  { re: /次回の通院/, need: ['移動|通院介助'], has: /次回の通院/, say: ['次回の通院日を本人と確認した。'] },
+  { re: /持ち物の確認/, need: ['移動|通院介助', '移動|外出準備介助'], has: /持ち物/, say: ['出発前に、持ち物を本人と一緒に確認した。'] },
+];
+const planHour = r => Math.floor((hm(entryTime(r.e).s) || 720) / 60);
+const planNorm = x => String(x || '').replace(/[－‐−―-]/g, 'ー').replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 0xFEE0)).replace(/\s/g, '');
+const planSent = new Set(); // 手順書から入れた文（言い換えで崩さない）
+// その訪問に当たる手順書の手順から、入れられる文（チェックの無い支援を書かない・決まりに合う物だけ）を返す
+function planCands(r, cur) {
+  if (!r || r.on === false || r.sick || !r.e) return [];
+  const name = (state.name || '').trim(), proc = procedureFor(r.e, name); if (!proc) return [];
+  const tm = entryTime(r.e), dur = tm.s && tm.e ? hm(tm.e) - hm(tm.s) : 0; if (proc.minutes && dur > 0 && Math.abs(proc.minutes - dur) > 30) return []; // 30分の訪問に90分のサービスの手順は当てない
+  const steps = proc.steps.map(s => planNorm(s.text)).filter(Boolean); if (!steps.length) return [];
+  const kp = kpAll(r), K = kubunOf(name) === '介護', fix = x => K ? x.replace(/本人/g, '利用者様') : x;
+  const bath = PB_BATH.some(k => kp.includes(k)), ctx = r.kind === '家事援助' ? 'house' : bath ? 'bath' : 'body', tog = r.kind !== '家事援助' && visTogether(r.e);
+  const strict = [['入浴・清拭|入浴介助', /入浴介助を行|浴槽への出入り|浴槽に/], ['入浴・清拭|洗髪', /洗髪/], ['起床・就寝|起床介助', /起床介助|起き上がり/], ['起床・就寝|就寝介助', /就寝介助|就寝の準備を手伝/]];
+  const was = mentionedKp(r, cur || ''), rules = mnRules(r), ng = [...getNgList(), ...clientNg(name)];
+  const ok = s => !ng.some(w => w && s.includes(w)) && !rules.some(([keys, re]) => re.test(s) && !keys.some(k => kp.includes(k))) && !strict.some(([k, re]) => !kp.includes(k) && re.test(s))
+    && [...mentionedKp(r, s)].every(k => kp.includes(k) || was.has(k) || k === '食事|水分補給');
+  const out = [], grps = new Set();
+  PLAN_PHRASES.forEach(p => {
+    if (p.ctx && p.ctx !== ctx) return; if (p.need && !p.need.some(k => kp.includes(k))) return; if (p.grp && grps.has(p.grp)) return;
+    const si = steps.findIndex(x => p.re.test(x)); if (si < 0) return; const st = steps[si];
+    const says = (typeof p.say === 'function' ? p.say(st, r, kp, tog) : p.say).map(fix).filter(ok); if (!says.length) return;
+    if (p.grp) grps.add(p.grp);
+    out.push({ p, says, si, present: p.has.test(cur || '') });
+  });
+  return out;
+}
+// 1回の訪問に入れる手順書の文の数（30分以下は2つ・それより長い訪問は3つ）。点検ではこれより1つ少なくてもよい
+function planWant(r) { const tm = entryTime(r.e), d = tm.s && tm.e ? hm(tm.e) - hm(tm.s) : 60; return d > 0 && d <= 30 ? 2 : 3; }
+// 文章に手順書の文を足す（同じ意味の決まった文があれば置き換え、無ければ退室・会話の文の前に。並びは orderFlow で直す）
+function withPlan(r, t) {
+  const c = planCands(r, t), want = planWant(r); let have = c.filter(x => x.present).length; if (!c.length || have >= want) return t;
+  const ym = ymd(r.date).slice(0, 7), used = new Map();
+  recRows.forEach(x => { if (x !== r && x.text && ymd(x.date).startsWith(ym)) String(x.text).split(/(?<=。)/).forEach(s => used.set(s, (used.get(s) || 0) + 1)); });
+  const todo = c.filter(x => !x.present), sh = (r.date.getDate() + planHour(r)) % todo.length, ss = String(t).split(/(?<=。)/).filter(x => x.trim());
+  const pick = [...todo.slice(sh), ...todo.slice(0, sh)].slice(0, want - have).sort((a, b) => a.si - b.si);
+  for (const x of pick) {
+    const s = x.says.filter(y => !ss.includes(y)).sort((a, b) => (used.get(a) || 0) - (used.get(b) || 0))[0]; if (!s) continue;
+    const si = x.p.swap ? ss.findIndex(y => x.p.swap.test(y.replace(/。\s*$/, ""))) : -1;
+    if (si >= 0) ss[si] = s;
+    else { let end = ss.length; while (end > 0 && (LINK_RE.test(ss[end - 1]) || CLOSE_RE.test(ss[end - 1]) || /「/.test(ss[end - 1]))) end--; ss.splice(end, 0, s); }
+    planSent.add(s); have++;
+  }
+  return ss.join('');
 }
 // 朝・夜の身体介護（入浴・通院以外）：洗面・口腔ケア・更衣介助をセットで付け、整容は付けない（事業所の決まり）
 const MN_SET = ['身体整容|洗面', '身体整容|口腔ケア', '身体整容|更衣介助'];
@@ -4286,8 +4407,8 @@ function mentionFix(r, i) {
 // ===== 文の順番を一日の流れにそろえる（朝：起床→排泄→洗面→口腔→更衣→食事→服薬／夜：食事→服薬→排泄→洗面→口腔→更衣→就寝／入浴：準備→入浴→洗髪→着衣→整容→水分→浴室清掃）。最初の挨拶・体調と、最後の退室・つなぎの文は動かさない =====
 const ORD_AM = [[/起床|起き上が|目覚め/, 1], [/排泄|トイレへ|トイレまで|トイレ誘導|おむつ|パッド|陰部/, 2], [/洗面|顔を洗|ホットタオル/, 3], [/口腔|歯磨き|義歯|うがい/, 4], [/更衣|着替え|着衣|着脱|身支度/, 5], [/朝食|昼食|夕食|配膳|調理|食事/, 6], [/入浴|浴槽|洗身|シャワー/, 8], [/洗髪/, 9]];
 const ORD_PM = [[/夕食|昼食|配膳|調理|食事/, 1], [/排泄|トイレへ|トイレまで|トイレ誘導|おむつ|パッド|陰部/, 3], [/洗面|顔を洗|ホットタオル/, 4], [/口腔|歯磨き|義歯|うがい/, 5], [/更衣|着替え|寝衣|着衣|着脱|身支度/, 6], [/就寝|寝る|ベッドへ|ベッドに|臥床|休まれ/, 7], [/入浴|浴槽|洗身|シャワー/, 0.5], [/洗髪/, 0.6]];
-const ORD_BATH = [[/入浴前|浴室の準備|湯温|お湯の温度|脱衣/, 1], [/入浴|浴槽|洗身|シャワー/, 2], [/洗髪/, 3], [/入浴後|着衣|更衣|着替え|保湿/, 4], [/髭|爪|整髪|ドライヤー|整容/, 5], [/水分/, 6], [/浴室の(清掃|掃除)|浴室を(清掃|掃除)/, 7]];
-const ORD_HOUSE = [[/下拵え|下ごしらえ|切っ|切り/, 1], [/冷蔵庫|献立|調理|朝食|昼食|夕食|作り/, 1.5], [/配膳|下膳/, 2], [/食器|片付け、台所|洗い物/, 2.5], [/居室|生活スペース|掃除機|部屋(を|の掃除|の床|の片付)|床面|普段過ごす場所|よく過ごす場所/, 3], [/掃除|清掃|整理整頓/, 3.05], [/卓上|テーブル|食卓/, 3.2], [/台所|シンク|キッチン|調理台/, 3.4], [/トイレ|便器/, 3.6], [/浴室|浴槽/, 3.8], [/玄関/, 3.9], [/ゴミ/, 4], [/洗濯/, 5], [/干/, 5.5], [/取り込|取込/, 5.8], [/衣類|衣服|洋服|補修|繕/, 6], [/ベッド/, 6.5], [/シーツ|カバー/, 6.6], [/布団/, 6.7], [/買い物|買物|代行|購入/, 7]];
+const ORD_BATH = [[/^(脱衣の際は|脱衣時は|脱衣は(本人|利用者様)に)/, 1.5], [/入浴前|浴室の準備|湯温|お湯の温度|脱衣/, 1], [/入浴|浴槽|洗身|シャワー/, 2], [/洗髪/, 3], [/入浴後|着衣|更衣|着替え|保湿/, 4], [/髭|爪|整髪|ドライヤー|整容/, 5], [/水分/, 6], [/浴室の(清掃|掃除)|浴室を(清掃|掃除)/, 7]];
+const ORD_HOUSE = [[/(献立|メニュー)(を|は)[^。]{0,20}決め/, 0.5], [/下拵え|下ごしらえ|切っ|切り/, 1], [/冷蔵庫|献立|調理|朝食|昼食|夕食|作り/, 1.5], [/配膳|下膳/, 2], [/食器|片付け、台所|洗い物/, 2.5], [/居室|生活スペース|掃除機|部屋(を|の掃除|の床|の片付)|床面|普段過ごす場所|よく過ごす場所/, 3], [/掃除|清掃|整理整頓/, 3.05], [/卓上|テーブル|食卓/, 3.2], [/台所|シンク|キッチン|調理台/, 3.4], [/トイレ|便器/, 3.6], [/浴室|浴槽/, 3.8], [/玄関/, 3.9], [/ゴミ/, 4], [/洗濯/, 5], [/干/, 5.5], [/取り込|取込/, 5.8], [/衣類|衣服|洋服|補修|繕/, 6], [/ベッド/, 6.5], [/シーツ|カバー/, 6.6], [/布団/, 6.7], [/買い物|買物|代行|購入/, 7]];
 const CLOSE_RE = /^(退室|帰る|支援の最後|最後に|支援の終わり|終わりに|支援の締めくくり|支援を終える|終了前|退出)|退室(時|前|の際|する前)|帰る(前|際)|見送|次回の(訪問|予定|日程)/;
 function orderFlow(r) {
   if (!r || !r.text || r.sick) return;
@@ -4325,7 +4446,7 @@ function varyFallback(k, r, used, KK) {
 function sickKeep() { const set = new Set(); [...SICK_DAY_ALL, ...SICK_NEXT].forEach(x => [x, x.replace(/本人/g, '利用者様')].forEach(y => y.split(/(?<=。)/).forEach(z => z && set.add(z)))); return s => set.has(s); }
 // 1か月ごとに、日時の順で言い回しをそろえ直す（同じ文は2回目から別の言い回しに）
 function varyRecRows(rows, name) {
-  const keep = sickKeep(); let left = 0;
+  const sk = sickKeep(), keep = x => sk(x) || planSent.has(x); let left = 0; // 手順書から入れた文は言い換えない
   [...new Set(rows.map(r => ymd(r.date).slice(0, 7)))].forEach(ym => {
     const rs = rows.filter(r => r.on !== false && r.text && ymd(r.date).startsWith(ym)).sort((a, b) => (a.date - b.date) || (entryTime(a.e).s || '').localeCompare(entryTime(b.e).s || ''));
     left += varyRows(rs, name + ym, keep, varyFallback, kubunOf(name) === '介護', [...getNgList(), ...clientNg(name)]);
@@ -4340,7 +4461,7 @@ function uniqueText(row, others) {
     const bank = document.querySelector('input[name=recStyle]:checked').value === 'short' ? SHORT : PB;
     for (const c of [...bank.締め].sort(() => Math.random() - .5)) { if (c && !used.has(normText(t + c))) { t += c; break; } }
   }
-  t = nextLink(row, dedupeText(orderFix(consistText(row, addMore(row, fitTime(row, mnText(row, withVin(row, t)))))))); const keep = row.text; row.text = t; kpFromText(row); row.text = keep;
+  t = nextLink(row, dedupeText(orderFix(consistText(row, addMore(row, fitTime(row, mnText(row, withVin(row, withPlan(row, t))))))))); const keep = row.text; row.text = t; kpFromText(row); row.text = keep;
   return t;
 }
 function dupGroups() {
@@ -4502,6 +4623,8 @@ window.qaCheckRows = function (name) {
     { const ss0 = t.split(/(?<=。)/).filter(x => x.trim()); const ci = ss0.findIndex(x => typeof CLOSE_RE !== 'undefined' && CLOSE_RE.test(x) && !LINK_RE.test(x));
       if (ci >= 0 && ss0.slice(ci + 1).some(x => /代行|購入|掃除|清掃|洗濯|調理|配膳|入浴|洗髪|更衣|着替え|服薬/.test(x) && !LINK_RE.test(x) && !/「/.test(x))) add(r, '順番', '締めの文の後に支援の文'); }
     if (typeof orderFlow === 'function' && !r.sick) { const c = { ...r, e: r.e, text: t }; try { orderFlow(c); } catch (e) {} if (c.text !== t) add(r, '順番', '支援の流れの順になっていない'); }
+    // 8.5 計画書（業務手順書）の手順の言い回し：その訪問に当たる手順の文が文章にあるか（チェックの無い支援・本人がやることは数えない）
+    if (typeof planCands === 'function' && !r.sick) { const c = planCands(r, t), n = Math.min(c.length, planWant(r) - 1); if (n > 0 && c.filter(x => x.present).length < n) add(r, '計画書', `計画書の手順の文が足りない（例：${c.find(x => !x.present).says[0].slice(0, 24)}）`); }
     // 9. 同じ文が2回（同じ訪問の中）・空の文
     const ss = t.split(/(?<=。)/).filter(x => x.trim()); const inRow = new Set();
     ss.forEach(x => { sents++; if (inRow.has(x)) add(r, '重複', `同じ訪問に同じ文：${x.slice(0, 30)}`); inRow.add(x); if (seen.has(x)) dup++; seen.add(x); });
@@ -4582,7 +4705,7 @@ function autoRepair(name) {
   const sig = r => [r.text, (r.kpOn || []).join(','), (r.kpOff || []).join(','), r.sick ? 1 : 0].join('\u0001'), before = new Map(recRows.map(r => [r, sig(r)]));
   const addOn = (r, k) => { r.kpOn = [...new Set([...(r.kpOn || []), k])]; r.kpOff = (r.kpOff || []).filter(x => x !== k); };
   const addOff = (r, k) => { r.kpOff = [...new Set([...(r.kpOff || []), k])]; r.kpOn = (r.kpOn || []).filter(x => x !== k); };
-  const textRows = new Set(), orderRows = new Set(); let needVary = false, needSick = false;
+  const textRows = new Set(), orderRows = new Set(), planRows = new Set(); let needVary = false, needSick = false;
   q.out.forEach(i => {
     const r = map.get(i.date + ' ' + i.start); if (!r) return;
     const m = (i.msg.match(/「([^」]+)」/) || [])[1];
@@ -4600,11 +4723,13 @@ function autoRepair(name) {
     else if (i.kind === '文章' && /空/.test(i.msg)) r.text = uniqueText(r, recRows.filter(x => x !== r && x.on));
     else if (i.kind === 'チェックと文章' || i.kind === '文章とチェック') textRows.add(r);
     else if (i.kind === '順番') orderRows.add(r);
+    else if (i.kind === '計画書') planRows.add(r);
     else if (i.kind === 'NG表現') needVary = true;
   });
   if (needSick) [...new Set(recRows.map(r => ymd(r.date).slice(0, 7)))].forEach(ym => applySick(recRows, name, ym));
   [...textRows].forEach((r, i) => mentionFix(r, i));
-  [...textRows, ...orderRows].forEach(r => orderFlow(r));
+  [...planRows].forEach(r => { _curRow = r; r.text = withPlan(r, r.text); });
+  [...textRows, ...orderRows, ...planRows].forEach(r => orderFlow(r));
   if (needVary) varyRecRows(recRows, name);
   [...textRows].forEach((r, i) => mentionFix(r, i));
   const changed = recRows.filter(r => before.get(r) !== sig(r)).length;
