@@ -20,7 +20,7 @@ window.qaCheckRows = function (name) {
     const tNoLink = t.split(/(?<=。)/).filter(x => !LINK_RE.test(x)).join('');
     [['入浴・清拭|入浴介助', /入浴介助を行|浴槽への出入り|浴槽に/], ['入浴・清拭|洗髪', /洗髪/], ['起床・就寝|起床介助', /起床介助|起き上がり/], ['起床・就寝|就寝介助', /就寝介助|就寝の準備を手伝/]].forEach(([k, re]) => {
       if (!kp.includes(k) && re.test(tNoLink) && !r.sick) add(r, '文章とチェック', `文章に「${tNoLink.match(re)[0]}」があるのに「${k.split('|')[1]}」にチェックが無い`); });
-    if (!r.sick && typeof MENTION_NOT !== 'undefined') t.split(/(?<=。)/).filter(x => x.trim() && !LINK_RE.test(x)).forEach(x => MENTION_NOT.forEach(([keys, re]) => { if (re.test(x) && !keys.some(k => kp.includes(k))) add(r, '文章とチェック', `チェックが無いのに文章に「${x.match(re)[0]}」：${x.slice(0, 30)}`); }));
+    if (typeof MENTION_NOT !== 'undefined') { const keepS = typeof sickKeep === 'function' ? sickKeep() : () => false, rules = typeof mnRules === 'function' ? mnRules(r) : (r.sick ? [] : MENTION_NOT); t.split(/(?<=。)/).filter(x => x.trim() && !LINK_RE.test(x) && !keepS(x.trim())).forEach(x => rules.forEach(([keys, re]) => { if (re.test(x) && !keys.some(k => kp.includes(k))) add(r, '文章とチェック', `チェックが無いのに文章に「${x.match(re)[0]}」：${x.slice(0, 30)}`); })); }
     // 3. NG・完食
     NG.forEach(w => { if (w && t.includes(w)) add(r, 'NG表現', `「${w}」`); });
     if (kp.includes('食事|完食') && !(r.kpOn || []).includes('食事|完食')) add(r, '完食', '完食にチェック');
@@ -65,6 +65,9 @@ window.qaCheckRows = function (name) {
   // 12. 同じ日・同じ時刻の訪問が2つ（時刻欄が空の古い行と、時刻の入った行）
   { const g = new Map(); rows.forEach(r => { const s = entryTime(r.e).s; if (!s) return; const k = ymd(r.date) + ' ' + s; g.set(k, [...(g.get(k) || []), r]); });
     g.forEach(v => { if (v.length > 1 && v.some(r => r.e.start)) v.filter(r => !r.e.start).forEach(r => add(r, '二重の訪問', '同じ日・同じ時刻に訪問が2つ（時刻欄が空の古い行）')); }); }
+  // 13. 同じ日に時間の重なる同じ種類の訪問（予定表の時刻を変えたときの古い行など）。どちらが正しいかは人が決める
+  { const bd = new Map(); rows.forEach(r => { const s = hm(entryTime(r.e).s); if (s == null || !r.e.start) return; const k = ymd(r.date); bd.set(k, [...(bd.get(k) || []), r]); });
+    bd.forEach(v => { v.sort((a, b) => hm(entryTime(a.e).s) - hm(entryTime(b.e).s)); for (let i = 1; i < v.length; i++) { const a = v[i - 1], b = v[i], as = hm(entryTime(a.e).s), ae = hm(entryTime(a.e).e) || as + 30, bs = hm(entryTime(b.e).s); if (a.kind === b.kind && bs - as <= 30 && bs < ae) add(b, '重なる訪問', `同じ日に時間の重なる訪問が2つ（${entryTime(a.e).s}〜${entryTime(a.e).e}と${entryTime(b.e).s}〜${entryTime(b.e).e}）。シフトと合う方を残して、もう片方は外してください`); } }); }
   // 11. 体調不良の日と共に行う日
   const togDays = new Set(rows.filter(r => r.kind !== '家事援助' && visTogether(r.e)).map(r => ymd(r.date)));
   rows.filter(r => r.sick && togDays.has(ymd(r.date))).forEach(r => add(r, '体調不良', '共に行う日に体調不良'));
