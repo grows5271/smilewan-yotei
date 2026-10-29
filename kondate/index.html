@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>献立・買い物支援（すまいるわん）</title>
+
+<style>
+:root{--bg:#f6f8f5;--card:#fff;--ink:#1c2b29;--mute:#5d6d6a;--line:#d5dfdb;--pri:#1f5a52;--pi:#fff;--warn:#9a4d00;--wb:#fff1dc;--err:#a52019;--eb:#fde8e6;--ok:#16643a;--ob:#e1f3e8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121917;--card:#1a2421;--ink:#e6efec;--mute:#9fb1ad;--line:#2e3d39;--pri:#5cb8a8;--pi:#08201b;--warn:#f2b366;--wb:#3a2a12;--err:#ff9d94;--eb:#3d1c19;--ok:#7bd6a0;--ob:#15301f}}
+:root[data-theme="dark"]{--bg:#121917;--card:#1a2421;--ink:#e6efec;--mute:#9fb1ad;--line:#2e3d39;--pri:#5cb8a8;--pi:#08201b;--warn:#f2b366;--wb:#3a2a12;--err:#ff9d94;--eb:#3d1c19;--ok:#7bd6a0;--ob:#15301f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 "BIZ UDPGothic","Hiragino Sans","Noto Sans JP",sans-serif}
+header{position:sticky;top:env(safe-area-inset-top,0px);background:var(--card);border-bottom:1px solid var(--line);padding:8px 16px;z-index:2}
+.in{max-width:760px;margin:auto}h1{font-size:15px;margin:0;color:var(--mute);font-weight:400}h2{font-size:17px;margin:20px 0 6px}
+#who{font-size:18px;font-weight:700}
+nav{display:flex;gap:2px;overflow-x:auto;max-width:760px;margin:auto;padding:0 16px;border-bottom:2px solid var(--line)}
+nav button{background:none;border:0;padding:10px 12px;font:inherit;color:var(--mute);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
+nav button[aria-selected=true]{color:var(--pri);font-weight:700;border-color:var(--pri)}
+main{max-width:760px;margin:auto;padding:4px 16px 56px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.card h3{margin:0 0 4px;font-size:16px}.meta{font-size:13px;color:var(--mute)}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:end}
+.b,input,select,textarea{font:inherit;min-height:44px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:6px 10px}
+textarea{width:100%;min-height:90px}.b{cursor:pointer}.p{background:var(--pri);color:var(--pi);border-color:var(--pri);font-weight:700}.b:disabled{opacity:.45;cursor:not-allowed}
+.big{width:100%;font-size:18px;min-height:56px}
+:is(button,input,select,textarea):focus-visible{outline:3px solid var(--pri);outline-offset:2px}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;margin-right:6px;background:var(--ob);color:var(--ok)}.tag.w{background:var(--wb);color:var(--warn)}.tag.e{background:var(--eb);color:var(--err)}
+.note{border-left:4px solid var(--warn);background:var(--wb);padding:8px 12px;border-radius:4px;font-size:14px;margin:8px 0}.note.e{border-color:var(--err);background:var(--eb)}.note.g{border-color:var(--ok);background:var(--ob)}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.n{text-align:right;white-space:nowrap}.tb{overflow-x:auto}
+input.s{width:96px}label{font-size:13px;color:var(--mute);display:block}.tot{font-size:18px;font-weight:700}
+.cx{opacity:.55;text-decoration:line-through}
+select{max-width:100%}.card select,.card input:not(.s){max-width:100%}
+@media print{header,nav,button,select,summary,.noprint{display:none!important}body{background:#fff;color:#000}main{padding:0}}
+
+.txc{display:flex;gap:8px;align-items:center;min-height:44px;font-size:17px}.txc input{width:24px;height:24px}
+.txl{color:#555;font-size:15px}.txr{display:flex;align-items:center;gap:8px;min-height:48px;border-bottom:1px solid #ddd}.txr .txl{width:3.5em;font-size:17px;color:#222}.txv{flex:1;text-align:right;font-size:20px;font-variant-numeric:tabular-nums}.txu{color:#555}
+
+#sid,#op,#who{display:none!important}
+
+.cpm{background:#dff3e4;color:#0b5a2a;font-size:14px;font-weight:700;padding:4px 10px}
+
+html{font-size:17px}body{font-size:1rem}
+header{padding:10px 20px}.in,nav,main{max-width:1180px}
+nav{padding:0 20px}nav button{padding:12px 22px;font-size:1.05rem}nav button:last-child{margin-left:auto;font-size:.95rem}
+nav button[aria-selected=true]{background:var(--ob)}
+main{padding:8px 20px 80px}
+#cid{font-size:1.15rem;font-weight:700;min-height:48px;min-width:14em}
+h2{font-size:1.1rem;margin:18px 0 8px;padding-left:10px;border-left:5px solid var(--pri)}
+.card{padding:14px 16px;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.b,input,select,textarea{min-height:48px}input.amt,input.s{font-size:1.1rem;text-align:right}.meta{font-size:.85rem}
+.stick{position:sticky;bottom:0;z-index:3;background:var(--bg);border-top:2px solid var(--pri);padding:8px 0 10px;margin-top:12px}
+.stick .tots{display:flex;gap:24px;font-size:1.15rem}.stick .big{width:auto;min-width:16em}
+.cgrid,.tgrid,.pgrid{display:block}
+@media(min-width:1000px){
+ .cgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}.cgrid .card{margin:10px 0}
+ .tgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+ .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}.pgrid.one{grid-template-columns:1fr}
+ .pgrid .pl{position:sticky;top:120px}
+}
+
+.stick .big{min-width:0;width:100%;max-width:320px}
+.stick .row{margin-top:4px}
+.tgrid textarea{min-height:120px}.tgrid .card:last-child textarea{min-height:160px}
+.step{font-size:1rem}
+</style></head><body>
+<header><div class="in"><h1>献立・買い物支援</h1><div class="row" style="margin:0"><select id="cid" aria-label="利用者"></select><select id="sid" aria-label="買い物先の店舗"></select><span id="who"></span><select id="op" aria-label="入力者"></select></div><div class="meta" id="hd"></div></div></header>
+<nav role="tablist" id="tabs"></nav><main id="m"></main>
+<script type="text/plain" id="appsrc">
+let T=(()=>{const d=new Date(Date.now()+9*36e5);return d.toISOString().slice(0,10)})();const $=s=>document.querySelector(s),D=864e5;
+const df=(a,b)=>Math.round((Date.parse(b)-Date.parse(a))/D);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const yen=n=>n.toLocaleString('ja-JP')+'円',cnt=t=>[...t].length,fm=d=>d.slice(5).replace('-','/');
+const rid=()=>'R'+Math.random().toString(36).slice(2,10);
+const LIB=()=>(window.__RECIPES||[]).filter(r=>!(S.rcpHide||[]).includes(r.id));
+const RX=()=>{const l=[...LIB(),...(S.rcp||[])];return l.length?l:R};
+const R=[['R1','親子丼',20,[['卵',3,'個'],['鶏肉',150,'g'],['玉ねぎ',1,'個']],['和食']],['R2','鶏と野菜の煮物',30,[['鶏肉',200,'g'],['にんじん',1,'本'],['玉ねぎ',1,'個']],['和食']],['R3','肉じゃが',35,[['豚肉',150,'g'],['じゃがいも',2,'個'],['玉ねぎ',1,'個']],['和食']],['R4','野菜炒め',15,[['豚肉',100,'g'],['にんじん',1,'本'],['玉ねぎ',1,'個']],[]],['R5','卵焼き定食',15,[['卵',3,'個']],['和食']],['R6','鮭の塩焼き',20,[['鮭',1,'切']],['和食']]].map(([id,n,t,ing,tag])=>({id,n,t,ing,tag}));
+// 商品＝店舗内で規格・販売単位ごとに識別（名前だけの部分一致では同一視しない）
+const CATS=['食材','飲料','調味料','入浴と衛生','紙と清掃と洗濯'];
+// 一般名カタログ：[id,一般名,価格計算用の標準規格,単位,1販売単位の量,区分(f=食品類/d=日用品),表示名,分類,別名]
+const PR=[
+['鶏肉','鶏肉','150g','g',150,'f','','食材'],['卵','卵','6個入','個',6,'f','','食材'],['玉ねぎ','玉ねぎ','2個','個',2,'f','','食材'],['にんじん','にんじん','2本','本',2,'f','','食材'],['豚肉','豚肉','150g','g',150,'f','','食材'],['じゃがいも','じゃがいも','3個','個',3,'f','','食材'],['鮭','鮭','1切','切',1,'f','','食材','さかな,さけ,サケ'],
+['M1','牛乳','1L','本',1,'f','牛乳（1L）','食材','ぎゅうにゅう,ミルク'],['M2','牛乳','500mL','本',1,'f','牛乳（500mL）','食材','ぎゅうにゅう,ミルク'],
+['キャベツ','キャベツ','1/4個','個',0.25,'f','','食材'],['小松菜','小松菜','1袋','袋',1,'f','','食材'],['豆腐','豆腐','1丁（約300g）','丁',1,'f','','食材'],['魚','魚','切り身2切入','切',2,'f','','食材','さかな'],['だいこん','だいこん','カット約250g','g',250,'f','','食材','大根'],['ねぎ','ねぎ','1袋（約100g）','g',100,'f','','食材','長ねぎ,ネギ'],['ほうれんそう','ほうれんそう','1袋（約200g）','g',200,'f','','食材','ほうれん草'],['トマト','トマト','2個入（約300g）','g',300,'f','','食材'],['きゅうり','きゅうり','2本入（約200g）','g',200,'f','','食材','キュウリ'],['なす','なす','2本入（約200g）','g',200,'f','','食材','ナス,茄子'],['ピーマン','ピーマン','4個入（約120g）','g',120,'f','','食材'],['かぼちゃ','かぼちゃ','カット約300g','g',300,'f','','食材','南瓜'],['さつまいも','さつまいも','1本（約250g）','g',250,'f','','食材','サツマイモ,さつま芋'],['納豆','納豆','3個パック','パック',1,'f','','食材','なっとう'],['油揚げ','油揚げ','2枚入（約60g）','g',60,'f','','食材','あげ'],['わかめ','わかめ','乾燥カット15g','g',15,'f','','食材','ワカメ'],['ちくわ','ちくわ','4本入（約100g）','本',4,'f','','食材','竹輪'],['ハム','ハム','4枚入（約60g）','枚',4,'f','','食材'],['しいたけ','しいたけ','1パック（約100g）','g',100,'f','','食材','椎茸,生しいたけ'],['こんにゃく','こんにゃく','1枚（約250g）','枚',1,'f','','食材'],
+['米','米','2kg','袋',1,'f','','食材','こめ,ごはん'],['パン','パン','食パン6枚切り','袋',1,'f','','食材'],['麺','麺','ゆでうどん1食','袋',1,'f','','食材','うどん,そば,めん'],
+['コーヒー','コーヒー','インスタント1瓶','瓶',1,'f','','飲料','珈琲'],['紅茶','紅茶','ティーバッグ25袋入','箱',1,'f','','飲料','こうちゃ'],['緑茶','緑茶','茶葉100g','袋',1,'f','','飲料','お茶,りょくちゃ'],['麦茶','麦茶','ティーバッグ1袋','袋',1,'f','','飲料','お茶'],['水','水','2L','本',1,'f','','飲料','ミネラルウォーター'],['ジュース','ジュース','500mL','本',1,'f','','飲料'],
+['しょうゆ','しょうゆ','450mL','本',1,'f','','調味料','醤油'],['みそ','みそ','500g入','袋',1,'f','','調味料','味噌'],['砂糖','砂糖','500g','袋',1,'f','','調味料'],['塩','塩','400g','袋',1,'f','','調味料'],['食用油','食用油','600g','本',1,'f','','調味料','サラダ油'],['酢','酢','1本','本',1,'f','','調味料'],['だし','だし','1袋','袋',1,'f','','調味料','出汁'],['ソース','ソース','300mL','本',1,'f','','調味料'],['マヨネーズ','マヨネーズ','350g','本',1,'f','','調味料'],['ケチャップ','ケチャップ','300g','本',1,'f','','調味料'],
+['D4','シャンプー','500mL','本',1,'d','','入浴と衛生'],['D5','コンディショナー','500mL','本',1,'d','','入浴と衛生','リンス'],['D6','ボディソープ','本体','本',1,'d','','入浴と衛生'],['D7','石けん','3個入','箱',1,'d','','入浴と衛生','せっけん'],['D8','ボディタオル','1枚','枚',1,'d','','入浴と衛生','体を洗うタオル'],['D9','スポンジ','1個','個',1,'d','','入浴と衛生','体を洗うスポンジ'],['D10','歯ブラシ','1本','本',1,'d','','入浴と衛生'],['D3','歯磨き粉','1本','本',1,'d','','入浴と衛生','はみがき'],['D11','綿棒','200本入','箱',1,'d','','入浴と衛生','めんぼう'],
+['D12','ティッシュ','5箱組','組',1,'d','','紙と清掃と洗濯','ティシュー,ちり紙'],['D1','トイレットペーパー','12ロール','袋',1,'d','','紙と清掃と洗濯','トイレット,トイペ'],['D13','キッチンペーパー','1ロール','袋',1,'d','','紙と清掃と洗濯'],['D14','ウェットティッシュ','1個','個',1,'d','','紙と清掃と洗濯'],['D15','ごみ袋','1袋','袋',1,'d','','紙と清掃と洗濯','ゴミ袋'],['D2','食器用洗剤','本体','本',1,'d','','紙と清掃と洗濯'],['D16','洗濯洗剤','本体','本',1,'d','','紙と清掃と洗濯'],['D17','柔軟剤','本体','本',1,'d','','紙と清掃と洗濯'],['D18','清掃用洗剤','本体','本',1,'d','','紙と清掃と洗濯']
+].map(([id,n,spec,u,pack,k,t,cat,al])=>({id,n,spec,u,pack,k,tn:t||undefined,cat,al:al||''}));
+const PRO=id=>PR.find(p=>p.id===String(id).split('@')[0]),tn=p=>p.tn||p.n;
+const stores=()=>S.stores&&S.stores.length?S.stores:[{id:'S1',n:'買い物先1'}],STN=id=>(stores().find(s=>s.id===id)||{n:id}).n;
+const BAS={receipt:'レシート確認',shelf:'売場確認',past:'過去の参考値',unknown:'不明'};
+const MTL={none:'割引なし',rate:'率引き（％）',yen:'定額引き（円）',direct:'割引後単価を直接入力'};
+const mtxt=(m,v)=>m==='rate'?`${+v}％引き`:m==='yen'?`${+v}円引き`:m==='direct'?'割引後単価を直接入力':'割引なし';
+const dnote=(m,v,q)=>m==='rate'?(q>1?'各':'')+(+v)+'％引き':m==='yen'?(q>1?'各':'')+(+v)+'円引き':m==='direct'?'割引価格':'';
+
+const seed0=()=>{const H=(seq,st,pr,normal,basis,actual,method,val,date)=>({id:'H'+seq,seq,st,pr,normal,basis,actual,method,val,date,at:date+'T06:00:00.000Z',by:'初期登録（架空）',bid:'seed',cx:false}),N=(seq,st,pr,p,date)=>H(seq,st,pr,p,'receipt',p,'none','',date);
+ return{tab:'gen',cid:'A',seq:100,reqs:{},msg:'',start:'',audit:[],today:'2026-10-15',deliv:[],thr:3,last:{A:{D1:'2026-08-27',D2:'2026-10-01'}},cons:{},dlog:[],base:'entry',cd:{},bud:{U:1,B:0},us:{},custom:[],dlr:{},fq:{Ti:'45',Ni:'1',Qi:'500',Fi:'1',N:'1',Q:'500',F:'0.5'},psrc:'stat',std:[],area:'東大阪市',month:'2026-09',fetched:'2026-10-27',
+ stat:[{id:"S1221",name:"鶏肉",q:100,u:"g",price:159},{id:"S1341",name:"鶏卵",q:1,u:"パック",price:338},{id:"S1417",name:"たまねぎ",q:1,u:"kg",price:367},{id:"S1415",name:"にんじん",q:1,u:"kg",price:359},{id:"S1211",name:"豚肉",q:100,u:"g",price:289},{id:"S1412",name:"じゃがいも",q:1,u:"kg",price:457},{id:"S1141",name:"塩さけ",q:100,u:"g",price:270},{id:"S1303",name:"牛乳",q:1,u:"本",price:286},{id:"S1401",name:"キャベツ",q:1,u:"kg",price:242},{id:"S1471",name:"豆腐",q:1,u:"kg",price:281},{id:"S1001",name:"うるち米",q:1,u:"袋",price:3596},{id:"S1021",name:"食パン",q:1,u:"kg",price:593},{id:"S1031",name:"ゆでうどん",q:1,u:"kg"},{id:"S1921",name:"インスタントコーヒー",q:100,u:"g",price:1311},{id:"S1911",name:"紅茶",q:10,u:"袋",price:107},{id:"S1902",name:"緑茶",q:100,u:"g",price:700},{id:"S1931",name:"果実飲料",q:1,u:"本",price:258},{id:"S1621",name:"しょう油",q:1,u:"本",price:329},{id:"S1631",name:"みそ",q:1,u:"個",price:378},{id:"S1632",name:"砂糖",q:1,u:"袋",price:249},{id:"S1611",name:"食塩",q:1,u:"袋"},{id:"S1601",name:"食用油",q:1,u:"本",price:510},{id:"S1633",name:"酢",q:1,u:"本",price:192},{id:"S1641",name:"ソース",q:1,u:"本",price:267},{id:"S1643",name:"マヨネーズ",q:1,u:"kg",price:762},{id:"S1642",name:"ケチャップ",q:1,u:"本"},{id:"S9622",name:"シャンプー",q:1,u:"袋",price:331},{id:"S9624",name:"ヘアコンディショナー",q:1,u:"袋",price:331},{id:"S9626",name:"ボディーソープ",q:1,u:"袋",price:276},{id:"S9611",name:"歯ブラシ",q:1,u:"本",price:107},{id:"S9623",name:"歯磨き",q:100,u:"g",price:189},{id:"S4412",name:"ティシュペーパー",q:1000,u:"組",price:534},{id:"S4413",name:"トイレットペーパー",q:1000,u:"m",price:989},{id:"S4403",name:"キッチンペーパー",q:400,u:"カット"},{id:"S4431",name:"台所用洗剤",q:1,u:"本",price:377},{id:"S4441",name:"洗濯用洗剤",q:1,u:"kg",price:514},{id:"S4442",name:"柔軟仕上剤",q:1,u:"kg"},{id:"S1414",name:"だいこん",q:1,u:"kg",price:318},{id:"S1405",name:"ねぎ",q:1,u:"kg",price:977},{id:"S1402",name:"ほうれんそう",q:1,u:"kg",price:1756},{id:"S1436",name:"トマト",q:1,u:"kg",price:724},{id:"S1434",name:"きゅうり",q:1,u:"kg",price:980},{id:"S1435",name:"なす",q:1,u:"kg",price:800},{id:"S1437",name:"ピーマン",q:1,u:"kg",price:1177},{id:"S1433",name:"かぼちゃ",q:1,u:"kg",price:639},{id:"S1411",name:"さつまいも",q:1,u:"kg",price:896},{id:"S1473",name:"納豆",q:1,u:"パック",price:111},{id:"S1472",name:"油揚げ",q:1,u:"kg",price:2127},{id:"S1462",name:"わかめ",q:100,u:"g",price:2543},{id:"S1152",name:"ちくわ",q:100,u:"g",price:103},{id:"S1252",name:"ハム",q:100,u:"g",price:219},{id:"S1438",name:"生しいたけ",q:1,u:"kg",price:1985},{id:"S1481",name:"こんにゃく",q:1,u:"kg",price:434}],
+ map:{"鶏肉":{sid:"S1221",amt:150,ok:true},"卵":{sid:"S1341",amt:0.6,ok:true},"玉ねぎ":{sid:"S1417",amt:0.4,ok:true},"にんじん":{sid:"S1415",amt:0.3,ok:true},"豚肉":{sid:"S1211",amt:150,ok:true},"じゃがいも":{sid:"S1412",amt:0.375,ok:true},"鮭":{sid:"S1141",amt:80,ok:true},"M1":{sid:"S1303",amt:1,ok:true},"M2":{sid:"S1303",amt:0.5,ok:true},"キャベツ":{sid:"S1401",amt:0.25,ok:true},"豆腐":{sid:"S1471",amt:0.3,ok:true},"米":{sid:"S1001",amt:0.4,ok:true},"パン":{sid:"S1021",amt:0.36,ok:true},"麺":{sid:"S1031",amt:0.2,ok:true},"コーヒー":{sid:"S1921",amt:85,ok:true},"紅茶":{sid:"S1911",amt:25,ok:true},"緑茶":{sid:"S1902",amt:100,ok:true},"ジュース":{sid:"S1931",amt:0.3333,ok:true},"しょうゆ":{sid:"S1621",amt:1,ok:true},"みそ":{sid:"S1631",amt:0.6667,ok:true},"砂糖":{sid:"S1632",amt:0.5,ok:true},"塩":{sid:"S1611",amt:0.4,ok:true},"食用油":{sid:"S1601",amt:0.6667,ok:true},"酢":{sid:"S1633",amt:1,ok:true},"ソース":{sid:"S1641",amt:0.6,ok:true},"マヨネーズ":{sid:"S1643",amt:0.35,ok:true},"ケチャップ":{sid:"S1642",amt:0.6,ok:true},"D4":{sid:"S9622",amt:1,ok:true},"D5":{sid:"S9624",amt:1,ok:true},"D6":{sid:"S9626",amt:1,ok:true},"D10":{sid:"S9611",amt:1,ok:true},"D3":{sid:"S9623",amt:130,ok:true},"D12":{sid:"S4412",amt:825,ok:true},"D1":{sid:"S4413",amt:660,ok:true},"D13":{sid:"S4403",amt:110,ok:true},"D2":{sid:"S4431",amt:1,ok:true},"D16":{sid:"S4441",amt:0.875,ok:true},"D17":{sid:"S4442",amt:0.915,ok:true},"だいこん":{sid:"S1414",amt:0.25,ok:true},"ねぎ":{sid:"S1405",amt:0.1,ok:true},"ほうれんそう":{sid:"S1402",amt:0.2,ok:true},"トマト":{sid:"S1436",amt:0.3,ok:true},"きゅうり":{sid:"S1434",amt:0.2,ok:true},"なす":{sid:"S1435",amt:0.2,ok:true},"ピーマン":{sid:"S1437",amt:0.12,ok:true},"かぼちゃ":{sid:"S1433",amt:0.3,ok:true},"さつまいも":{sid:"S1411",amt:0.25,ok:true},"納豆":{sid:"S1473",amt:1,ok:true},"油揚げ":{sid:"S1472",amt:0.06,ok:true},"わかめ":{sid:"S1462",amt:15,ok:true},"ちくわ":{sid:"S1152",amt:100,ok:true},"ハム":{sid:"S1252",amt:60,ok:true},"しいたけ":{sid:"S1438",amt:0.1,ok:true},"こんにゃく":{sid:"S1481",amt:0.25,ok:true}},fav:{A:['にんじん','じゃがいも','D4','D12','D1','M1'],B:[],C:[]},mv:[{id:'M1',seq:1,c:'A',lot:'L1',type:'引渡し入庫',d:300,u:'g',at:'2026-10-13T06:00:00.000Z',by:'初期登録（架空）',after:300,reason:'2日前の購入品を引渡し入庫（架空の初期データ）'},{id:'M2',seq:2,c:'B',lot:'L2',type:'初期登録',d:300,u:'g',at:'2026-09-28T06:00:00.000Z',by:'初期登録（架空）',after:300,reason:'冷凍庫の既存在庫（架空の初期データ）'}],
+ cl:{A:{n:'架空利用者A',ver:1,st:'ok',ban:['卵'],maxT:40,pref:['和食']},B:{n:'架空利用者B',ver:1,st:'ok',ban:[],maxT:30,pref:[]},C:{n:'架空利用者C',ver:1,st:'ng',ban:[],maxT:30,pref:[]}},
+ lots:[{id:'L1',c:'A',item:'鶏肉',qty:300,u:'g',loc:'冷蔵',org:'購入',buy:'2026-10-13',exp:'2026-10-19',ek:'消費期限',ok:true,qUnk:false,approx:false,res:0,ck:'2026-10-13',ver:1,note:'2日前に購入'},{id:'L2',c:'B',item:'鶏肉',qty:300,u:'g',loc:'冷凍',org:'初期',buy:'2026-09-28',exp:null,ek:'未確認',ok:true,qUnk:false,approx:false,res:0,ck:null,ver:1,note:'冷凍・期限未確認'},{id:'L3',c:'A',item:'玉ねぎ',qty:2,u:'個',loc:'常温',org:'購入',buy:'2026-10-12',exp:'2026-10-16',ek:'賞味期限',ok:true,qUnk:false,approx:false,res:0,ck:'2026-10-14',ver:1,note:'期限が近い（デモ）'},{id:'L4',c:'A',item:'豚肉',qty:200,u:'g',loc:'冷蔵',org:'購入',buy:'2026-10-14',exp:'2026-10-17',ek:'消費期限',ok:true,qUnk:false,approx:false,res:0,ck:'2026-10-14',ver:1,note:'期限が近い（デモ）'}],
+ cooks:[{c:'A',r:'R3',d:'2026-10-10'},{c:'A',r:'R4',d:'2026-09-01'}],v:{},
+ src:[{id:'テスト資料1',Q:12,N:1,Tt:50,kind:'公的機関',typ:'実測',orig:'テスト資料1',url:true,dated:true,cond:true,basis:true,ap:true},{id:'テスト資料2',Q:12,N:1,Tt:60,kind:'メーカー公式',typ:'実測',orig:'テスト資料2',url:true,dated:true,cond:true,basis:true,ap:true},{id:'テスト資料3',Q:12,N:1,Tt:70,kind:'業界団体',typ:'実測',orig:'テスト資料3',url:true,dated:true,cond:true,basis:true,ap:true}],
+ ph:[N(1,'S1','鶏肉',480,'2026-09-25'),N(2,'S1','卵',300,'2026-09-25'),N(3,'S1','玉ねぎ',98,'2026-09-25'),N(5,'S1','豚肉',380,'2026-09-25'),N(7,'S1','鮭',360,'2026-09-25'),N(9,'S1','D2',198,'2026-09-25'),N(11,'S1','D5',348,'2026-09-25'),N(12,'S1','D6',298,'2026-09-25'),N(13,'S2','卵',280,'2026-10-01'),N(14,'S2','鶏肉',450,'2026-10-01'),H(15,'S1','D3',null,'unknown',180,'direct','180','2026-09-20')]}};
+const seed=()=>{const o=seed0();o.lots.filter(l=>!o.mv.some(m=>m.lot===l.id)).forEach((l,i)=>o.mv.push({id:'M9'+i,seq:9+i,c:l.c,lot:l.id,type:'引渡し入庫',d:l.qty,u:l.u,at:l.buy+'T06:00:00.000Z',by:'初期登録（架空）',after:l.qty,reason:'購入品を引渡し入庫（架空の初期データ）'}));o.lots=[];o.mv=[];return o};
+const seedP=()=>{const o=seed();Object.assign(o,{cid:'',cl:{},cooks:[],ph:[],src:[],last:{},audit:[],reqs:{},stores:[{id:'S1',n:'買い物先1'}]});return o};
+
+let S;try{S=window.__INIT||null}catch(e){}S=S||(location.hash==='#demo'?seed():seedP());S.stores=S.stores||[{id:'S1',n:'買い物先1'}];S.today=T;S.open=S.open||{};S.last=S.last||seed().last;S.cons=S.cons||{};S.dlog=S.dlog||[];S.base=S.base||'entry';S.thr=S.thr??3;S.cooks=S.cooks||[];S.deliv=[];S.lots=[];S.mv=[];{const s0=seed();S.std=S.std||s0.std;S.fav=S.fav||s0.fav;S.fq=S.fq||s0.fq}S.psrc='stat';{const s1=seed();S.stat=S.stat||s1.stat;S.map=S.map||s1.map;S.area=S.area||s1.area;S.month=S.month||s1.month;S.fetched=S.fetched||s1.fetched}S.cd=S.cd||{};S.bud=S.bud||{U:1,B:0};S.us=S.us||{};S.custom=S.custom||[];S.dlr=S.dlr||{};S.cat=S.cat||'';S.q='';S.custom.forEach(x=>{if(!PR.find(p=>p.id===x.id))PR.push(x)});
+let _st=null,_rev=window.__REV||0,_busy=false,_again=false,_base=JSON.parse(JSON.stringify(S));
+const _flush=()=>{_st=null;if(_busy){_again=true;return}_busy=true;const body=JSON.stringify(S);
+fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json','X-Rev':String(_rev),'X-Operator':encodeURIComponent(S.op||'')},body,keepalive:body.length<60000}).then(r=>r.json().then(j=>({ok:r.ok,j}))).then(({ok,j})=>{_busy=false;
+ if(ok){_rev=j.rev;_base=JSON.parse(body);_banner(false)}else if(j.error==='conflict'){_pull(true).catch(()=>_banner(true,'保存できません。画面を再読み込みしてください。'))}else{_banner(true,'保存に失敗しました。')}
+ if(_again){_again=false;_flush()}}).catch(()=>{_busy=false;_banner(true,'保存できません。サーバーが止まっている可能性があります。')})};
+const _eq=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const _isO=x=>x&&typeof x==='object'&&!Array.isArray(x);
+function _merge(base,mine,srv,d){if(_eq(mine,base))return srv;if(_eq(srv,base))return mine;
+ if(_isO(mine)&&_isO(srv)&&d<3){const o={};const b=_isO(base)?base:{};for(const k of new Set([...Object.keys(mine),...Object.keys(srv)])){const m=_merge(b[k],mine[k],srv[k],d+1);if(m!==undefined)o[k]=m}return o}
+ if(Array.isArray(mine)&&Array.isArray(srv)){const bs=new Set((Array.isArray(base)?base:[]).map(x=>JSON.stringify(x))),ss=new Set(srv.map(x=>JSON.stringify(x)));return [...srv,...mine.filter(x=>{const t=JSON.stringify(x);return !bs.has(t)&&!ss.has(t)})]}
+ return mine}
+async function _pull(conflict){const r=await fetch('/api/state');const j=await r.json();if(!j.state)return;const mine=conflict?JSON.parse(JSON.stringify(S)):null;const k={tab:S.tab,cid:S.cid,open:S.open,op:S.op,q:S.q,cat:S.cat,msg:S.msg};clearTimeout(_st);_st=null;S=conflict?_merge(_base,mine,j.state,0):j.state;_rev=j.rev;S.today=T;Object.assign(S,{tab:k.tab,open:k.open||{},op:k.op,q:k.q||'',cat:k.cat||'',msg:k.msg||''});S.v=S.v||{};S.cl=S.cl||{};S.audit=S.audit||[];S.cooks=S.cooks||[];S.deliv=[];S.lots=[];S.mv=[];S.psrc='stat';S.cons=S.cons||{};S.dlog=S.dlog||[];S.cd=S.cd||{};S.us=S.us||{};S.custom=S.custom||[];S.dlr=S.dlr||{};S.stores=S.stores||[{id:'S1',n:'買い物先1'}];S.bud=S.bud||{U:1,B:0};S.base=S.base||'entry';S.thr=S.thr??3;{const s0=seed();S.std=S.std||s0.std;S.fav=S.fav||s0.fav;S.fq=S.fq||s0.fq;S.last=S.last||s0.last;S.stat=S.stat||s0.stat;S.map=S.map||s0.map;S.area=S.area||s0.area;S.month=S.month||s0.month;S.fetched=S.fetched||s0.fetched}if(S.cl[k.cid])S.cid=k.cid;S.custom.forEach(x=>{if(!PR.find(p=>p.id===x.id))PR.push(x)});_base=JSON.parse(JSON.stringify(j.state));_banner(false);render();if(conflict){save();const b=document.getElementById('savebar');if(b){b.hidden=false;b.style.background='#7a5b00';b.textContent='他のPCの更新と自分の入力をまとめました。';setTimeout(()=>{b.hidden=true},9000)}}}
+async function _poll(){try{if(_st||_busy||document.hidden)return;const el=document.activeElement;if(el&&/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))return;const r=await fetch('/api/health');const j=await r.json();if(j&&j.rev!==undefined&&j.rev!==_rev)await _pull(false)}catch(e){}}
+setInterval(_poll,8000);
+async function _syncStat(){const r=await fetch('/api/state');const j=await r.json();if(!j.state)return;['stat','month','fetched','pending'].forEach(k=>{if(j.state[k]!==undefined)S[k]=j.state[k];else delete S[k]});_rev=j.rev}
+const save=()=>{clearTimeout(_st);_st=setTimeout(_flush,1500)};
+function _banner(on,t){let b=document.getElementById('savebar');if(!b){b=document.createElement('div');b.id='savebar';b.setAttribute('role','alert');b.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99;background:#b3261e;color:#fff;padding:8px 12px;font-size:14px;text-align:center';document.body.appendChild(b)}b.hidden=!on;if(on)b.textContent=t}
+{const o=document.getElementById('op');if(o)o.addEventListener('change',e=>{S.op=e.target.value;save()})}
+window.addEventListener('pagehide',()=>{if(_st){clearTimeout(_st);_st=null;_flush()}});
+const V=()=>S.v[S.cid]??={gen:null,plan:null,sid:'S1',pdate:T,pd:T,lines:[],dep:[''],adj:[],rcpt:'',bought:null,txt:{},copied:{},sel:null,dg:{},reqId:rid(),sv:1};
+const C=()=>S.cl[S.cid];
+const aud=(op,tgt,old,nw,why)=>{S.audit.unshift({at:new Date().toISOString(),by:S.op||'職員',op,tgt,old,nw,why:why||'—'});S.audit=S.audit.slice(0,60)};
+const PD=()=>V().pd||T;
+const uOK=(l,d)=>{d=d||PD();return l.ok===true&&!l.qUnk&&(l.exp?l.exp>=d:(!!l.fresh&&l.buy===T&&d===T))};
+const fefo=(a,b)=>(a.exp||'9').localeCompare(b.exp||'9')||(a.buy||'9').localeCompare(b.buy||'9')||a.id.localeCompare(b.id);
+const lots=(c,i,d)=>S.lots.filter(l=>l.c===c&&l.item===i&&l.qty>0&&uOK(l,d)).sort(fefo);
+const daysOf=(l,d)=>l.exp?df(d||PD(),l.exp):null,isNear=(l,d)=>{const k=daysOf(l,d);return k!==null&&k>=0&&k<=S.thr};
+const num=s=>s===''||s==null?undefined:(/^\d+$/.test(String(s).trim())&&+s<=999999?+s:null);
+const newest=(a,b)=>b.date.localeCompare(a.date)||b.at.localeCompare(a.at)||b.seq-a.seq;
+// ===== F-07 参考価格 =====
+const stdOf=(st,k)=>S.std.filter(x=>x.pr===k&&(x.st==='*'||x.st===st)).sort((a,b)=>(a.st==='*')-(b.st==='*'))[0]||null;
+const lkey=l=>l.spec&&l.spec.trim()?l.pr+'@'+l.spec.trim():l.pr;
+const STU={kg:'kg',g:'g',L:'L',mL:'mL','個':'個','組':'組','袋':'袋','本':'本'};
+function statOf(k){const m=S.map[k];if(!m||!m.ok)return null;const s=S.stat.find(x=>x.id===m.sid);if(!s||!(s.price>=0)||!(m.amt>0))return null;
+ return{kind:'stat',price:Math.round(s.price*m.amt/s.q),date:S.fetched,basis:'stat',ver:'統計'+S.month,hid:'STAT:'+k,sname:s.name,sq:s.q,su:s.u,sp:s.price,amt:m.amt,month:S.month,area:S.area}}
+function ref(st,pr){const v=S.ph.filter(h=>h.st===st&&h.pr===pr&&!h.cx);
+ const n=S.psrc==='hist'?v.filter(h=>h.normal!=null&&(h.basis==='receipt'||h.basis==='shelf')).sort(newest)[0]:null;
+ if(n)return{kind:'normal',price:n.normal,date:n.date,basis:n.basis,hid:n.id};
+ const sp=stdOf(st,pr);if(sp)return{kind:'std',price:sp.price,date:sp.date,basis:'std',ver:sp.ver,hid:'STD:'+sp.pr};
+ const d=S.psrc==='hist'?v.filter(h=>h.actual!=null).sort(newest)[0]:null;
+ if(d)return d.method!=='none'?{kind:'disc',price:d.actual,date:d.date,cond:mtxt(d.method,d.val),hid:d.id}:{kind:'last',price:d.actual,date:d.date,cond:'割引条件未確認',hid:d.id};
+ return statOf(pr)}
+const refTxt=rf=>!rf?'<span class="tag w">未登録</span>':rf.kind==='stat'?`<span class="tag w">統計</span>約${yen(rf.price)}（${esc(rf.sname)}${rf.sq}${rf.su}あたり${rf.sp}円×${rf.amt/rf.sq}・${rf.month.replace('-','年')}月・試験用の架空値）`:rf.kind==='std'?`<span class="tag w">仮</span>標準参考 ${yen(rf.price)}（責任者設定・${fm(rf.date)}）`:rf.kind==='normal'?`参考 ${yen(rf.price)}（通常・${fm(rf.date)}${BAS[rf.basis]}）`:rf.kind==='last'?`<span class="tag w">条件付き</span>前回購入 ${yen(rf.price)}（${fm(rf.date)}・割引条件未確認）`:`<span class="tag w">条件付き</span>前回割引時 ${yen(rf.price)}（${rf.cond}・${fm(rf.date)}）`;
+function afterPrice(except){Object.values(S.v).forEach(w=>{if(w===except)return;if(!w.bought)w.gen=null})}
+const newLine=(pr,qty,o)=>({id:'N'+(++S.seq),pr,qty:String(qty),spec:(S.us[S.cid]||{})[pr]||'',bulk:false,amt:'',amtT:false,same:false,dOpen:false,U:'',method:'none',val:'',why:'',exp:'',ek:'未確認',dl:true,src:'plan',...o});
+// ===== F-04/F-08 簡易精算 =====
+function lc(l){const e=[];const q=/^\d+$/.test(l.qty)&&+l.qty>=1&&+l.qty<=999?+l.qty:null;if(q===null)e.push('数量は1以上の整数で入力してください');
+ let U=null,P=null,warn='';
+ if(l.dOpen){const m=l.method;
+  if(l.U!==''){if(/^\d+$/.test(l.U)&&+l.U<=999999)U=+l.U;else e.push('通常単価は0〜999,999の整数円で入力してください')}
+  if(m==='rate'){if(l.val==='')e.push('割引率を入力してください');else if(!/^\d{1,3}(\.\d{1,2})?$/.test(l.val)||+l.val>100)e.push('割引率は0〜100％（小数2桁まで）で入力してください');else if(U===null){if(l.U==='')e.push('率引きには通常単価が必要です')}else P=Math.floor(U*(10000-Math.round(+l.val*100))/10000)}
+  else if(m==='yen'){if(l.val==='')e.push('値引額を入力してください');else if(!/^\d+$/.test(l.val))e.push('値引額は整数円で入力してください');else if(U===null){if(l.U==='')e.push('円引きには通常単価が必要です')}else if(+l.val>U)e.push('値引額が通常単価を超えています');else P=U-+l.val}
+  else if(m==='direct'){if(l.val==='')e.push('割引後単価を入力してください');else if(!/^\d+$/.test(l.val)||+l.val>999999)e.push('割引後単価は0以上の整数円で入力してください');else{P=+l.val;if(U!==null&&P>U)warn='割引後単価が通常単価を超えています。入力を確認してください。'}}
+  else if(U!==null)P=U}
+ const calc=P!==null&&q!==null?P*q:null;let amt=null,bad=false;
+ if(l.amt!==''){if(/^\d+$/.test(l.amt)&&+l.amt<=999999)amt=+l.amt;else{bad=true;e.push('支払額は0〜999,999の整数円で入力してください')}}
+ const diff=amt!==null&&calc!==null&&amt!==calc;
+ if(diff&&!l.why)e.push('レシートの行合計と計算額（'+yen(calc)+'）が違います。理由を選んでください');
+ if(amt===0&&!l.why)e.push('0円の行は理由（無償・サービス品等）を選んでください');
+ return{pr:PRO(l.pr),q,U,P,calc,amt,diff,warn,e,miss:amt===null&&!bad,ok:!e.length&&amt!==null&&q!==null}}
+function histOf(l,x){if(x.amt===null||x.q===null||x.e.length)return null;const act=x.amt%x.q===0?x.amt/x.q:null,rn=ref(V().sid,lkey(l));
+ if(l.dOpen&&x.U!==null)return{normal:x.U,basis:'receipt',actual:act,method:l.method==='none'?'none':l.method,val:l.val,note:`次回の通常参考価格：${yen(x.U)}（レシート確認）として保存`};
+ if(l.dOpen&&l.method!=='none')return{normal:null,basis:'unknown',actual:act,method:l.method,val:l.val,note:'割引時の価格として保存（通常価格は未確認のまま）'};
+ if(!l.dOpen&&l.same&&rn&&rn.kind==='normal'&&x.amt===rn.price*x.q)return{normal:rn.price,basis:'receipt',actual:rn.price,method:'none',val:'',note:`参考額と同じ：通常${yen(rn.price)}をレシート確認として保存`};
+ if(act!==null)return{normal:null,basis:'unknown',actual:act,method:'none',val:'',note:'前回購入価格として保存（通常価格・割引条件は未確認）'};
+ return{none:true,note:'数量で割り切れないため価格履歴は更新しません（購入額には反映）'}}
+function money(){const v=V();v.lines.forEach(l=>prefill(l,v));const dep=v.dep.map(num),adj=v.adj.map(a=>({r:a.r,a:/^-?\d+$/.test(a.a)&&Math.abs(+a.a)<=999999?+a.a:null})),L=v.lines.map(l=>({l,...lc(l)}));
+ const depBad=dep.some(x=>x===null),dd=dep.every(x=>x!==undefined)&&dep.length>0,adjBad=adj.some(a=>a.a===null||!a.r.trim());
+ const lsum=L.reduce((a,x)=>a+(x.amt||0),0),adjs=adj.reduce((a,x)=>a+(x.a||0),0),pur=lsum+adjs,dsum=dep.reduce((a,x)=>a+(x||0),0),rc=num(v.rcpt);
+ const miss=L.filter(x=>x.miss).length,lineBad=L.some(x=>x.e.length),rcBad=rc===null,diff=rc!==undefined&&rc!==null?pur-rc:null,dateOK=!!v.pdate&&v.pdate<=T;
+ return{L,adj,depBad,dd,adjBad,lsum,adjs,pur,dsum,chg:dsum-pur,rc,miss,lineBad,rcBad,diff,dateOK,can:!v.bought&&!depBad&&dd&&!adjBad&&!lineBad&&!rcBad&&miss===0&&(diff===null||diff===0)&&dsum-pur>=0&&dateOK&&pur>=0}}
+function doBuy(){const v=V(),m=money();if(v.bought||S.reqs[v.reqId])return'dup';if(!m.can||(v.none&&!v.lines.length))return'ng';S.reqs[v.reqId]=1;
+ const es0=est(v),es={E:es0.E,P:es0.P,all:es0.all,unkN:es0.unkN,U:es0.U,B:es0.B,snap:es0.snap,at:new Date().toISOString()},d0=texts().itm,pid='P'+(++S.seq),items=m.L.map(x=>({pr:x.pr.id,tn:tn(x.pr),n:x.pr.n,qty:x.q,pack:x.pr.pack,u:x.pr.u,key:lkey(x.l),spec:(x.l.spec||'').trim(),bulk:!!x.l.bulk,amt:x.amt,calc:x.calc,diff:x.diff,why:x.l.why,dn:x.l.dOpen&&x.l.method!=='none'?dnote(x.l.method,x.l.val,x.q):'',h:histOf(x.l,x),dl:x.l.dl,exp:x.l.exp,ek:x.l.ek}));
+ v.bought={id:pid,sid:v.sid,pdate:v.pdate,items,adj:m.adj.map(a=>({r:a.r.trim(),a:a.a})),lsum:m.lsum,adjs:m.adjs,pur:m.pur,dsum:m.dsum,chg:m.chg,rcpt:m.rc,est:es};
+ items.forEach(it=>{const p=PRO(it.pr);S.us[S.cid]=S.us[S.cid]||{};if(it.spec)S.us[S.cid][it.pr]=it.spec;else delete S.us[S.cid][it.pr];if(p.k==='d'){S.last[S.cid]=S.last[S.cid]||{};S.dlog.push({id:'L'+(++S.seq),c:S.cid,pr:it.pr,at:new Date().toISOString(),td:T,pdate:v.pdate,bid:pid,k:'buy',ex:!!it.bulk});if(!S.last[S.cid][it.pr]||S.last[S.cid][it.pr]<v.pdate)S.last[S.cid][it.pr]=v.pdate}
+  if(false){const tot=r2(it.qty*it.pack);if(it.dl)addLot({c:S.cid,item:it.n,qty:tot,u:it.u,loc:'冷蔵',org:'購入',buy:v.pdate,exp:it.exp||null,ek:it.exp?it.ek:'未確認',ok:true,fresh:v.pdate===T,ck:T,bid:pid,type:'引渡し入庫',reason:`購入品を利用者宅へ引渡し（${STN(v.sid)}）`});else S.deliv.push({id:'D'+(++S.seq),c:S.cid,bid:pid,pdate:v.pdate,sid:v.sid,n:it.n,tn:it.tn,u:it.u,total:tot,dq:0})}
+  const h=it.h;if(h&&!h.none){const old=ref(v.sid,it.key),ot=old?(old.kind==='stat'?'統計':old.kind==='std'?'標準':old.kind==='normal'?'通常':old.kind==='last'?'前回':'割引時')+old.price+'円（'+fm(old.date)+'）':'なし';
+   S.ph.push({id:'H'+(++S.seq),seq:S.seq,st:v.sid,pr:it.key,normal:h.normal,basis:h.basis,actual:h.actual,method:h.method,val:h.val,date:v.pdate,at:new Date().toISOString(),by:S.op||'職員',bid:pid,cx:false});
+   aud('買い物を保存→価格履歴を追記',STN(v.sid)+' '+it.tn,'旧参照：'+ot,h.note,it.diff?`行の支払額を修正（計算額${it.calc}円→${it.amt}円）：${it.why}`:'行の支払額どおり')}
+  else aud('買い物を保存',STN(v.sid)+' '+it.tn,'—',(h&&h.note)||'価格履歴は更新なし',`${it.amt}円`)});
+ if(v.txt.itm===undefined||v.txt.itm===d0)delete v.txt.itm;
+ afterPrice(v);return'ok'}
+function doCancel(hid,why){const h=S.ph.find(x=>x.id===hid);if(!h||h.cx)return'none';if(!why.trim())return'reason';const old=ref(h.st,h.pr);h.cx=true;h.cxWhy=why.trim();h.cxAt=new Date().toISOString();const nw=ref(h.st,h.pr);
+ const t=r=>r?(r.kind==='normal'?'通常':r.kind==='last'?'前回':'割引時')+r.price+'円（'+fm(r.date)+'）':'未登録';
+ aud('価格履歴の取消',STN(h.st)+' '+tn(PRO(h.pr)),'参照：'+t(old),'参照：'+t(nw),why.trim());afterPrice(null);return'ok'}
+
+// ===== v0.8 在庫：利用者宅のロット・入出庫履歴 =====
+const r2=x=>Math.round(x*100)/100,qn=s=>/^\d+(\.\d{1,2})?$/.test(String(s).trim())&&+s<=999999?+s:null;
+const LOC=['冷蔵','冷凍','常温'],vid=()=>'V-'+S.cid+'-'+T,okR=m=>({ok:true,msg:m}),ngR=m=>({ok:false,msg:m});
+function mvAdd(l,type,d,o){const nq=r2(l.qty+d);if(nq<0)return null;l.qty=nq;l.ver=(l.ver||0)+1;const m={id:'M'+(++S.seq),seq:S.seq,c:l.c,lot:l.id,type,d:r2(d),u:l.u,at:new Date().toISOString(),by:S.op||'職員',after:nq,...(o||{})};S.mv.push(m);return m}
+const ledger=l=>r2(S.mv.filter(m=>m.lot===l.id).reduce((a,m)=>a+m.d,0));
+function addLot(o){const l={id:'U'+(++S.seq),c:o.c,item:o.item,qty:0,u:o.u,loc:o.loc||'冷蔵',org:o.org,buy:o.buy||null,exp:o.exp||null,ek:o.exp?(o.ek||'未確認'):'未確認',ok:!!o.ok,qUnk:!!o.qUnk,approx:!!o.approx,fresh:!!o.fresh,res:0,ck:o.ck||null,parent:o.parent||null,bid:o.bid||null,ver:0,note:o.note||''};S.lots.push(l);if(o.qty>0)mvAdd(l,o.type,o.qty,{reason:o.reason||''});return l}
+const own=()=>0;
+const mine=id=>{const l=S.lots.find(x=>x.id===id);return l&&l.c===S.cid?l:null};
+const NOT_MINE='このロットは操作できません（他の利用者の在庫は使えません）。';
+function afterLot(){V().gen=null}
+const lotsAll=(c,n,u)=>S.lots.filter(l=>l.c===c&&l.item===n&&l.u===u&&(l.qty>0));
+function lotAdd(f){const item=f.item.trim(),q=qn(f.qty),ext=f.org==='外部補充';
+ if(!item)return ngR('品目を入力してください。');
+ if(!f.qUnk&&(q===null||q<=0))return ngR('数量は0より大きい数値（小数2桁まで）で入力してください。');
+ if(f.buy&&f.buy>T)return ngR('購入日が未来になっています。');
+ if(f.exp&&f.buy&&f.exp<f.buy)return ngR('期限が購入日より前になっています。');
+ const l=addLot({c:S.cid,item,qty:f.qUnk?0:q,u:f.u,loc:f.loc,org:ext?'外部補充':'初期',buy:f.buy,exp:f.exp,ek:f.ek,ok:f.ok,qUnk:f.qUnk,approx:f.approx,ck:T,type:ext?'外部補充':'初期登録',reason:ext?'家族等による補充（購入履歴なし・参考価格は更新しない）':'初期棚卸（購入履歴なし）'});
+ aud('在庫：'+(ext?'外部補充':'初期棚卸'),C().n+' '+item,'—',`${f.qUnk?'数量不明':q+f.u}／${f.loc}／期限${f.exp||'未確認'}`,ext?'家族補充':'初期棚卸');afterLot();
+ return okR(uOK(l)?'使用可の在庫として登録しました。':'登録しました。期限・使用可否・数量が確認できるまで、献立には充当しません。')}
+function lotCheck(id,f){const l=mine(id);if(!l)return ngR(NOT_MINE);const exp=f.exp||null;
+ if(exp&&l.buy&&exp<l.buy)return ngR('期限が購入日より前になっています。');
+ const setMeta=()=>{l.ok=!!f.ok;l.approx=!!f.approx;l.exp=exp;l.ek=exp?(f.ek||l.ek||'未確認'):'未確認';l.ck=T;l.ver=(l.ver||0)+1};
+ if(f.qUnk){l.qUnk=true;setMeta();aud('在庫：残量更新（数量不明）',C().n+' '+l.item,`${l.qty}${l.u}`,'数量不明',f.reason||'—');afterLot();return okR('数量不明として記録しました。量が分かるまで自動では充当しません。')}
+ const a=qn(f.act);if(a===null)return ngR('残量は0以上の数値（小数2桁まで）で入力してください。');
+ const d=r2(a-l.qty);
+ if(d!==0){const M={'調理で使用':['調理使用',-1],'家族等の使用':['家族消費',-1],'廃棄':['廃棄',-1],'初期在庫':['初期登録',1],'家族補充':['外部補充',1],'返品':['返品入',1],'実棚差':['棚卸差',0]}[f.reason];
+  if(!M)return ngR('残量が変わります。理由（調理で使用・家族等の使用・廃棄・実棚差など）を選んでください。');
+  if((M[1]<0&&d>0)||(M[1]>0&&d<0))return ngR('選んだ理由と、増減の向きが合いません。');
+  mvAdd(l,M[0],d,{reason:f.reason==='実棚差'?'実棚差・原因不明':f.reason})}
+ const before=r2(l.qty-d);l.qUnk=false;setMeta();
+ aud('在庫：残量更新',C().n+' '+l.item+'（'+l.loc+'）',`${before}${l.u}`,`${a}${l.u}／${l.ok?'使用可':'要確認'}／期限${exp||'未確認'}`,d!==0?f.reason:'差なし');afterLot();
+ return okR(d!==0?`残量を${a}${l.u}に更新しました（${d>0?'+':''}${d}${l.u}・${f.reason}）。`:'確認を記録しました（残量の変更なし）。')}
+function lotDisc(id,qs,why){const l=mine(id);if(!l)return ngR(NOT_MINE);const q=qn(qs);if(q===null||q<=0)return ngR('廃棄する数量は0より大きい数値で入力してください。');
+ if(q>l.qty)return ngR(`廃棄できるのは${l.qty}${l.u}までです。`);if(!why.trim())return ngR('廃棄の理由を入力してください。');
+ mvAdd(l,'廃棄',-q,{reason:why.trim()});aud('在庫：廃棄',C().n+' '+l.item,`${r2(l.qty+q)}${l.u}`,`${l.qty}${l.u}`,why.trim());afterLot();return okR('廃棄を記録しました。')}
+function lotMove(id,qs,to){const l=mine(id);if(!l)return ngR(NOT_MINE);const q=qn(qs);if(q===null||q<=0)return ngR('移動する数量は0より大きい数値で入力してください。');
+ if(!LOC.includes(to)||to===l.loc)return ngR('移動先を選んでください（現在と同じ場所にはできません）。');
+ if(q>l.qty)return ngR(`移動できるのは${l.qty}${l.u}までです。`);
+ let t=S.lots.find(x=>x.id!==l.id&&x.c===l.c&&x.item===l.item&&x.u===l.u&&x.loc===to&&x.buy===l.buy&&x.exp===l.exp&&x.ok===l.ok&&!!x.qUnk===!!l.qUnk&&!!x.approx===!!l.approx&&x.org===l.org&&!!x.fresh===!!l.fresh);
+ if(!t)t=addLot({c:l.c,item:l.item,qty:0,u:l.u,loc:to,org:l.org,buy:l.buy,exp:l.exp,ok:l.ok,qUnk:l.qUnk,approx:l.approx,fresh:l.fresh,ck:l.ck,parent:l.id,bid:l.bid,note:'保管場所移動で作成'});
+ const o=mvAdd(l,'移動出',-q,{reason:`${l.loc}→${to}`}),i=mvAdd(t,'移動入',q,{reason:`${l.loc}→${to}`,pair:o.id});o.pair=i.id;
+ aud('在庫：保管場所移動',C().n+' '+l.item,`${l.loc} ${r2(l.qty+q)}${l.u}`,`${to}へ${q}${l.u}`,'総量は変わりません。冷凍を理由に期限は延長しません');afterLot();
+ return okR(`${q}${l.u}を${l.loc}から${to}へ移しました。総量は変わらず、期限も延長していません。`)}
+function doDeliver(did,qs,loc,exp){const v=V(),d=S.deliv.find(x=>x.id===did);if(!d||d.c!==S.cid)return ngR(NOT_MINE);const rem=r2(d.total-d.dq),q=qn(qs);
+ if(q===null||q<=0)return ngR('引渡し数量は0より大きい数値で入力してください。');if(q>rem)return ngR(`引渡し数量が未引渡し残量（${rem}${d.u}）を超えています。`);if(exp&&exp<d.pdate)return ngR('期限が購入日より前になっています。');
+ addLot({c:S.cid,item:d.n,qty:q,u:d.u,loc:loc||'冷蔵',org:'購入',buy:d.pdate,exp:exp||null,ek:'未確認',ok:true,fresh:d.pdate===T,ck:T,bid:d.bid,type:'引渡し入庫',reason:`購入品を利用者宅へ引渡し（${STN(d.sid)}）`});
+ d.dq=r2(d.dq+q);aud('在庫：引渡し入庫',C().n+' '+d.tn,`未引渡し${rem}${d.u}`,`入庫${q}${d.u}／残り${r2(d.total-d.dq)}${d.u}`,'購入品の引渡し確認');afterLot();
+ return okR(`${q}${d.u}を在庫に入れました。${d.pdate===T&&!exp?'期限が未入力のため、使えるのは購入当日だけです。期限が分かれば在庫タブで入力してください。':''}`)}
+function deliveryPanel(v){const ds=S.deliv.filter(d=>d.c===S.cid&&(r2(d.total-d.dq)>0||(v.bought&&d.bid===v.bought.id)));if(!ds.length)return'';
+ return`<h2>購入品の引渡し確認</h2><div class="meta">店舗で買った食材のうち、利用者宅へ引き渡した量だけが在庫に入ります。引渡し未確認の購入品は、献立の在庫として使われません。（買い物を保存するときに「引渡し済み」とした食材は自動で入庫済みです。）</div>`+ds.map(d=>{const rem=r2(d.total-d.dq);return`<div class="card"><b>${esc(d.tn)}</b>　購入${d.total}${d.u}／引渡し済み${d.dq}${d.u}／未引渡し ${rem}${d.u}${rem>0?`<div class="row"><label>今回の引渡し量（${d.u}）<input class="s" id="dq-${d.id}" inputmode="decimal" value="${rem}"></label><label>保管場所<select id="dl-${d.id}">${LOC.map(x=>`<option>${x}</option>`).join('')}</select></label><label>期限（分かれば）<input type="date" id="de-${d.id}"></label><button class="b p" data-a="dlv" data-i="${d.id}">引渡しを確認して入庫</button></div>`:' <span class="tag">全量入庫済み</span>'}</div>`}).join('')}
+function lotTags(l){return(l.qUnk?'<span class="tag e">数量不明・自動充当しない</span>':uOK(l)?'<span class="tag">使用可（確認済み）</span>':l.exp&&l.exp<PD()?'<span class="tag e">期限切れ・使用不可</span>':'<span class="tag w">要確認・自動充当しない</span>')+(isNear(l)&&uOK(l)?'<span class="tag w">期限が近い</span>':'')+(l.approx?'<span class="tag w">概算量</span>':'')+(l.ck!==T?'<span class="tag w">今回未確認</span>':'')}
+function lotCard(l,v){const id=l.id,cb=(k,t,on)=>`<label style="display:flex;gap:6px;align-items:center;color:var(--ink);font-size:15px"><input id="${k}-${id}" type="checkbox" ${on?'checked':''} style="min-height:24px;width:24px">${t}</label>`,k='lot-'+id,dd=daysOf(l);
+ return`<div class="card"><h3>${esc(l.item)}　${l.qUnk?'（数量不明）':l.qty+l.u}</h3>${lotTags(l)}<div class="meta">保管：${l.loc}｜由来：${{初期:'初期棚卸',購入:'購入（引渡し入庫）',外部補充:'外部補充'}[l.org]||l.org}｜購入日：${l.buy||'不明'}｜期限：${l.exp?fm(l.exp)+'（'+(l.ek||'未確認')+(dd!==null?'・あと'+dd+'日':'')+'）':'未確認'}｜最終確認：${l.ck||'未確認'}${l.note?'｜'+esc(l.note):''}</div>
+ <div class="row"><label>残量（${l.u}）<input class="s" id="ca-${id}" inputmode="decimal" value="${l.qUnk?'':l.qty}"></label><label>理由（残量が変わる場合）<select id="cr-${id}"><option value="">変更なし</option><option>調理で使用</option><option>家族等の使用</option><option>廃棄</option><option value="初期在庫">初期在庫（増加）</option><option value="家族補充">家族補充（増加）</option><option value="返品">返品（増加）</option><option value="実棚差">実棚差・原因不明</option></select></label><button class="b p" data-a="lotck" data-l="${id}">残量を更新</button><button class="b" data-a="lotfull" data-l="${id}">全量使用</button></div>
+ <details data-k="${k}" ${S.open[k]?'open':''}><summary>期限・確認／保管場所の移動／廃棄</summary>
+ <div class="row"><label>期限<input type="date" id="ce-${id}" value="${l.exp||''}"></label><label>期限の種別<select id="ck-${id}">${['未確認','賞味期限','消費期限'].map(x=>`<option ${(l.ek||'未確認')===x?'selected':''}>${x}</option>`).join('')}</select></label>${cb('co','現物確認済み（使用可）',l.ok)}${cb('cp','概算量',l.approx)}${cb('cq','数量不明',l.qUnk)}</div><div class="meta">上の「残量を更新」で、期限・確認の内容も一緒に保存されます。</div>
+ <h3 style="margin-top:10px">保管場所の移動</h3><div class="row"><label>数量（${l.u}）<input class="s" id="mq-${id}" inputmode="decimal" value="${l.qty}"></label><label>移動先<select id="ml-${id}">${LOC.filter(x=>x!==l.loc).map(x=>`<option>${x}</option>`).join('')}</select></label><button class="b" data-a="lotmv" data-l="${id}">移動</button></div>
+ <h3 style="margin-top:10px">廃棄</h3><div class="row"><label>数量（${l.u}）<input class="s" id="dq-${id}" inputmode="decimal"></label><label>理由<input id="dw-${id}" placeholder="例：傷んでいた"></label><button class="b" data-a="lotdisc" data-l="${id}">廃棄を記録</button></div></details></div>`}
+
+
+// ===== F-03 期限の近い食材を優先した献立提案 =====
+function calc(r,c,sv){const sid=V().sid,d=PD(),rows=r.ing.map(([n,q,u])=>{const need=q*sv,ls=lots(c,n,d).filter(l=>l.u===u),lu=[];let rem=need;
+  ls.forEach(l=>{const t=Math.min(rem,l.qty);if(t>0){lu.push({id:l.id,it:n,u,q:r2(t),exp:l.exp,ek:l.ek||'未確認',days:daysOf(l,d),loc:l.loc,ck:l.ck,ap:l.approx});rem=r2(rem-t)}});
+  const use=r2(need-rem),sh=rem,pr=PRO(n),rf=ref(sid,n),pk=sh>0?Math.ceil(sh/pr.pack):0,price=rf?rf.price:null;
+  return{n,u,need,use,sh,pk,pack:pr.pack,price,rf,rfk:rf?rf.kind:null,cost:sh>0?(price!=null?pk*price:null):0,left:pk?r2(pk*pr.pack-sh):0,lu,unc:S.lots.some(l=>l.c===c&&l.item===n&&!uOK(l,d)&&(l.qty>0||l.qUnk)),prov:lu.some(z=>z.ck!==T),apx:lu.some(z=>z.ap)}});
+ return{rows,fill:rows.reduce((a,x)=>a+Math.min(1,x.use/x.need),0)/rows.length,cost:rows.some(x=>x.cost===null)?null:rows.reduce((a,x)=>a+x.cost,0)}}
+const nearTxt=z=>`期限が近い${z.it}${z.q}${z.u}を使用（${fm(z.exp)}・${z.ek}${z.days===0?'・本日':z.days===1?'・明日':''}）`;
+function gen(){const c=C(),sv=+($('#sv')?.value||V().sv||1),d=PD();
+ if(c.st!=='ok')return{stop:'アレルギー・食事形態が未確認のため生成を停止しました。確認後に再実行してください。'};
+ if(d<T)return{stop:'調理予定日は今日以降にしてください。'};
+ const ex=[],ok=[];
+ RX().forEach(r=>{const bn=r.ing.filter(i=>c.ban.includes(i[0])||c.ban.includes(PRO(i[0]).n)).map(i=>i[0]);const last=S.cooks.filter(k=>k.c===S.cid&&k.r===r.id).map(k=>k.d).sort().pop();
+  if(bn.length)ex.push([r,'禁止食材（'+bn.join('・')+'）を含む']);else if(r.t>c.maxT)ex.push([r,'調理時間'+r.t+'分が上限'+c.maxT+'分を超過']);else ok.push({r,last,rec:!!(last&&df(last,d)<7),rnd:Math.random(),k:calc(r,S.cid,sv)})});
+ const nearAll=S.lots.filter(l=>l.c===S.cid&&l.qty>0&&uOK(l,d)&&isNear(l,d));
+ if(!ok.length)return{stop:'条件に合う献立がありません。条件は緩めません。',ex,nearAll};
+ const all=ok.every(x=>x.k.cost!==null);
+ ok.forEach(x=>{const nl=x.k.rows.flatMap(r=>r.lu.filter(z=>z.days!==null&&z.days>=0&&z.days<=S.thr));x.nl=nl;x.nt=new Set(nl.map(z=>z.it)).size;x.minNear=nl.length?nl.map(z=>z.exp).sort()[0]:'9'});
+ ok.sort((a,b)=>(a.rec-b.rec)||(b.nl.length>0)-(a.nl.length>0)||(a.nl.length&&b.nl.length?a.minNear.localeCompare(b.minNear):0)||b.nt-a.nt||(a.rnd-b.rnd));
+ return{top:ok.slice(0,3),all:ok,ex,noCost:!all,sv,ver:c.ver,sid:V().sid,pd:d,nearAll,noNear:nearAll.length>0&&ok.every(x=>!x.nl.length)}}
+function doSelect(rid){const v=V(),g=v.gen;if(v.bought)return ngR('買い物を保存した後は献立を変更できません。');if(!g||!g.all)return ngR('');
+ if(g.ver!==C().ver){v.gen=null;return ngR('アセスメントが更新されたため古い提案を拒否しました。再生成してください。')}
+ if(g.sid!==v.sid){v.gen=null;return ngR('買い物先の店舗が変わったため古い提案を拒否しました。再生成してください。')}
+ const x=g.all.find(t=>t.r.id===rid);if(!x)return ngR('');
+ v.sel=rid;S.cooks=S.cooks.filter(z=>!(z.k==='sel'&&z.c===S.cid&&z.v===v.reqId));S.cooks.push({c:S.cid,r:rid,d:v.pd||T,k:'sel',v:v.reqId});v.plan={r:rid,rn:x.r.n,sv:g.sv,ver:g.ver,sid:g.sid,est:x.k.cost,dr:x.k.rows.filter(r=>r.sh>0).map(({n,u,pk,pack,price,sh,rfk})=>({n,u,pk,pack,price,sh,rfk}))};
+ const keep=v.lines.filter(l=>l.src!=='plan'),old=v.lines.filter(l=>l.src==='plan');v.lines=keep;
+ x.k.rows.filter(r=>r.pk>0).forEach(r=>{const o=old.find(l=>l.pr===r.n);const nl=o||newLine(r.n,r.pk,{src:'plan'});if(o&&!o.amtT)nl.qty=String(r.pk);v.lines.push(nl)});
+ return okR('')}
+const dgSel=()=>PR.filter(p=>p.k==='d'&&V().dg[p.id]);
+const selId=()=>{const v=V();return v.plan?v.plan.r:(v.sel||v.gen?.top?.[0]?.r.id)};
+const selRows=()=>{const v=V();if(v.plan)return{rows:v.plan.dr,est:v.plan.est};const x=(v.gen?.all||v.gen?.top)?.find(t=>t.r.id===selId());return x?{rows:x.k.rows.filter(r=>r.sh>0),est:x.k.cost}:null};
+const condOf=rf=>!rf||rf.kind==='normal'||rf.kind==='std'?'':rf.kind==='stat'?'（統計参考）':rf.kind==='last'?'（前回購入価格）':'（前回割引時価格）';
+const estLines=()=>{const v=V(),sr=selRows();if(!sr)return null;const o=sr.rows.map(r=>({pr:r.n,qty:r.pk,price:r.price,cond:r.rfk&&r.rfk!=='normal'?(r.rfk==='last'?'（前回購入価格）':'（前回割引時価格）'):''}));dgSel().forEach(d=>{const rf=ref(v.sid,d.id);o.push({pr:d.id,qty:1,price:rf?rf.price:null,cond:condOf(rf)})});return o};
+const itemTxt=i=>`${i.tn}${i.spec?'（'+i.spec+'）':''} ${FQ(i.qty*i.pack,i.u)}${i.u} ${i.amt}円${i.dn?`（${i.dn}）`:''}`;
+function texts(){const v=V(),t={},R0=selId()&&RX().find(r=>r.id===selId());
+ if(R0)t.menu=R0.n;
+ if(v.bought){const b=v.bought;t.itm=`合計${b.pur}円\n`+b.items.map(itemTxt).concat(b.adj.map(a=>`${a.r}${a.a}円`)).map(x=>'・'+x).join('\n')}
+ else if(v.none&&!v.lines.length){t.itm='今回は購入なし。'}
+ else if(v.lines.length||v.plan){let unk=false,known=0;const parts=v.lines.map(l=>{const p=PRO(l.pr),x=lc(l),q=x.q||1,rf=ref(v.sid,lkey(l));let t=`${tn(p)}${l.spec&&l.spec.trim()?'（'+l.spec.trim()+'）':''} ${FQ(q*p.pack,p.u)}${p.u}`;if(x.amt!==null){known+=x.amt;t+=` ${x.amt}円`}else if(rf){known+=q*rf.price;t+=' '+(rf.kind==='stat'?'約':'')+`${q*rf.price}円`+condOf(rf)}else{unk=true;t+=' （価格未確認）'}return t});
+  t.itm=parts.length?(unk?`合計は未確定（既知分${known}円）`:`合計${known}円`)+'\n'+parts.map(x=>'・'+x).join('\n'):'購入予定：なし（在庫で充当）。'}
+ return t}
+const cur=k=>{const v=V(),b=texts()[k];return(v.txt[k]??b??'').replace(/\r\n?/g,'\n')};
+const cntHtml=k=>{const t=cur(k),a=cnt(t),b=t.length,o=a>200||b>200;return`<span id="c-${k}" class="tag ${o?'e':''}">${a}/200字（UTF-16:${b}）${o?' 超過':''}</span>`};
+const mis=k=>{const v=V();if(k!=='itm'||!v.bought)return false;const t=cur('itm'),b=v.bought,m=t.match(/合計([\d,]+)円/);return !m||+m[1].replace(/,/g,'')!==b.pur||b.items.some(i=>!t.includes(i.tn)||!t.includes(i.amt+'円'))||/購入予定|概算/.test(t)};
+const okc=k=>{const x=cur(k);return !!x&&cnt(x)<=200&&x.length<=200&&!mis(k)};
+const field=(k,l,note)=>{const v=V(),t=cur(k),act=k==='itm'&&!!v.bought;
+ return`<div class="card"><b>${l}</b> <span class="tag ${act?'':'w'}">${k==='menu'?'料理名':act?'実購入':'下書き（購入予定・概算）'}</span> ${cntHtml(k)}<textarea data-a="txt" data-k="${k}" aria-label="${l}">${esc(t)}</textarea>${mis(k)?'<div class="note e">内訳の文面が保存済みの明細・実購入額と一致しません。文面を再生成してください（手修正は置換確認します）。</div>':''}${t?'':'<div class="meta">'+(note||'提案を生成して案を選ぶと表示されます。')+'</div>'}<div class="row"><button class="b" data-a="copy" data-k="${k}" ${okc(k)?'':'disabled'}>${l}をコピー</button><button class="b" data-a="regen" data-k="${k}">再生成</button>${v.copied[k]?'<span class="tag">コピー成功</span>':''}</div></div>`};
+
+const KIND=['メーカー公式','公的機関','業界団体','研究機関','個人ブログ・口コミ','出典不明・まとめ','AI生成','販売ページの宣伝値'],BADK=['個人ブログ・口コミ','出典不明・まとめ','AI生成','販売ページの宣伝値'];
+const srcSt=x=>BADK.includes(x.kind)?['除外','平均計算から除外（一次資料への手がかりとしても直接採用しない）']:!(x.url&&x.dated&&x.cond&&x.basis)?['保留','必須条件（一次資料URL・日付・規格人数頻度・算出根拠）が未確認']:!x.ap?['保留','責任者の承認待ち（承認済みの資料版だけ計算に使う）']:['採用',''];
+function srcCalc(){const g={};S.src.forEach(x=>{if(srcSt(x)[0]!=='採用')return;const k=x.typ;g[k]=g[k]||new Map();if(!g[k].has(x.orig||x.id))g[k].set(x.orig||x.id,x.Tt*x.N*12/(x.Q*1))});
+ return Object.fromEntries(Object.entries(g).map(([k,m])=>[k,[...m.values()]]))}
+
+
+// ===== 日用品の確認目安（v0.13：利用者別設定 → 事業所標準 → 購入間隔 → 資料平均） =====
+const entTd=(c,pr)=>S.dlog.filter(x=>x.c===c&&x.pr===pr).map(x=>x.td).sort().pop()||null;
+const entAt=(c,pr)=>S.dlog.filter(x=>x.c===c&&x.pr===pr).map(x=>x.at).sort().pop()||null;
+const actDays=(c,pr)=>{const t=[...new Set(S.dlog.filter(x=>x.c===c&&x.pr===pr&&x.k==='buy'&&!x.ex).map(x=>x.td))].sort();const g=[];for(let i=1;i<t.length;i++)g.push(df(t[i-1],t[i]));return g.length>=2?g.reduce((a,b)=>a+b)/g.length:null};
+const baseDay=(c,pr)=>S.base==='entry'?(entTd(c,pr)||(S.last[c]||{})[pr]||null):((S.last[c]||{})[pr]||null);
+const jt=iso=>{const d=new Date(Date.parse(iso)+9*36e5);return`${d.getUTCMonth()+1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`};
+const consInfo=(pr,c)=>{const u=((S.cd||{})[c]||{})[pr];if(u&&u.d>0)return{D:u.d,src:'利用者別設定'};if(S.cons[pr]>0)return{D:S.cons[pr],src:'事業所標準'};const a=c&&actDays(c,pr);if(a)return{D:a,src:'購入間隔の平均'};if(pr==='D1'){const g=srcCalc()['実測']||[];if(g.length)return{D:g.reduce((a,b)=>a+b)/g.length,src:'資料平均'}}return null};
+const consDays=(pr,c)=>{const i=consInfo(pr,c);return i?i.D:null};
+function dueInfo(c,pr){const ci=consInfo(pr,c),D=ci?ci.D:null,last=baseDay(c,pr),src=ci&&ci.src;if(!last)return{pr,s:'nolast',D:D&&Math.round(D),src};const el=df(last,T);if(D===null)return{pr,s:'noD',last,el};const th=Math.ceil(D*.8);return{pr,last,el,D:Math.round(D),th,src,s:el>=D?'over':el>=th?'due':'ok'}}
+const dueList=c=>PR.filter(p=>p.k==='d').map(p=>dueInfo(c,p.id));
+const dueShown=c=>dueList(c).filter(x=>x.s==='over'||x.s==='due'||x.s==='ok').sort((a,b)=>(a.D-a.el)-(b.D-b.el));
+const dueTag=i=>({over:'<span class="tag e">残量確認の目安を過ぎています</span>',due:'<span class="tag w">そろそろ残量を確認</span>',ok:`<span class="tag">次の確認目安まで約${Math.max(0,i.D-i.el)}日</span>`,noD:'<span class="tag w">目安日数が未登録</span>',nolast:'<span class="tag w">記入がまだありません</span>'})[i.s];
+const dueSub=i=>i.last?`${S.base==='entry'&&entAt(S.cid,i.pr)?'最終記入 '+jt(entAt(S.cid,i.pr)):'前回購入 '+fm(i.last)}（${i.el}日前）${i.D?'・目安 約'+i.D+'日（'+i.src+'）':''}`:(i.D?`目安 約${i.D}日（${i.src}）。記入すると判定します`:'記入と目安日数が入ると判定します');
+
+function nextDay(){const d=new Date(Date.parse(T)+D).toISOString().slice(0,10);S.today=d;T=d;S.v={};S.tab='gen';S.msg=`${d}（翌日）へ進めました。訪問の入力は初期化され、価格履歴・調理履歴は引き継がれます。`}
+
+
+// ===== F-10 購入前の概算と預り金の目安 =====
+function est(v){const U=Number.isInteger(S.bud.U)&&S.bud.U>0?S.bud.U:1,B=Number.isInteger(S.bud.B)&&S.bud.B>=0?S.bud.B:0;
+ const rows=v.lines.map(l=>{const p=PRO(l.pr),x=lc(l),q=x.q,rf=ref(v.sid,lkey(l));return{l,p,q,rf,e:rf&&q?rf.price*q:null}});
+ const unk=rows.filter(r=>r.e===null),E=rows.reduce((a,r)=>a+(r.e||0),0),all=rows.length>0&&!unk.length,P=all?Math.ceil((E+B)/U)*U:null;
+ return{rows,E,unk:unk.map(r=>r.p.n),unkN:unk.length,all,P,U,B,n:rows.length,snap:rows.map(r=>({pr:lkey(r.l),n:r.p.n,q:r.q,price:r.rf?r.rf.price:null,kind:r.rf?r.rf.kind:null,ver:r.rf?r.rf.ver||null:null}))}}
+function estHtml(){const v=V();if(v.none&&!v.lines.length&&!v.bought)return'<div class="meta">購入予定なし：概算0円。預り金の提案は行いません。</div>';
+ const sn=v.bought&&v.bought.est,e=sn||est(v),n=sn?e.snap.length:e.n;
+ if(!n)return'<div class="meta">品目を選ぶと、統計に基づく参考価格から概算と預り金の目安を表示します。</div>';
+ let h=sn?'<div class="meta">保存時の見積り（購入後の実額とは別に保存。後で価格設定を変えても変わりません）</div>':'';
+ if(e.all){h+=`<div class="tots"><span>概算（統計に基づく参考）<b>${yen(e.E)}</b></span><span>預り金の目安<b>${yen(e.P)}</b></span></div><div class="meta">概算${yen(e.E)}＋予備額${yen(e.B)}を${yen(e.U)}単位で切り上げ。統計価格は東大阪市の平均的な小売価格（税込）に基づく参考で、店頭価格を保証しません。</div>`;if(e.P>5000)h+='<div class="note">預り金の目安が上限の5,000円を超えます。希望品の見直しを確認してください。</div>';
+  if(!v.bought){const m=money();if(m.dd&&!m.depBad){const d=m.dsum-e.E;h+=d>=0?`<div class="meta">実際の預り ${yen(m.dsum)}：概算との差 +${yen(d)}（購入後のお釣りとは別です）</div>`:`<div class="note">実際の預り ${yen(m.dsum)}は概算より${yen(-d)}足りません。希望品の見直しや追加預りを確認してください。</div>`}}}
+ else h+=`<div class="tots"><span>既知の小計<b>${yen(e.E)}</b></span><span>価格取得不可<b>${e.unkN}件</b></span></div><div class="note">価格を取得できない品目があるため、概算の合計・預り金の目安・予算内の判定は表示しません。推測で補いません。${e.unk?'取得不可：'+esc(e.unk.join('・')):''}<div class="meta">実額は購入後にレシートで入力できます。統計との対応づけは「設定」で確認できます。</div></div>`;
+ if(e.snap.some(s=>s.kind==='stat'))h+=`<div class="meta">${STAT_CREDIT}</div>`;
+ return h}
+const STAT_CREDIT='出典：政府統計の総合窓口（e-Stat）、総務省「小売物価統計調査」を加工して作成。このサービスは、e-StatのAPI機能を使用していますが、サービスの内容は国によって保証されたものではありません。';
+const cntOf=(v,id)=>v.lines.filter(l=>l.pr===id).reduce((a,l)=>a+(+l.qty||0),0);
+const chipOf=(v,p)=>`<button class="b chip ${cntOf(v,p.id)?'p':''}" data-a="quick" data-p="${p.id}">${esc(p.tn||p.n)}${cntOf(v,p.id)?' ×'+cntOf(v,p.id):''}</button>`;
+function catList(){const v=V(),q=(S.q||'').trim(),fav=S.fav[S.cid]||[];let list;
+ if(q)list=PR.filter(p=>(p.n+(p.tn||'')+p.al+p.cat).includes(q));
+ else if(S.cat==='よく買うもの')list=fav.map(PRO).filter(Boolean);
+ else if(S.cat==='その他')return`<div class="card"><div class="meta">カタログにない品物だけ、品名・数量・単位を入力します（価格は未登録として扱います）。繰り返し使う品物は責任者がカタログへの追加を確認します。</div><div class="row"><label>品名<input id="xn" maxlength="30" placeholder="例：つめ切り"></label><label>数量<input id="xq" class="s" inputmode="numeric" value="1"></label><label>単位<select id="xu">${['個','本','袋','箱','枚','組','パック'].map(x=>`<option>${x}</option>`).join('')}</select></label></div><div class="row"><button class="b p" data-a="xadd">追加</button></div></div>${PR.some(p=>p.k==='o')?'<div class="meta">これまでに入力した品物</div><div class="chips">'+PR.filter(p=>p.k==='o').map(p=>chipOf(v,p)).join('')+'</div>':''}`;
+ else list=PR.filter(p=>p.cat===S.cat);
+ if(!list.length)return`<div class="meta">${q?'該当する品目がありません。「その他」から入力できます。':'よく買う品目が未登録です。品目の詳細から「☆ よく買う品目に入れる」で登録できます。'}</div>`;
+ return`<div class="chips">${list.map(p=>chipOf(v,p)).join('')}</div>`}
+function catUI(v){const fav=S.fav[S.cid]||[];if(!S.cat)S.cat=fav.length?'よく買うもの':'食材';const cats=['よく買うもの',...CATS,'その他'];
+ return`<div class="meta">タップで1つ追加、もう一度タップで数量＋1。品名は一般名です（銘柄の指定は任意）。</div><div class="chips" role="tablist">${cats.map(c=>`<button class="b chip ${S.cat===c&&!(S.q||'').trim()?'p':''}" data-a="cat" data-k="${c}">${c}</button>`).join('')}</div><label style="margin-top:6px">品名で探す<input id="catq" type="search" data-a="catq" placeholder="例：ティッシュ" value="${esc(S.q||'')}"></label><div id="catlist" style="margin-top:6px">${catList()}</div>`}
+function dueBlock(v){const di=dueShown(S.cid);
+ let h=`<div class="note">🧴 日用品の確認目安<div class="meta">日数だけで残量の少なさや購入の必要は決められません。残量や本人の希望を確認し、必要なものだけ追加してください。買い物の予定があっても自動では追加しません。</div></div>`;
+ h+=di.length?di.map(x=>{const p=PRO(x.pr),n=cntOf(v,x.pr);return`<div class="card" style="display:flex;gap:10px;align-items:center;padding:10px 12px"><div style="flex:1"><b>${esc(p.n)}</b> ${dueTag(x)}<div class="meta">${dueSub(x)}</div></div><button class="b ${n?'p':''}" data-a="quick" data-p="${x.pr}">${n?'追加済み ×'+n:'追加'}</button></div>`}).join(''):'<div class="meta">確認目安が登録された日用品はまだありません（「設定」で登録できます）。</div>';
+ const all=dueList(S.cid).filter(x=>x.last);
+ if(all.length)h+=`<details data-k="dlast" ${S.open.dlast?'open':''}><summary>起点日を直す（責任者・理由が必要）</summary><div class="row"><label>訂正の理由<input data-a="dlr" data-p="_" value="${esc(S.dlr._||'')}" placeholder="例：まとめ買いで使い始めが後のため"></label></div>${all.map(x=>`<div class="row"><label>${esc(PRO(x.pr).n)}<input type="date" max="${T}" data-a="dlast" data-p="${x.pr}" value="${x.last||''}"></label></div>`).join('')}<div class="meta">理由を入れてから日付を直します。手修正は購入間隔の計算に含めません。</div></details>`;
+ return h}
+const FQ_K=[['Ti','基準日数（資料の日数）'],['Ni','基準人数'],['Qi','基準容量'],['Fi','基準の使用頻度（1日あたりの回数）'],['N','対象人数'],['Q','対象容量'],['F','対象の使用頻度（1日あたりの回数）']];
+function fqCalc(){const f=S.fq,n=k=>+f[k];if(!FQ_K.every(([k])=>f[k]!==''&&isFinite(n(k))&&n(k)>0))return'値がそろっていません。使用頻度が不明または0のときは計算しません。';const Dv=n('Ti')*n('Ni')*n('Q')*n('Fi')/(n('Qi')*n('N')*n('F'));return`候補 ${+Dv.toFixed(1)}日（試算のみ。承認前の自動適用や、全利用者への一律の反映はしません）`}
+const AT=[
+ {id:'AC-22',t:'AC-21/22 にんじん・じゃがいも・シャンプー・ティッシュ・トイレットペーパーを選択（概算2,200円・預り金の目安3,000円。実預り・実額は空欄）',dep:'',L:[['にんじん',1,''],['じゃがいも',1,''],['D4',1,''],['D12',1,''],['D1',1,'']]},
+ {id:'AC-23',t:'AC-23 実預り3,000円・実額合計2,380円（お釣り620円。購入前の差額800円は実績にしない）',dep:'3000',L:[['にんじん',1,'250'],['じゃがいも',1,'300'],['D4',1,'650'],['D12',1,'380'],['D1',1,'800']]},
+ {id:'AC-24',t:'AC-24 5件中1件（石けん）の価格が未登録（既知小計と不明件数だけ表示）',dep:'',L:[['にんじん',1,''],['じゃがいも',1,''],['D4',1,''],['D12',1,''],['D7',1,'']]},
+ {id:'AC-25',t:'AC-25 献立なしで紅茶とジュースだけを追加',dep:'',L:[['紅茶',1,''],['ジュース',1,'']]},
+ {id:'AC-29',t:'AC-29 シャンプー標準500mLの価格を指定300mLへ流用しない（指定300mL）',dep:'',L:[['D4',1,'',{spec:'300mL'}]]},
+ {id:'AC-02',t:'AC-02 預り1,000円・牛乳180円・洗剤250円・卵250円（購入680円・お釣り320円）',dep:'1000',L:[['M1',1,'180'],['D2',1,'250'],['卵',1,'250']]},
+ {id:'AC-03',t:'AC-03 200円×2本を10％引き（360円）／300円−50円引き（250円）',dep:'1000',L:[['M1',2,'360',{dOpen:true,U:'200',method:'rate',val:'10'}],['D2',1,'250',{dOpen:true,U:'300',method:'yen',val:'50'}]]},
+ {id:'AC-04',t:'AC-04 割引後の実額だけ入力（通常価格は逆算しない）',dep:'1000',L:[['M1',1,'180']]},
+ {id:'AC-05',t:'AC-05 実額が空欄の状態（参考額と同じ を押すまで確定扱いにしない）',dep:'1000',L:[['M1',1,'']]}];
+function loadAT(id){const v=V(),a=AT.find(x=>x.id===id);if(!a||v.bought)return false;v.lines=a.L.map(([pr,q,amt,o])=>newLine(pr,q,{amt,amtT:true,src:'at',...(o||{})}));v.dep=[a.dep];v.adj=[];v.rcpt='';v.none=false;return true}
+const WHY=['','レシート表示額に合わせる','端数処理の違い','無償・サービス品等','その他'];
+function histNote(l,x){const h=histOf(l,x);return h?`<div class="meta">${h.note}</div>`:''}
+function lineSum(l){const x=lc(l);let h='';
+ if(x.P!==null&&x.q!==null)h+=`<div class="meta">割引後の単価 ${yen(x.P)} × ${x.q} = 計算額 ${yen(x.calc)}</div>`;
+ if(x.warn)h+=`<div class="note">${esc(x.warn)}</div>`;
+ h+=x.e.map(m=>`<div class="note e">${esc(m)}</div>`).join('');
+ if((x.diff||x.amt===0)&&!l.bought)h+=`<label>差額・0円の理由<select data-a="dwhy" data-l="${l.id}">${WHY.map(w=>`<option ${l.why===w?'selected':''}>${w}</option>`).join('')}</select></label>`;
+ if(x.ok&&(l.dOpen||l.same))h+=histNote(l,x);
+ return h}
+
+const CH=()=>Object.assign({},window.__CHOICES||{},S.chO||{});
+const chOn=l=>!!CH()[l.pr]&&statOf(l.pr)===null;
+function chRow(l,dis){const c=CH()[l.pr],sp=c.find(z=>z.spec===l.spec)||null,pz=(sp?sp.prices:[...new Set(c.flatMap(z=>z.prices))].sort((a,b)=>a-b));
+ return`<div class="note g"><div class="meta">規格と、1つあたりの金額に近いものを選びます。</div><div class="row"><label>規格<select data-a="chs" data-l="${l.id}" ${dis}><option value="">（選ばない）</option>${c.map(z=>`<option${l.spec===z.spec?' selected':''}>${esc(z.spec)}</option>`).join('')}</select></label></div><div class="row">${pz.map(x=>`<button class="b ${l.cp===x?'p':''}" data-a="chp" data-l="${l.id}" data-p="${x}" ${dis}>${x}円</button>`).join('')}<button class="b" data-a="chx" data-l="${l.id}" ${dis}>その他の金額</button></div><div class="meta">選んだ金額は1つあたりの税込額です。支払額は「選んだ金額×数量」で入ります。実際の金額と違うときは、支払額を直接直してください。</div></div>`}
+function lineCard(l,v){const p=PRO(l.pr),rf=ref(v.sid,lkey(l)),dis=v.bought?'disabled':'',k='d-'+l.id;
+ return`<div class="card"><div class="row" style="justify-content:space-between;margin-top:0"><b>${esc(p.n)}</b> <span class="meta">${l.spec&&l.spec.trim()?'指定：'+esc(l.spec.trim()):p.spec?'標準：'+esc(p.spec):''}</span>${v.bought?'':`<button class="b" data-a="dline" data-l="${l.id}">削除</button>`}</div>
+ <div class="row"><label>数量<span class="qty"><button class="b" data-a="qstep" data-l="${l.id}" data-d="-1" ${dis} aria-label="減らす">−</button><input class="s" inputmode="numeric" data-a="lq" data-l="${l.id}" value="${esc(l.qty)}" ${dis}><button class="b" data-a="qstep" data-l="${l.id}" data-d="1" ${dis} aria-label="増やす">＋</button></span></label><label>支払額（円・この行の税込合計）<input class="s amt" id="amt-${l.id}" inputmode="numeric" data-a="amt" data-l="${l.id}" value="${esc(l.amt)}" placeholder="円" ${dis}></label></div>
+ ${!v.bought&&chOn(l)?chRow(l,dis):''}
+  ${v.bought?'':`<details data-k="sp-${l.id}" ${S.open['sp-'+l.id]?'open':''}><summary>銘柄・規格の指定／よく買う品目</summary><div class="row"><label>本人の指定（任意。例：300mL・詰替え）<input data-a="lspec" data-l="${l.id}" value="${esc(l.spec||'')}" maxlength="40"></label></div><div class="meta">指定がなければ空欄で構いません。標準規格と違う指定は、その規格の価格がある場合だけ概算に使います。</div>${p.k==='d'?`<label style="display:flex;gap:6px;align-items:center;color:var(--ink);font-size:15px"><input type="checkbox" style="min-height:24px;width:24px" data-a="lbulk" data-l="${l.id}" ${l.bulk?'checked':''}>まとめ買い・買い置き（確認周期の購入間隔から除く）</label>`:''}<div class="row"><button class="b" data-a="fav" data-p="${l.pr}">${(S.fav[S.cid]||[]).includes(l.pr)?'★ よく買う品目から外す':'☆ よく買う品目に入れる'}</button></div></details>`}
+ <div id="ls-${l.id}">${lineSum(l)}</div>
+ </div>`}
+function paySum(full){const v=V(),m=money();const ok=m.dd&&!m.depBad;let h=`<div class="tots"><span>購入合計<b>${yen(m.pur)}</b></span><span>${ok&&m.chg<0?'不足':'お釣り'}<b class="${ok&&m.chg<0?'neg':''}">${ok?yen(Math.abs(m.chg)):'—'}</b></span></div>`;
+ if(!full)return h+`<div class="row" style="margin-top:6px"><button class="b p big" data-a="tab" data-k="tx">転記へ進む →</button></div>`;
+ const n=[];
+ if(!m.dd)n.push('預り金を入力してください。');
+ if(m.depBad)n.push('預りは0〜999,999の整数円で入力してください。');
+ if(ok&&m.chg<0)n.push(`預り金が${yen(-m.chg)}足りません。「追加預り」で解消すると保存できます。`);
+ if(m.adjBad)n.push('調整明細は理由と整数円の金額が必要です。');
+ if(m.miss)n.push(`支払額が未入力の行が${m.miss}件あります。`);
+ if(m.lineBad)n.push('赤い表示の行を直してください。');
+ if(m.rcBad)n.push('レシート合計は0〜999,999の整数円で入力してください。');
+ else if(m.diff!==null&&m.diff!==0)n.push(`入力したレシート合計と${yen(Math.abs(m.diff))}違います。`);
+ if(!m.dateOK)n.push('購入日は今日以前にしてください。');
+ if(!v.bought&&n.length)h+=`<div class="meta why-not">${esc(n[0])}</div>`;
+ if(!v.bought&&v.none&&!v.lines.length)h+='<div class="note g" style="margin:6px 0">✓ 今回は購入なしとして扱います。購入記録・精算は作りません。内訳のコピーは「今回は購入なし」になります。</div>';
+ if(v.bought)h+=`<div class="note g" style="margin:6px 0">✓ 保存しました：購入${yen(v.bought.pur)}／お釣り${yen(v.bought.chg)}。続けて、内訳などを転記先へコピーしてください。</div>`;
+ else h+=`<div class="row" style="margin-top:6px"><button class="b p big" data-a="buy" ${m.can&&!(v.none&&!v.lines.length)?'':'disabled'}>買い物を保存</button></div>`;
+ return h}
+function payCopy(){const v=V(),m=money(),ok=m.dd&&!m.depBad;return`<div class="row"><button class="b" data-a="copy" data-k="dep" ${ok?'':'disabled'}>預りをコピー</button><button class="b" data-a="copy" data-k="pur" ${v.bought?'':'disabled'}>購入をコピー${v.bought?'':'（保存後）'}</button></div><div class="meta">預り・購入は数字だけをコピーします。お釣りは既存画面の自動計算との照合用です。</div>`}
+function payRefresh(){if(S.tab==='pay'){const v=V();v.lines.forEach(l=>{const e=$('#ls-'+l.id);if(e)e.innerHTML=lineSum(l)});const es=$('#est');if(es)es.innerHTML=estHtml();const s=$('#psum');if(s)s.innerHTML=paySum();const c2=$('#pcopy');if(c2)c2.innerHTML=payCopy()}save()}
+function prefill(l,v){if(v.bought||l.amtT)return;
+ if(chOn(l)){if(l.cp)return;const c=CH()[l.pr]||[],sp=c.find(z=>z.spec===l.spec)||c[0],x0=lc(l);if(!sp||!sp.prices.length||x0.q===null)return;const pz=sp.prices,cp=pz[Math.floor((pz.length-1)/2)];l.spec=sp.spec;l.cp=cp;l.amt=String(cp*x0.q);const e=$('#amt-'+l.id);if(e)e.value=l.amt;return}
+ if(l.cp)return;const x=lc(l),rf=ref(v.sid,lkey(l));const nv=(rf&&x.q!==null)?String(rf.price*x.q):'';if(l.amt!==nv){l.amt=nv;const e=$('#amt-'+l.id);if(e)e.value=nv}}
+function autoAmt(l){if(!l.dOpen&&!l.amtT){prefill(l,V());return}if(l.amtT||!l.dOpen)return;const x=lc(l);if(x.calc!==null){l.amt=String(x.calc);const e=$('#amt-'+l.id);if(e)e.value=l.amt}}
+const FQ=(n,u)=>{n=+n;if(!isFinite(n)||Number.isInteger(n)||/^(g|kg|ml|mL|L|l|cc|mg)$/.test(u))return String(Math.round(n*100)/100);const w=Math.floor(n),f=n-w;for(const d of [2,3,4,5,6,8,10,12]){const k=Math.round(f*d);if(k>0&&k<d&&Math.abs(f-k/d)<0.012){const g=(a,b)=>b?g(b,a%b):a,z=g(k,d),s=(k/z)+'/'+(d/z);return w?w+'と'+s:s}}return String(Math.round(n*10)/10)};
+async function copyText(t){let ok=false;try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(t);ok=true}}catch(e){}
+ if(!ok){const ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;left:0;top:0;opacity:0;font-size:16px';document.body.appendChild(ta);ta.focus();ta.select();ta.setSelectionRange(0,t.length);try{ok=document.execCommand('copy')}catch(e){ok=false}ta.remove()}
+ if(!ok)throw new Error('copy')}
+const ingNm=id=>{const p=PRO(id);return esc(p?p.n:id)};
+const ingQ=r=>{const p=PRO(r.n),m=p&&String(p.spec||'').match(/^(\d+(?:\.\d+)?)\s*(mL|ml|L)$/);if(m&&r.u==='本'){const ml=Math.round(r.need*(+m[1])*(m[2]==='L'?1000:1)/10)*10;return ml+'mL'}return FQ(r.need,r.u)+r.u};
+const TXL={menu:500,itm:500};
+function txCnt(k){const t=cur(k);return`<span id="tc-${k}" class="tag ${t.length>TXL[k]?'e':''}">${t.length} / ${TXL[k]}</span>`}
+function txAmt(k,label,val){const ok=val!==null&&val!==undefined&&val!=='';return`<div class="txr"><span class="txl">${label}</span><span class="txv">${ok?String(val).replace(/\B(?=(\d{3})+$)/g,','):'—'}</span><span class="txu">円</span><button class="b" data-a="txcopy" data-k="${k}" ${ok?'':'disabled'}>コピー</button>${S.cpk===k?'<span class="tag cpm" id="cpm-'+k+'" role="status">コピーしました</span>':''}</div>`}
+function txVals(){const v=V();if(v.bought)return{dep:v.bought.dsum,pur:v.bought.pur,chg:v.bought.chg,done:true};const m=money();if(m.dd&&!m.depBad&&v.lines.length)return{dep:m.dsum,pur:m.pur,chg:m.chg,done:false};if(v.none&&!v.lines.length)return{dep:m.dd&&!m.depBad?m.dsum:'',pur:0,chg:m.dd&&!m.depBad?m.dsum:'',done:false};return{dep:'',pur:'',chg:'',done:false}}
+const txBox=(k,l,on)=>`<label class="txc"><input type="checkbox" data-a="txk" data-k="${k}" ${on?'checked':''}> ${l}</label>`;
+const VIEW={
+tx(){const c=C(),v=V();v.lines.forEach(l=>prefill(l,v));v.tx=v.tx||{};const menu=cur('menu'),itm=cur('itm'),tv=txVals();const on=(k,d)=>v.tx[k]??d;
+ let h=(S.msg?`<div class="note">${S.msg}</div>`:'')+`<div class="meta">${esc(c.n)}さん｜転記先の画面と同じ並びです。内容を確認して、各欄の「コピー」を押し、転記先に貼り付けてください。</div>`;
+ h+='<div class="tgrid">';
+ h+=`<div class="card"><h2>🍳 調理</h2>
+ <div class="txl" style="margin-top:8px">献立 ${txCnt('menu')}</div><textarea data-a="txe" data-k="menu" aria-label="献立" rows="2">${esc(menu)}</textarea>
+ ${menu?'':'<div class="meta">先に「献立」の画面で料理を選ぶと、料理名が入ります。</div>'}
+ <div class="row"><button class="b p" data-a="txcopy" data-k="menu" ${menu&&menu.length<=TXL.menu?'':'disabled'}>献立をコピー</button><button class="b" data-a="regen" data-k="menu">選んだ料理名に戻す</button>${S.cpk==='menu'?'<span class="tag cpm" id="cpm-menu" role="status">コピーしました</span>':''}</div></div>`;
+ h+=`<div class="card"><h2>🛒 買物等</h2>
+ ${txAmt('dep','預り',tv.dep)}${txAmt('pur','購入',tv.pur)}${txAmt('chg','お釣',tv.chg)}
+ ${tv.done?'':'<div class="meta">一番下の「買い物を保存」を押すと、購入の記録として確定します。保存前は、入力中の値を表示しています。</div>'}
+ <div class="txl" style="margin-top:8px">内訳 ${txCnt('itm')}</div><textarea data-a="txe" data-k="itm" aria-label="内訳" rows="4">${esc(itm)}</textarea>
+ ${mis('itm')?'<div class="note e">内訳の文面が、保存済みの明細・実購入額と一致しません。買い物の画面で再生成してください。</div>':''}
+ <div class="row"><button class="b p" data-a="txcopy" data-k="itm" ${itm&&itm.length<=TXL.itm&&!mis('itm')?'':'disabled'}>内訳をコピー</button><button class="b" data-a="regen" data-k="itm">内訳を作り直す</button>${S.cpk==='itm'?'<span class="tag cpm" id="cpm-itm" role="status">コピーしました</span>':''}</div></div>`;h+='</div>';
+ h+=`<div id="psum" class="stick">${paySum(true)}</div>`;
+ return h},
+gen(){const c=C(),v=V();let h=S.msg?`<div class="note">${S.msg}</div>`:'';
+ const st=[['提案を見る',!!v.gen],['献立を選ぶ',!!v.plan]];
+ h+=`<div class="steps">${st.map(([t,d],i)=>`<span class="step ${d?'done':''}"><b>${d?'✓':i+1}</b>${t}</span>`).join('')}</div>`;
+
+
+const dues=[];
+ if(dues.length)h+=`<div class="note">🧴 残量確認の目安が近い日用品<div>${dues.map(x=>{const p=PRO(x.pr),n=v.lines.some(l=>l.pr===x.pr);return`<div class="row" style="align-items:center;margin:4px 0"><span style="flex:1"><b>${esc(p.n)}</b> ${dueTag(x)}<span class="meta">${dueSub(x)}</span></span><button class="b ${n?'':'p'}" data-a="quick" data-p="${x.pr}" ${v.bought?'disabled':''}>${n?'追加済み':'買い物に追加'}</button></div>`}).join('')}</div><div class="meta">日数だけで残量の少なさは決められません。残量や本人の希望を確認してから追加してください。</div></div>`;
+ h+=`<div class="row"><label>調理予定日<input type="date" id="pd" data-a="pd" value="${PD()}" min="${T}"></label><label>食数<input id="sv" type="number" min="1" max="4" value="${v.sv||1}" style="width:80px"></label></div>`;
+ h+=`<div class="row"><button class="b p big" data-a="gen">${v.gen?'もう一度提案する':'今日の献立を提案'}</button></div>`;
+ if(v.plan)h+=`<div class="card pick"><div class="meta">選んだ献立</div><div class="tot">${esc(v.plan.rn)}</div><div class="row"><button class="b p" data-a="tab" data-k="pay">買い物へ進む →</button></div></div>`;
+ const g=v.gen;if(!g)return h+'<p class="meta">条件に合うレシピのうち、過去7日以内に選んだ料理を除き、無作為に3件を示します（点数は使いません）。</p>';
+ if(g.stop)h+=`<div class="note e">${g.stop}</div>`;
+ if(g.noNear)h+=`<div class="note">この食材を使える献立が見つかりません：${g.nearAll.map(l=>esc(l.item)).join('・')}。安全条件は緩めず、通常の適合候補を示します。</div>`;
+ const tp=g.top||[],ex0=g.all&&!tp.some(t=>t.r.id===selId())?g.all.filter(t=>t.r.id===selId()):[];
+ h+='<div class="cgrid">';tp.concat(ex0).forEach((x,i)=>{const chosen=selId()===x.r.id&&v.plan;
+  h+=`<div class="card ${chosen?'chosen':''}"><h3>${i>=tp.length?'ランダム選択':i?'代替':'おすすめ'}：${x.r.n} <span class="meta">調理${x.r.t}分</span></h3>
+ ${x.nl.length?x.nl.map(z=>`<div class="why">${esc(nearTxt(z))}</div>`).join(''):''}
+ <ul class="ing">${x.k.rows.map(r=>`<li><b>${ingNm(r.n)}</b> ${ingQ(r)}</li>`).join('')}</ul>
+ <div class="row"><button class="b ${chosen?'':'p'}" data-a="sel" data-r="${x.r.id}" ${chosen?'disabled':''}>${chosen?'✓ 選択中':'この献立にする'}</button></div></div>`});h+='</div>';
+
+ if(g.top)h+='<div class="row"><button class="b" data-a="rand">ほかの案をランダムに選ぶ</button></div>';
+ if(g.ex?.length)h+=`<details><summary>除外された献立（${g.ex.length}）</summary>${g.ex.map(([r,w])=>`<div>${r.n}：${w}</div>`).join('')}</details>`;
+ return h},
+pay(){let L='',R='';const v=V(),pl=v.plan;v.lines.forEach(l=>prefill(l,v));let h=S.msg?`<div class="note">${S.msg}</div>`:'';
+ h+=`<div class="meta" style="margin-top:8px">${pl?'選んだ献立：'+esc(pl.rn):'献立なし（買い物だけでも使えます）'}</div>`;
+ if(!v.bought){L+=`<h2>① 購入品を選ぶ</h2>`+catUI(v)}
+ R+=`<h2 style="margin-top:14px">${v.bought?'購入した品目':'② 選んだ品目'}</h2>`;
+ R+=v.lines.length?(v.bought?'':'<div class="meta">数量を確認します。支払額には参考額が入っています。実際の金額と違うときは直してください。</div>')+v.lines.map(l=>lineCard(l,v)).join(''):(v.bought?'':`<div class="meta">まだ品目がありません。上から選んでください（献立を選んでいれば不足分は最初から入っています）。</div><div class="row"><button class="b ${v.none?'p':''}" data-a="none">${v.none?'✓ 今回は購入なし':'今回は購入なし'}</button></div>`);
+ R+=`<h2 style="margin-top:14px">③ 預り金</h2>`;
+ R+=`<div class="card"><label style="font-size:15px;color:var(--ink)">実際に預かった金額（円）<input class="s amt" inputmode="numeric" data-a="dep" data-i="0" value="${esc(v.dep[0]||'')}" placeholder="例：3000" ${v.bought?'disabled':''}></label></div>`;
+ R+=`<details data-k="more" ${S.open.more?'open':''}><summary>会計全体の調整・購入日</summary>
+ <div class="row"><label>購入日<input type="date" value="${v.pdate}" max="${T}" data-a="pdate" ${v.bought?'disabled':''}></label></div>
+ ${v.adj.map((a,i)=>`<div class="row"><input value="${esc(a.r)}" placeholder="理由（例：会計クーポン）" data-a="adjr" data-i="${i}" ${v.bought?'disabled':''}><input class="s" value="${esc(a.a)}" placeholder="-20" data-a="adja" data-i="${i}" ${v.bought?'disabled':''}></div>`).join('')}
+ ${v.bought?'':'<div class="row"><button class="b" data-a="addadj">調整明細（会計全体の値引き等）</button></div>'}</details>`;
+ 
+ return h+`<div class="pgrid ${v.bought?'one':''}"><div class="pl">${L}</div><div class="pr">${R}</div></div><div id="psum" class="stick">${paySum()}</div>`},
+
+stock(){const v=V(),c=C(),mine=S.lots.filter(l=>l.c===S.cid),act=mine.filter(l=>l.qty>0||l.qUnk),zero=mine.filter(l=>!(l.qty>0||l.qUnk));
+ let h=(S.msg?`<div class="note">${S.msg}</div>`:'')+`<div class="meta" style="margin-top:8px">${esc(c.n)}さん宅にある食材です。使った分だけ減らし、残りは次回へ繰り越します（期限の早い順）。</div>`;
+ h+=deliveryPanel(v);
+ h+=`<details data-k="addlot" ${S.open.addlot!==false?'open':''}><summary>食材を追加する（初期棚卸・家族の差入れ）</summary><div class="card"><div class="row"><label>区分<select id="fi-org"><option value="初期">初期棚卸（既にある食材）</option><option value="外部補充">家族等の補充・差入れ</option></select></label><label>品目<input id="fi-item" list="sl" placeholder="例：鶏肉"><datalist id="sl">${PR.filter(p=>p.k==='f').map(p=>`<option value="${p.n}">`).join('')}</datalist></label><label>数量<input id="fi-q" class="s" inputmode="decimal"></label><label>単位<select id="fi-u">${['g','個','本','切','皿','枚'].map(x=>`<option>${x}</option>`).join('')}</select></label><label>保管場所<select id="fi-loc">${LOC.map(x=>`<option>${x}</option>`).join('')}</select></label></div><div class="row"><label>購入日（不明なら空欄）<input id="fi-buy" type="date"></label><label>期限<input id="fi-exp" type="date"></label><label>期限の種別<select id="fi-ek"><option>未確認</option><option>賞味期限</option><option>消費期限</option></select></label></div><div class="row"><label style="display:flex;gap:6px;align-items:center;color:var(--ink);font-size:15px"><input id="fi-ok" type="checkbox" style="min-height:24px;width:24px">現物確認済み（使用可）</label><label style="display:flex;gap:6px;align-items:center;color:var(--ink);font-size:15px"><input id="fi-ap" type="checkbox" style="min-height:24px;width:24px">概算量</label><label style="display:flex;gap:6px;align-items:center;color:var(--ink);font-size:15px"><input id="fi-uk" type="checkbox" style="min-height:24px;width:24px">数量不明</label></div><div class="row"><button class="b p" data-a="lotadd">在庫に登録</button></div><div class="meta">購入履歴がなくても登録できます。期限・使用可否・数量のどれかが未確認なら、献立には充当しません。家族補充では価格の参考値は更新しません。</div></div></details>`;
+ if(act.length)h+=`<h2>食材（${act.length}）</h2>`+act.slice().sort(fefo).map(l=>lotCard(l,v)).join('');
+ if(!act.length)h+='<div class="note">在庫が登録されていません。初期棚卸で登録するか、購入品の引渡し確認で入庫します。</div>';
+ if(zero.length)h+=`<details><summary>残量0のロット（${zero.length}）</summary>${zero.map(l=>`<div class="meta">${esc(l.item)}（${l.loc}・${l.buy||'購入日不明'}）残量0${l.u}</div>`).join('')}</details>`;
+ const mv=S.mv.filter(m=>m.c===S.cid).slice(-12).reverse(),led=mine.every(l=>ledger(l)===l.qty);
+ h+=`<details data-k="hist" ${S.open.hist?'open':''}><summary>入出庫の履歴（新しい順）</summary><div class="meta"><span class="tag ${led?'':'e'}">${led?'現在残量＝入出庫履歴の合計：一致':'残量と履歴が不一致'}</span>履歴が正本です。在庫の修正は購入価格や過去の支払額を変えません。</div><div class="tb"><table><tr><th>日時</th><th>種別</th><th>品目</th><th class="n">増減</th><th class="n">後残量</th><th>理由</th></tr>${mv.map(m=>{const l=S.lots.find(x=>x.id===m.lot);return`<tr><td>${esc(new Date(m.at).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}))}</td><td>${esc(m.type)}</td><td>${esc(l?l.item+'（'+l.loc+'）':m.lot)}</td><td class="n">${m.d>0?'+':''}${m.d}${m.u}</td><td class="n">${m.after}${m.u}</td><td>${esc(m.reason||'')}</td></tr>`}).join('')}</table></div></details>`;
+ return h},
+
+price(){const v=V(),hs=S.ph.filter(h=>h.st===v.sid).sort(newest);
+ let h=(S.msg?`<div class="note">${S.msg}</div>`:'')+`<h2>店舗別の参考価格</h2><p class="meta">店舗：${STN(v.sid)}（上部で変更）。通常参考価格に使うのは「レシート確認」「売場確認」の履歴だけです。過去値の自動入力は確認済みとみなしません。同じ商品でも店舗・規格が違えば別扱いです。</p>`;
+ h+=`<div class="tb"><table><tr><th>商品（規格）</th><th class="n">参考単価</th><th>区分</th><th>購入日</th></tr>${PR.map(p=>{const r=ref(v.sid,p.id);return`<tr><td>${esc(p.n+'（'+p.spec+'）')}</td><td class="n">${r?yen(r.price):'—'}</td><td>${r?(r.kind==='stat'?'統計参考価格（e-Stat・約）':r.kind==='std'?'標準参考価格（仮）':r.kind==='normal'?'通常（'+BAS[r.basis]+'）':'<span class="tag w">条件付き</span>'+(r.kind==='last'?'前回購入価格（割引条件未確認）':'割引時価格（'+r.cond+'）')):'<span class="tag w">未登録</span>'}</td><td>${r?fm(r.date)+'（'+df(r.date,T)+'日前）':'—'}</td></tr>`}).join('')}</table></div>`;
+ h+=`<h2>価格履歴（新しい順）</h2><div class="row"><label>取消の理由（取消時に必須）<input id="cxr" placeholder="例：商品の取り違え"></label></div><div class="meta">取消すると参考価格は有効な履歴から選び直されます。過去の精算額・コピー済みの文面は変わりません。</div>`;
+ h+=`<div class="tb"><table><tr><th>購入日</th><th>商品</th><th>通常（根拠）</th><th>割引</th><th class="n">実単価</th><th></th></tr>${hs.map(x=>`<tr class="${x.cx?'cx':''}"><td>${fm(x.date)}</td><td>${esc(tn(PRO(x.pr)))}</td><td>${x.normal===null?'不明':yen(x.normal)+'（'+BAS[x.basis]+'）'}</td><td>${x.normal===null&&x.method==='none'?'条件未確認':mtxt(x.method,x.val)}</td><td class="n">${x.actual===null?'—':yen(x.actual)}</td><td>${x.cx?'取消済み<div class="meta">'+esc(x.cxWhy||'')+'</div>':`<button class="b" data-a="cxh" data-h="${x.id}">取消</button>`}</td></tr>`).join('')}</table></div>`;
+ h+=`<h2>監査記録（価格・在庫、新しい順）</h2>`+(S.audit.length?`<div class="tb"><table><tr><th>日時</th><th>操作</th><th>対象</th><th>旧→新・理由</th></tr>${S.audit.slice(0,15).map(a=>`<tr><td>${esc(new Date(a.at).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}))}</td><td>${esc(a.op)}</td><td>${esc(a.tgt)}</td><td>${esc(a.old)}<br>→ ${esc(a.nw)}<div class="meta">${esc(a.why)}</div></td></tr>`).join('')}</table></div>`:'<div class="meta">まだ記録がありません。購入確定や取消で追記されます。</div>');
+ return h+(location.hash==='#demo'?`<div class="row"><button class="b" data-a="reset">デモデータを初期化</button></div>`:'')},
+
+src(){const G=srcCalc(),gm=G['実測']||[],ds=gm,n=ds.length,mean=n?ds.reduce((a,b)=>a+b)/n:0,th=Math.ceil(mean*.8),el=S.start?df(S.start,T):null;
+ let h=(S.msg?`<div class="note">${S.msg}</div>`:'')+`<h2>日用品の目安（トイレットペーパー12ロール・1人）</h2><div class="note">資料を追加し、審査を通ったものだけを平均に使います。採用基準：一次資料まで辿れる／日付が分かる／規格・人数・頻度が明記／算出根拠がある。個人ブログ・口コミ・出典不明・AI生成・根拠不明の宣伝値は除外、条件不明は保留。同じ元調査の転載は1件。実測と推奨量は混ぜません。</div>`;
+ h+=`<div class="tb"><table><tr><th>資料ID／元調査</th><th>区分</th><th>種別</th><th class="n">換算</th><th>審査</th></tr>${S.src.map((x,i)=>{const st=srcSt(x);return`<tr><td>${esc(x.id)}<div class="meta">元：${esc(x.orig||x.id)}｜容量${x.Q}・人数${x.N}・${x.Tt}日</div></td><td>${esc(x.kind)}</td><td>${x.typ}</td><td class="n">${x.Tt*x.N*12/(x.Q*1)}日</td><td><span class="tag ${st[0]==='採用'?'':st[0]==='除外'?'e':'w'}">${st[0]}</span><div class="meta">${esc(st[1])}</div>${!x.ap&&st[0]==='保留'&&x.url&&x.dated&&x.cond&&x.basis&&!BADK.includes(x.kind)?`<button class="b" data-a="srcap" data-i="${i}">責任者承認</button>`:''}</td></tr>`}).join('')}</table></div>`;
+ h+=`<div class="card"><span class="tag ${n>=2?'':'w'}">${n>=2?'複数資料平均（実測）':n===1?'単一資料の参考値':'データ不足'}</span>${n?`<div class="tot">平均 ${+mean.toFixed(1)}日／範囲 ${Math.min(...ds)}〜${Math.max(...ds)}日／${n}件／閾値 ${th}日</div>`:''}${G['推奨量']?`<div class="meta">推奨量による計算値（別群・購入時期の判定には使いません）：${G['推奨量'].map(x=>+x.toFixed(1)).join('・')}日</div>`:''}<div class="meta">承認済みで条件を満たす資料だけの参考平均で、統計的な母集団平均ではありません。範囲が大きい場合は平均だけで断定しません。</div></div>`;
+ h+=`<div class="card"><b>資料を追加（承認までは保留）</b><div class="row"><label>資料ID<input id="sid2"></label><label>元調査ID（転載は同じIDに）<input id="so2"></label><label>区分<select id="sk2">${KIND.map(x=>`<option>${x}</option>`).join('')}</select></label><label>種別<select id="sy2"><option>実測</option><option>推奨量</option></select></label></div><div class="row"><label>容量<input id="sq2" class="s" type="number" value="12"></label><label>人数<input id="sn2" class="s" type="number" value="1"></label><label>日数<input id="st2" class="s" type="number"></label></div><div class="row">${[['u','一次資料URL・発行元あり'],['d','公開日・確認日あり'],['c','規格・人数・頻度が明記'],['b','算出根拠あり']].map(([k,t])=>`<label style="display:flex;gap:6px;align-items:center;color:var(--ink);font-size:15px"><input id="sc-${k}" type="checkbox" style="min-height:24px;width:24px">${t}</label>`).join('')}<button class="b" data-a="addsrc">資料を追加</button></div></div>`;
+ return h},
+set(){const m0=S.msg;let h=(S.msg?`<div class="note">${S.msg}</div>`:'');S.msg='';
+ const c=C();
+
+ const sec=(k,t,body)=>`<details data-k="set-${k}" ${S.open['set-'+k]?'open':''}><summary>${t}</summary>${body}</details>`;
+ h+=sec('cli','利用者と食事条件（アセスメント）',cliView());h+=sec('chp','日用品の規格と金額の候補',chView());
+ h+=sec('due','日用品の確認周期（利用者別・事業所標準）',`<div class="row"><label>起点の初期設定<select data-a="base"><option value="entry"${S.base==='entry'?' selected':''}>記入した日（保存した日時）</option><option value="purchase"${S.base==='purchase'?' selected':''}>レシートの購入日</option></select></label></div><div class="meta">目安日数は ①利用者別の設定 ②事業所標準 ③同じ利用者・品目の購入間隔の平均（記入3回以上） ④資料平均 の順に使います。起点の日から目安の80％で「そろそろ残量を確認」、100％で「残量確認の目安を過ぎています」と表示します。日数は在庫切れや購入の必要を示すものではなく、自動追加もしません。設定済みの日数を学習結果で自動変更しません。</div><div class="card"><b>${esc(c.n)}の確認周期（利用者別）</b>${PR.filter(p=>p.k==='d').map(p=>{const u=(S.cd[S.cid]||{})[p.id]||{},ci=consInfo(p.id,S.cid);return`<div class="row" style="align-items:flex-end"><label style="flex:1">${esc(p.n)}（日）<input class="s" type="number" min="1" data-a="cdd" data-p="${p.id}" value="${u.d||''}" placeholder="未登録"></label><label style="flex:2">使用頻度のメモ<input data-a="cdf" data-p="${p.id}" value="${esc(u.freq||'')}" placeholder="例：毎日／2日に1回" maxlength="40"></label></div><div class="meta">適用中：${ci?'約'+Math.round(ci.D)+'日（'+ci.src+'）':'未登録'}${u.d?'｜設定 '+fm(u.date)+' '+esc(u.by||'')+'・版'+u.ver:''}</div>`}).join('')}</div><div class="card"><b>事業所標準（全利用者の初期値）</b>${PR.filter(p=>p.k==='d').map(p=>p.id==='D1'?`<div class="row"><label>${esc(p.n)}</label><span class="meta">標準は未設定。資料の平均を補助候補として使います（${(srcCalc()['実測']||[]).length?'約'+Math.round(consDays('D1'))+'日':'資料不足'}）</span></div>`:`<div class="row"><label>${esc(p.n)}（日）<input class="s" type="number" min="1" data-a="cons" data-p="${p.id}" value="${S.cons[p.id]||''}" placeholder="未登録"></label></div>`).join('')}<div class="meta">タオル・スポンジ等の交換用品は、承認された周期がなければ確認目安を出しません。</div></div>`);
+ h+=sec('freq','使用頻度からの候補日数（試算）',`<div class="meta">資料の基準日数を、使用頻度に合わせて換算する試算です。1回の使用量が同じと確認できる場合だけ使います。候補は責任者が確認して「利用者別」に入力するまで適用されません。</div><div class="card">${FQ_K.map(([k,t])=>`<label>${t}<input class="s" inputmode="decimal" data-a="fq" data-k="${k}" value="${esc(S.fq[k]??'')}"></label>`).join('')}<div class="tot" id="fqres" style="font-size:16px">${fqCalc()}</div><div class="meta">毎日使うと45日の基準で2日に1回（0.5回/日）なら90日の候補。数値は試験用で、実際のシャンプーの標準周期ではありません。</div></div>`);
+ h+=sec('bud','預り金の目安の設定',`<div class="meta">預り金の目安＝概算に予備額を足して、丸め単位で切り上げた金額です。預り金の上限は5,000円です。丸め単位は1円、予備額は0円を初期値にしています（3,000円などを固定額にしません）。</div><div class="row"><label>丸め単位（円）<input class="s" inputmode="numeric" data-a="bud" data-k="U" value="${S.bud.U}"></label><label>予備額（円）<input class="s" inputmode="numeric" data-a="bud" data-k="B" value="${S.bud.B}"></label></div>`);
+ h+=sec('rcp','レシピの登録・管理',rcpView());
+ h+=sec('estat','統計価格の更新',`<div class="meta">最終取得：${fm(S.fetched)}（調査月：${S.month.replace('-','年')}月）。毎月1回、自動で取得します。</div><div class="row"><button class="b" data-a="estatrefresh">今すぐ更新</button></div>${(S.pending||[]).length?'<div class="note"><b>前回から30％以上変わった価格があります。</b>確認してください。</div>'+S.pending.map(x=>`<div class="card"><div>${esc(x.name)}：${yen(x.old)} → ${yen(x.new)}（${Math.round((x.new-x.old)/x.old*100)}％）</div><div class="row"><button class="b p" data-a="pendok" data-s="${x.sid}">新しい価格を使う</button><button class="b" data-a="pendno" data-s="${x.sid}">使わない（価格取得不可にする）</button></div></div>`).join(''):''}`);
+ h+=sec('stat','統計価格（e-Stat）と購入単位の換算',`<div class="note">価格は、e-Stat（小売物価統計調査）の東大阪市の統計価格（税込）を、購入単位に換算したものです。特定の店の販売価格ではなく、統計に基づく参考です。</div><div class="meta">概算に使う価格：統計価格のみ（近隣店舗の購入履歴は使いません）。</div><div class="meta">地域：${esc(S.area)}｜調査月：${S.month.replace('-','年')}月｜取得日：${fm(S.fetched)}</div><div class="tb"><table><tr><th>統計品目</th><th>統計の単位</th><th class="n">価格（円）</th></tr>${S.stat.map(s=>`<tr><td>${esc(s.name)}</td><td>${s.q}${esc(s.u)}あたり</td><td class="n"><input class="s" inputmode="numeric" data-a="stp" data-s="${s.id}" value="${s.price}"></td></tr>`).join('')}</table></div><h2 style="margin-top:12px">品目の対応づけと購入単位</h2><div class="meta">管理者が、カタログの品目と統計品目を対応づけ、購入単位あたりの量を確認します。「対応を確認済み」にした品目だけ価格を取得します。対応がない品目は「価格取得不可」と表示し、推測で補いません。</div>${PR.filter(p=>p.k!=='o').map(p=>{const m=S.map[p.id]||{},s=S.stat.find(x=>x.id===m.sid),r=statOf(p.id);return`<div class="card" style="padding:10px 12px"><b>${esc(tn(p))}</b> <span class="meta">購入単位：${esc(p.spec)}</span><div class="row"><label>統計品目<select data-a="smap" data-p="${p.id}"><option value="">対応なし</option>${S.stat.map(x=>`<option value="${x.id}"${m.sid===x.id?' selected':''}>${esc(x.name)}（${x.q}${esc(x.u)}）</option>`).join('')}</select></label><label>購入単位の量${s?'（'+esc(s.u)+'）':''}<input class="s" inputmode="decimal" data-a="samt" data-p="${p.id}" value="${m.amt||''}"></label></div><label style="display:flex;gap:6px;align-items:center;color:var(--ink);font-size:15px"><input type="checkbox" style="min-height:24px;width:24px" data-a="sok" data-p="${p.id}" ${m.ok?'checked':''} ${s?'':'disabled'}>対応を確認済み</label><div class="meta">${r?'購入単位の価格：約'+yen(r.price)+'（'+esc(r.sname)+r.sq+esc(r.su)+'あたり'+r.sp+'円 × '+r.amt/r.sq+'）':'価格取得不可（'+(s?'対応が未確認':'統計に対応する品目なし／未対応づけ')+'）'}</div></div>`}).join('')}<div class="meta">${STAT_CREDIT}</div>`);
+  h+=sec('price','店舗別の参考価格・価格履歴・監査記録',VIEW.price());
+ h+=sec('src','日用品の資料と購入目安',VIEW.src());
+ if(location.hash==='#demo')h+=sec('test','試験・デモ用',`<div class="card"><div class="meta">買い物・精算タブの明細に、受入条件（AC）の入力例を読み込みます。</div><div class="row"><select id="atsel" aria-label="試験例">${AT.map(a=>`<option value="${a.id}">${a.t}</option>`).join('')}</select><button class="b" data-a="loadat">読み込む</button></div><div class="row"><button class="b" data-a="nextday">翌日へ進める（デモ用）</button></div></div>`);
+ S.msg=m0;return h}};
+
+const TABS=[['gen','① 献立'],['pay','② 買い物'],['tx','③ 転記'],['set','設定']];
+
+
+// ===== レシピの登録(職員の手入力) =====
+let RK={draft:null,msg:''};
+const ingLabel=id=>{const p=PRO(id);return p?(p.tn||p.n):id};
+function rcpView(){let h='';
+ h+=`<div class="meta">レシピ集：${LIB().length}件／職員が追加：${(S.rcp||[]).length}件。レシピ集の下書きは、職員が確認してから使ってください。使わない料理は「使わない」にできます。</div>`;
+ if((window.__RECIPES||[]).length)h+=`<details><summary>レシピ集の一覧と使う・使わない</summary><div class="tb"><table><tr><th>料理名</th><th>分</th><th>材料</th><th>使う</th></tr>${window.__RECIPES.map(r=>`<tr><td>${esc(r.n)}</td><td class="n">${r.t}</td><td>${r.ing.map(i=>esc(ingLabel(i[0]))).join('、')}</td><td><input type="checkbox" data-a="rhide" data-i="${r.id}"${(S.rcpHide||[]).includes(r.id)?'':' checked'}></td></tr>`).join('')}</table></div></details>`;
+ if(S.rcp)h+=S.rcp.map(r=>`<div class="card"><div><b>${esc(r.n)}</b>（${r.t}分）　材料：${r.ing.map(i=>esc(ingLabel(i[0]))+' '+i[1]+i[2]).join('、')||'なし'}${r.url?'　<a href="'+esc(r.url)+'" target="_blank" rel="noopener">参考リンク</a>':''}</div><div class="row"><button class="b" data-a="rcpedit" data-i="${r.id}">編集</button><button class="b" data-a="rcpdel" data-i="${r.id}">削除</button></div></div>`).join('');
+ h+=`<div class="row"><button class="b" data-a="rcpnew">料理名を手で入力して登録</button></div>`;
+ if(RK.msg)h+=`<div class="note">${esc(RK.msg)}</div>`;
+ const d=RK.draft;
+ if(d){h+=`<div class="card"><div><b>${d.id?'レシピの編集':'レシピの登録'}</b></div><div class="row"><label>料理名<input data-a="rdn" value="${esc(d.n)}"></label><label>調理時間（分）<input data-a="rdt" type="number" min="1" value="${d.t}"></label></div>`
+  +d.ing.map((i,k)=>`<div class="row"><select data-a="rdi" data-k="${k}">${PR.filter(p=>p.k==='f').map(p=>`<option value="${p.id}"${p.id===i[0]?' selected':''}>${esc(p.tn||p.n)}</option>`).join('')}</select><input data-a="rdq" data-k="${k}" type="number" min="0" step="any" value="${i[1]}" style="width:5em"> ${esc(i[2])}<button class="b" data-a="rdx" data-k="${k}">外す</button></div>`).join('')
+  +`<div class="row"><button class="b" data-a="rdadd">材料を足す</button><button class="b p" data-a="rdsave">保存する</button><button class="b" data-a="rdcancel">やめる</button></div></div>`}
+ return h}
+
+// ===== 利用者(アセスメントの食事条件)と店舗の登録 =====
+let CL=null;
+const banOpts=()=>[...new Set(PR.filter(p=>p.k==='f'&&p.cat==='食材').map(p=>p.n))];
+function cliView(){let h='';
+ const demo=Object.values(S.cl).some(c=>/架空/.test(c.n));
+ if(Object.keys(S.cl).length)h+=`<details><summary>試験データを消して本番を始める</summary><div class="note">${demo?'デモ用の架空の利用者が入っています。':'試験で入力したデータを消します。'}利用者・購入・価格履歴・操作記録がすべて消えます（統計価格・レシピは残ります）。運用を始める前に、1回だけ使ってください。</div><div class="row"><button class="b" data-a="prodstart">試験データを消して本番を始める</button></div></details>`;
+ h+=Object.entries(S.cl).map(([k,c])=>`<div class="card"><b>${esc(c.n)}</b>　アセスメント版${c.ver}｜${c.st==='ok'?'確認済み':'<span class="tag e">未確認（提案を停止）</span>'}<div class="meta">禁止食材：${c.ban.join('・')||'なし'}｜調理時間の上限：${c.maxT}分｜嗜好：${(c.pref||[]).join('・')||'なし'}${c.memo?'｜メモ：'+esc(c.memo):''}${c.off?'｜<span class="tag w">利用終了</span>':''}</div><div class="row"><button class="b" data-a="cledit" data-i="${k}">食事条件を編集</button></div></div>`).join('');
+ h+=`<div class="row"><button class="b" data-a="clnew">利用者を追加</button></div><details><summary>名前をまとめて登録（1行に1人）</summary><div class="note">名前を1行に1人ずつ貼り付けます。禁止食材はなし、調理時間の上限は40分、確認済みで登録します。同じ名前はとばします。条件は、あとから「食事条件を編集」で直せます。</div><textarea id="clbulk" rows="6" placeholder="例：\n山田 太郎\n鈴木 花子"></textarea><div class="row"><button class="b p" data-a="clbulk">まとめて登録する</button></div></details>`;
+ const d=CL;
+ if(d)h+=`<div class="card"><div><b>${d.id?'食事条件の編集':'利用者の登録'}</b>（アセスメントの内容を入力します）</div>
+ <div class="row"><label>利用者名<input data-a="cln" value="${esc(d.n)}" maxlength="30"></label><label>アセスメント<select data-a="clst"><option value="ok"${d.st==='ok'?' selected':''}>確認済み（提案する）</option><option value="ng"${d.st!=='ok'?' selected':''}>未確認（提案を止める）</option></select></label></div>
+ <div class="meta">禁止食材（アレルギー・食べられないもの）にチェックを入れます。</div><div class="row">${banOpts().map(n=>`<label style="display:flex;gap:4px;align-items:center;font-size:15px"><input type="checkbox" style="min-height:24px;width:24px" data-a="clb" data-n="${esc(n)}"${d.ban.includes(n)?' checked':''}>${esc(n)}</label>`).join('')}</div>
+ <div class="row"><label>調理時間の上限（分）<input class="s" type="number" min="5" max="240" data-a="clt" value="${esc(d.maxT)}"></label><label>嗜好（任意・読点で区切る）<input data-a="clp" value="${esc(d.pref)}" maxlength="60"></label></div>
+ <div class="row"><label>注意メモ（任意。食事形態など）<input data-a="clm" value="${esc(d.memo)}" maxlength="60"></label></div>
+ <div class="row"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" style="min-height:24px;width:24px" data-a="clo"${d.off?' checked':''}>利用を終了した（上の選択欄に出さない。記録は残る）</label></div>
+ <div class="row"><button class="b p" data-a="clsave">保存する</button><button class="b" data-a="clcancel">やめる</button></div></div>`;
+ return h}
+function chView(){const base=window.__CHOICES||{},ids=Object.keys(base).filter(k=>Array.isArray(base[k]));let h='<div class="meta">統計に価格がない日用品の、規格と金額の候補です。店頭の価格に合わせて直せます。金額はカンマ区切り（例：98,148,198）で、1つあたりの税込額です。直した内容は、これから入力する買い物から使われます。保存済みの購入記録は変わりません。</div>';
+ids.forEach(id=>{const p=(PR.find(x=>x.id===id)||{n:id}),c=CH()[id]||[],mod=!!(S.chO&&S.chO[id]);
+h+=`<div class="card"><b>${esc(p.n)}</b>${mod?' <span class="tag w">変更あり</span>':''}`;
+c.forEach((z,i)=>{h+=`<div class="row" style="align-items:flex-end"><label style="flex:2">規格<input data-a="chos" data-p="${id}" data-i="${i}" value="${esc(z.spec)}" maxlength="30"></label><label style="flex:3">金額の候補（円）<input data-a="chop" data-p="${id}" data-i="${i}" value="${esc(z.prices.join(','))}" maxlength="60" inputmode="numeric"></label><button class="b" data-a="chodel" data-p="${id}" data-i="${i}">削除</button></div>`});
+h+=`<div class="row"><button class="b" data-a="choadd" data-p="${id}">規格を追加</button>${mod?`<button class="b" data-a="choreset" data-p="${id}">初期値に戻す</button>`:''}</div></div>`});
+return h}
+function chEdit(id){S.chO=S.chO||{};if(!S.chO[id])S.chO[id]=JSON.parse(JSON.stringify((window.__CHOICES||{})[id]||[]));return S.chO[id]}
+function storeView(){return`<div class="meta">買い物に行くお店の名前を登録します（最大6件）。</div>${stores().map(s=>`<div class="row"><label>店名<input data-a="stn" data-s="${s.id}" value="${esc(s.n)}" maxlength="20"></label></div>`).join('')}${stores().length<6?'<div class="row"><button class="b" data-a="stadd">店舗を追加</button></div>':''}`}
+function renderSetup(){S.tab='set';$('#cid').innerHTML='<option>（利用者が未登録）</option>';$('#cid').disabled=true;$('#sid').innerHTML=stores().map(s=>`<option>${esc(s.n)}</option>`).join('');$('#sid').disabled=true;S.staff=[];S.op='';$('#op').innerHTML=S.staff.map(n=>`<option ${n===S.op?'selected':''}>${esc(n)}</option>`).join('');$('#hd').textContent=T+'｜利用者が未登録です';$('#tabs').innerHTML='';
+ $('#m').innerHTML=(S.msg?`<div class="note">${esc(S.msg)}</div>`:'')+`<div class="note">最初に、アセスメントをもとに利用者を登録してください。登録すると、献立・買い物・精算の画面が使えるようになります。</div><h2>利用者と食事条件</h2>${cliView()}<h2>買い物先の店舗</h2>${storeView()}`;save()}
+function render(){if(!Object.keys(S.cl).length)return renderSetup();if(!S.cl[S.cid])S.cid=Object.keys(S.cl)[0];$('#cid').disabled=false;const c=C(),v=V();$('#cid').innerHTML=Object.entries(S.cl).filter(([k,x])=>!x.off||k===S.cid).map(([k,x])=>`<option value="${k}" ${k===S.cid?'selected':''}>${x.n}</option>`).join('');
+ $('#sid').innerHTML=stores().map(s=>`<option value="${s.id}" ${s.id===v.sid?'selected':''}>${esc(s.n)}</option>`).join('');$('#sid').disabled=!!v.bought;S.staff=[];S.op='';$('#op').innerHTML=S.staff.map(n=>`<option ${n===S.op?'selected':''}>${esc(n)}</option>`).join('');
+ $('#hd').textContent=`${T}｜${c.st==='ok'?'禁止食材：'+(c.ban.join('・')||'なし'):'⚠ 食事条件が未確認です'}`;
+ $('#tabs').innerHTML=TABS.map(([k,l])=>`<button role="tab" aria-selected="${S.tab===k}" data-a="tab" data-k="${k}">${l}</button>`).join('');$('#m').innerHTML=VIEW[S.tab]();save()}
+
+let busy=false;
+const setOpen=e=>{const t=e.target;if(t.tagName==='DETAILS'&&t.dataset.k){S.open[t.dataset.k]=t.open;save()}};
+document.addEventListener('toggle',setOpen,true);
+document.addEventListener('click',async e=>{const b=e.target.closest('button[data-a]');if(!b)return;const a=b.dataset.a,v=V(),c=C();S.msg='';if(a==='print'){window.print();return}
+
+ if(a==='rcpnew'){RK.draft={id:'',n:'',t:20,ing:[],url:''};render();return}
+ if(a==='rcpedit'){const r=(S.rcp||[]).find(z=>z.id===b.dataset.i);if(r){RK.draft={id:r.id,n:r.n,t:r.t,ing:r.ing.map(i=>i.slice()),url:r.url||''};render()}return}
+ if(a==='rcpdel'){if(confirm('このレシピを削除しますか？')){S.rcp=S.rcp.filter(z=>z.id!==b.dataset.i);if(!S.rcp.length)delete S.rcp;Object.values(S.v).forEach(w=>{if(!w.bought)w.gen=null})}render();return}
+ if(a==='rdadd'&&RK.draft){const p=PR.find(z=>z.k==='f');RK.draft.ing.push([p.id,1,p.u]);render();return}
+ if(a==='rdx'&&RK.draft){RK.draft.ing.splice(+b.dataset.k,1);render();return}
+ if(a==='rdcancel'){RK.draft=null;render();return}
+ if(a==='rdsave'&&RK.draft){const d=RK.draft;if(!d.n.trim()){RK.msg='料理名を入力してください。';render();return}
+  S.rcp=S.rcp||[];if(d.id){const r=S.rcp.find(z=>z.id===d.id);Object.assign(r,{n:d.n.trim(),t:+d.t||20,ing:d.ing,url:d.url})}else{let k=1;while(S.rcp.find(z=>z.id==='U'+k))k++;S.rcp.push({id:'U'+k,n:d.n.trim(),t:+d.t||20,ing:d.ing,tag:[],url:d.url})}
+  RK.draft=null;RK.msg='保存しました。';Object.values(S.v).forEach(w=>{if(!w.bought)w.gen=null});render();return}
+
+ if(a==='clbulk'){const ta=document.getElementById('clbulk');const ns=[...new Set((ta?ta.value:'').split(/\r?\n/).map(x=>x.replace(/\u3000/g,' ').trim()).filter(Boolean))];
+  if(!ns.length){S.msg='名前を入力してください。';render();return}
+  const have=new Set(Object.values(S.cl).map(c=>c.n));let n=0;
+  ns.forEach(nm=>{if(have.has(nm))return;const id='P'+(++S.seq);S.cl[id]={n:nm,ver:1,st:'ok',ban:[],maxT:40,pref:[],memo:'',off:false};have.add(nm);n++;if(!S.cid||!S.cl[S.cid])S.cid=id});
+  delete S.v[''];if(n)aud('利用者を一括登録','利用者',String(Object.keys(S.cl).length-n)+'人',String(Object.keys(S.cl).length)+'人','名前のみ');
+  S.msg=n+'人を登録しました'+(ns.length-n?'（同じ名前'+(ns.length-n)+'人はとばしました）':'')+'。';render();return}
+ if(a==='clnew'){CL={id:'',n:'',st:'ok',ban:[],maxT:40,pref:'',memo:'',off:false};S.open['set-cli']=true;render();return}
+ if(a==='cledit'){const c0=S.cl[b.dataset.i];if(c0){CL={id:b.dataset.i,n:c0.n,st:c0.st,ban:c0.ban.slice(),maxT:c0.maxT,pref:(c0.pref||[]).join('、'),memo:c0.memo||'',off:!!c0.off};S.open['set-cli']=true;render()}return}
+ if(a==='clcancel'){CL=null;render();return}
+ if(a==='clsave'&&CL){const d=CL,mt=Math.round(+d.maxT);
+  if(!d.n.trim()){S.msg='利用者名を入力してください。';render();return}
+  if(!(mt>=5&&mt<=240)){S.msg='調理時間の上限は5〜240分で入力してください。';render();return}
+  const pref=d.pref.split(/[、,，\s]+/).filter(Boolean);
+  if(d.id){const c0=S.cl[d.id],ch=JSON.stringify([c0.ban,c0.maxT,c0.pref||[],c0.st,c0.memo||''])!==JSON.stringify([d.ban,mt,pref,d.st,d.memo]);c0.n=d.n.trim();
+   if(ch){c0.ver++;aud('アセスメント版を更新',c0.n,'版'+(c0.ver-1),'版'+c0.ver,'食事条件の変更');if(S.v[d.id]&&!S.v[d.id].bought)S.v[d.id].gen=null}
+   Object.assign(c0,{ban:d.ban,maxT:mt,pref,st:d.st,memo:d.memo,off:!!d.off})}
+  else{const id='P'+(++S.seq);S.cl[id]={n:d.n.trim(),ver:1,st:d.st,ban:d.ban,maxT:mt,pref,memo:d.memo,off:!!d.off};aud('利用者を登録',d.n.trim(),'—','版1','アセスメントに基づく登録');if(!S.cid||!S.cl[S.cid])S.cid=id;delete S.v['']}
+  CL=null;S.msg='保存しました。';render();return}
+ if(a==='prodstart'){if(confirm('デモ用の利用者・履歴を消して、本番を始めますか？（統計価格・レシピは残ります）')){const o=seedP();['stat','map','month','fetched','pending','staff','op','rcp','rcpHide','stores','area'].forEach(k=>{if(S[k]!==undefined)o[k]=S[k]});o.stores=(o.stores||[]).map(s=>/架空/.test(s.n)?{...s,n:'買い物先1'}:s);S=o;S.open={};CL=null;S.msg='本番を始めました。利用者を登録してください。'}render();return}
+ if(a==='choadd'){chEdit(b.dataset.p).push({spec:'新しい規格',prices:[100]});aud('日用品の候補を変更',b.dataset.p);render();return}
+ if(a==='chodel'){const c=chEdit(b.dataset.p);if(c.length>1)c.splice(+b.dataset.i,1);aud('日用品の候補を変更',b.dataset.p);render();return}
+ if(a==='choreset'){if(S.chO)delete S.chO[b.dataset.p];aud('日用品の候補を初期値に戻す',b.dataset.p);render();return}
+ if(a==='txcopy'){const k=b.dataset.k;let t;if(k==='dep'||k==='pur'||k==='chg'){const x=txVals();t=String(x[k])}else t=cur(k);if(TXL[k]&&t.length>TXL[k]){S.msg='文字数が上限（'+TXL[k]+'字）を超えています。短くしてください。';render();return}
+  try{await copyText(t);v.copied[k]=true;S.msg='';S.cpk=k;setTimeout(()=>{if(S.cpk===k){S.cpk=null;const e=document.getElementById('cpm-'+k);if(e)e.remove()}},3000);if(k==='menu'&&selId()&&!S.cooks.some(z=>z.c===S.cid&&z.r===selId()&&z.d===T))S.cooks.push({c:S.cid,r:selId(),d:T,k:'copy'})}catch(err){S.msg='コピーできませんでした。テキストを選択して手動でコピーしてください。'}render();return}
+ if(a==='stadd'){if(stores().length<6){S.stores=stores().map(s=>({...s}));let k=1;while(S.stores.find(s=>s.id==='S'+k))k++;S.stores.push({id:'S'+k,n:'買い物先'+k})}render();return}
+ if(a==='estatrefresh'){S.msg='更新しています…';render();try{const r=await fetch('/api/estat/refresh',{method:'POST',headers:{'X-Operator':encodeURIComponent(S.op||'')}});const j=await r.json();if(!r.ok)throw new Error(j.error||'失敗');await _syncStat();S.msg='統計価格を更新しました（調査月 '+j.month.replace('-','年')+'月）。反映'+j.applied+'件、確認待ち'+j.pending+'件、価格なし'+j.missing.length+'件。'}catch(err){S.msg='更新できませんでした：'+(err.message||err)}render();return}
+ if(a==='pendok'||a==='pendno'){const x=(S.pending||[]).find(z=>z.sid===b.dataset.s);const st=S.stat.find(z=>z.id===b.dataset.s);if(x&&st){if(a==='pendok')st.price=x.new;else delete st.price;S.pending=S.pending.filter(z=>z!==x);Object.values(S.v).forEach(w=>{if(!w.bought)w.gen=null});S.msg=a==='pendok'?'新しい価格を反映しました。':'この品目は価格取得不可にしました。'}render();return}
+ const lineOf=()=>v.lines.find(x=>x.id===b.dataset.l);
+ if(a==='tab'){S.tab=b.dataset.k;setTimeout(()=>{try{window.scrollTo(0,0)}catch(e){}})}
+ if(a==='qstep'&&!v.bought){const l=lineOf();if(l){const x=lc(l),n=Math.max(1,Math.min(999,(x.q||1)+ +b.dataset.d));l.qty=String(n);const rf=ref(v.sid,lkey(l));if(l.cp){l.amt=String(l.cp*n);l.amtT=true}else if(l.same&&rf){l.amt=String(rf.price*n)}else autoAmt(l)}}
+ if(a==='bump'){c.ver++}
+ if(a==='srcap'){const x=S.src[+b.dataset.i];if(x){x.ap=true;aud('資料を承認',x.id,'保留','採用','責任者確認')}}
+ if(a==='gen'){if(busy)return;busy=true;v.sv=+$('#sv').value||1;v.gen=gen();busy=false}
+ if(a==='sel'){if((v.txt.menu!==undefined||v.txt.itm!==undefined)&&v.plan&&v.plan.r!==b.dataset.r&&!confirm('手修正した文面を、新しい献立の文面で置き換えますか？'))return;const keepM=v.plan&&v.plan.r!==b.dataset.r;const r=doSelect(b.dataset.r);if(r.msg)S.msg=r.msg;else if(keepM){delete v.txt.menu;delete v.txt.itm}}
+ if(a==='rand'&&v.gen&&v.gen.all&&!v.bought){const pool=v.gen.all.filter(x=>x.r.id!==selId());
+  if(!pool.length)S.msg='他に条件に合う献立がありません。';
+  else{if((v.txt.menu!==undefined||v.txt.itm!==undefined)&&!confirm('手修正した文面を、新しい献立の文面で置き換えますか？'))return;delete v.txt.menu;delete v.txt.itm;const r=doSelect(pool[Math.floor(Math.random()*pool.length)].r.id);if(r.msg)S.msg=r.msg}}
+ if(a==='lotadd'){S.msg=lotAdd({org:$('#fi-org').value,item:$('#fi-item').value,qty:$('#fi-q').value,u:$('#fi-u').value,loc:$('#fi-loc').value,buy:$('#fi-buy').value,exp:$('#fi-exp').value,ek:$('#fi-ek').value,ok:$('#fi-ok').checked,approx:$('#fi-ap').checked,qUnk:$('#fi-uk').checked}).msg}
+ if(a==='lotck'||a==='lotfull'){const id=b.dataset.l,l=mine(id);if(l){
+  if(a==='lotfull'&&!confirm(`${l.item}（${l.loc}）を全量使い切り、残量を0にします。よろしいですか？`))return;
+  const full=a==='lotfull';S.msg=lotCheck(id,{act:full?'0':$('#ca-'+id).value,reason:full?($('#cr-'+id).value||'調理で使用'):$('#cr-'+id).value,exp:$('#ce-'+id).value,ek:$('#ck-'+id).value,ok:full?l.ok:$('#co-'+id).checked,approx:$('#cp-'+id).checked,qUnk:full?false:$('#cq-'+id).checked}).msg}}
+ if(a==='lotmv'){const id=b.dataset.l;S.msg=lotMove(id,$('#mq-'+id).value,$('#ml-'+id).value).msg}
+ if(a==='lotdisc'){const id=b.dataset.l;S.msg=lotDisc(id,$('#dq-'+id).value,$('#dw-'+id).value).msg}
+ if(a==='dlv'){const id=b.dataset.i;S.msg=doDeliver(id,$('#dq-'+id).value,$('#dl-'+id).value,$('#de-'+id).value).msg}
+ if(a==='nextday'){if(confirm('翌日へ進めますか？（デモ用：訪問の入力は初期化され、価格履歴は引き継がれます）'))nextDay()}
+ if(a==='adddep'&&!v.bought)v.dep.push('');if(a==='addadj'&&!v.bought)v.adj.push({r:'',a:''});
+ if(a==='quick'&&!v.bought){v.none=false;const ex=v.lines.find(l=>l.pr===b.dataset.p);if(ex){ex.qty=String((+ex.qty||0)+1);const rf=ref(v.sid,lkey(ex));if(ex.same&&rf)ex.amt=String(rf.price*(+ex.qty));else autoAmt(ex)}else v.lines.push(newLine(b.dataset.p,1,{src:'manual'}));S.msg=PRO(b.dataset.p).n+'を買い物リストに追加しました。'}
+ if(a==='cat'){S.cat=b.dataset.k;S.q=''}
+ if(a==='none'&&!v.bought&&!v.lines.length)v.none=!v.none;
+ if(a==='fav'){const f=S.fav[S.cid]=S.fav[S.cid]||[],p=b.dataset.p,i=f.indexOf(p);if(i>=0)f.splice(i,1);else f.push(p);S.open['sp-'+(v.lines.find(l=>l.pr===p)||{}).id]=true}
+ if(a==='xadd'&&!v.bought){const n=$('#xn').value.trim(),q=+$('#xq').value||1,u=$('#xu').value;if(!n||[...n].length>30)S.msg='品名を入力してください（30文字まで）。';else if(!(Number.isInteger(q)&&q>=1&&q<=999))S.msg='数量は1以上の整数で入力してください。';else{let p=PR.find(x=>x.k==='o'&&x.n===n);if(!p){p={id:'X'+(++S.seq),n,spec:'',u,pack:1,k:'o',cat:'その他',al:'',custom:true};PR.push(p);S.custom.push(p)}const ex=v.lines.find(l=>l.pr===p.id);if(ex)ex.qty=String((+ex.qty||0)+q);else v.lines.push(newLine(p.id,q,{src:'manual'}));v.none=false;S.msg='「'+n+'」を買い物リストに追加しました（価格は未登録として扱います）。'}}
+ if(a==='dline'&&!v.bought)v.lines=v.lines.filter(l=>l.id!==b.dataset.l);
+ if(a==='refsame'&&!v.bought){const l=lineOf(),rf=l&&ref(v.sid,lkey(l)),x=l&&lc(l);if(l&&rf&&rf.kind!=='stat'&&x.q!==null){l.amt=String(rf.price*x.q);l.amtT=true;l.same=true;l.why=''}}
+ if(a==='chp'&&!v.bought){const l=lineOf(),x=l&&lc(l);if(l){l.cp=+b.dataset.p;l.amt=String(l.cp*((x&&x.q)||1));l.amtT=true;l.same=false;l.dOpen=false;l.method='none';l.val='';l.why=''}}
+ if(a==='chx'&&!v.bought){const l=lineOf();if(l){l.cp=null;l.amtT=true;render();const e=$('#amt-'+l.id);if(e)e.focus();return}}
+ if(a==='dtog'&&!v.bought){const l=lineOf();if(l){l.dOpen=!l.dOpen;l.amtT=false;l.same=false;l.method='none';l.val='';l.why='';if(l.dOpen){const rn=ref(v.sid,lkey(l));if(rn&&rn.kind==='normal')l.U=String(rn.price)}else{l.U='';l.amt=''}autoAmt(l)}}
+ if(a==='dchip'&&!v.bought){const l=lineOf();if(l){l.method=b.dataset.m;l.val=b.dataset.v;l.amtT=false;l.same=false;l.why='';l.amt='';autoAmt(l)}}
+ if(a==='loadat'){if(loadAT($('#atsel').value))S.msg='試験例を読み込みました。各行の内容と下の合計・お釣りを確認してください。'}
+ if(a==='buy'){const r=doBuy();if(r==='ng')S.msg='保存条件を満たしていません。表示された注意を解消してください。'}
+ if(a==='cxh'){const r=doCancel(b.dataset.h,$('#cxr').value);S.msg=r==='reason'?'取消の理由を入力してください。':r==='ok'?'取消しました。参考価格は有効な履歴から選び直しました。未確定の提案は価格が変わったため再生成が必要です。過去の精算額とコピー済みの文面は変更していません。':''}
+ if(a==='reset'){if(confirm('デモデータを初期化しますか？（入力内容と価格履歴が初期状態に戻ります）')){S=seed();S.open={}}}
+ if(a==='regen'){const k=b.dataset.k,g=texts()[k]??'';if(v.txt[k]!==undefined&&v.txt[k]!==g&&!confirm('手修正した内容を、再生成した文面で置き換えますか？'))return;delete v.txt[k]}
+ if(a==='copy'){const k=b.dataset.k,t=k==='dep'?String(money().dsum):k==='pur'?String(v.bought.pur):cur(k);
+  try{await copyText(t);v.copied[k]=true;S.msg='コピーしました。既存システムで実施項目をチェックし、各欄へ貼り付けて保存してください。';
+   if(k==='menu'&&selId()&&!S.cooks.some(z=>z.c===S.cid&&z.r===selId()&&z.d===T))S.cooks.push({c:S.cid,r:selId(),d:T,k:'copy'})}catch(err){S.msg='コピーできませんでした。テキストを選択して手動でコピーしてください（成功扱いにはしていません）。'}}
+ if(a==='addsrc'){const id=$('#sid2').value.trim(),Q=+$('#sq2').value,N=+$('#sn2').value,Tt=+$('#st2').value;if(!id||!(Q>0&&N>0&&Tt>0))S.msg='資料ID・容量・人数・日数を入力してください。';else if(S.src.some(s=>s.id===id))S.msg='同じ資料IDがあります。';else{S.src.push({id,Q,N,Tt,kind:$('#sk2').value,typ:$('#sy2').value,orig:$('#so2').value.trim()||id,url:$('#sc-u').checked,dated:$('#sc-d').checked,cond:$('#sc-c').checked,basis:$('#sc-b').checked,ap:false});S.msg='追加しました。審査結果は一覧で確認してください（条件が足りない資料は保留、出典不明などは除外）。'}}
+ render()});
+document.addEventListener('change',e=>{const t=e.target,a=t.dataset.a,v=V();
+
+ if(a==='clst'&&CL){CL.st=t.value;return}
+ if(a==='clo'&&CL){CL.off=t.checked;return}
+ if(a==='clb'&&CL){const n=t.dataset.n,k=CL.ban.indexOf(n);if(t.checked&&k<0)CL.ban.push(n);if(!t.checked&&k>=0)CL.ban.splice(k,1);return}
+ if(a==='chos'){const c=chEdit(t.dataset.p),z=c[+t.dataset.i];if(z&&t.value.trim())z.spec=t.value.trim().slice(0,30);aud('日用品の候補を変更',t.dataset.p);render();return}
+ if(a==='chop'){const c=chEdit(t.dataset.p),z=c[+t.dataset.i];const pz=[...new Set(t.value.split(/[,、，\s]+/).map(x=>parseInt(x,10)).filter(x=>x>=1&&x<=99999))].sort((a,b)=>a-b).slice(0,8);if(z&&pz.length)z.prices=pz;aud('日用品の候補を変更',t.dataset.p);render();return}
+ if(a==='txk'){v.tx=v.tx||{};v.tx[t.dataset.k]=t.checked;save();return}
+ if(a==='stn'){S.stores=stores().map(s=>({...s}));const s=S.stores.find(x=>x.id===t.dataset.s);if(s&&t.value.trim())s.n=t.value.trim().slice(0,20);render();return}
+ if(a==='chs'&&!v.bought){const l=v.lines.find(x=>x.id===t.dataset.l);if(l){l.spec=t.value;l.cp=null;l.same=false;if(!l.dOpen){l.amt='';l.amtT=false}render()}return}
+ if(a==='rhide'){S.rcpHide=S.rcpHide||[];const k=S.rcpHide.indexOf(t.dataset.i);if(t.checked&&k>=0)S.rcpHide.splice(k,1);if(!t.checked&&k<0)S.rcpHide.push(t.dataset.i);Object.values(S.v).forEach(w=>{if(!w.bought)w.gen=null});return}
+
+ if(a==='rdi'&&RK.draft){const i=RK.draft.ing[+t.dataset.k];i[0]=t.value;i[2]=PRO(t.value).u;render();return}
+ if(t.id==='cid'){S.cid=t.value;S.msg='';render();return}
+ if(t.id==='sid'){if(v.bought)return;v.sid=t.value;v.gen=null;S.msg='買い物先を変更しました。提案は再生成すると、この店舗の参考価格で概算します。';render();return}
+ if(!a)return;
+ const l=v.lines.find(x=>x.id===t.dataset.l);
+ if(a==='pd'){if(v.bought)return;v.pd=t.value||T;v.gen=null;S.msg='調理予定日を変更しました。提案を再生成してください。';render();return}
+ if(a==='pdate'){v.pdate=t.value;payRefresh();return}
+ if(a==='ldl'&&l){l.dl=t.checked;save();return}
+ if(a==='lexp'&&l){l.exp=t.value;save();return}
+ if(a==='lek'&&l){l.ek=t.value;save();return}
+ if(a==='dwhy'&&l){l.why=t.value;payRefresh();return}
+ if(a==='dg'){const id=t.dataset.k;v.dg[id]=t.checked;if(!v.bought){v.lines=v.lines.filter(x=>!(x.pr===id&&x.src==='dg'));if(t.checked)v.lines.push(newLine(id,1,{src:'dg'}))}render();return}
+ if(a==='dlast'){const c=S.cid,p=t.dataset.p,why=(S.dlr._||'').trim();S.open.dlast=true;if(!why){S.msg='起点日を直すときは理由を入力してください（責任者の訂正として記録します）。';render();return}
+  const old=baseDay(c,p);S.last[c]=S.last[c]||{};S.dlog=S.dlog.filter(x=>!(x.c===c&&x.pr===p&&x.k==='manual'));if(t.value){S.last[c][p]=t.value;S.dlog.push({id:'L'+(++S.seq),c,pr:p,at:new Date().toISOString(),td:t.value,pdate:t.value,bid:null,k:'manual',why})}else delete S.last[c][p];aud('日用品の起点日を訂正',C().n+' '+PRO(p).n,old||'なし',t.value||'削除',why);render();return}
+ if(a==='lspec'&&l&&!v.bought){l.spec=t.value.trim().slice(0,40);l.same=false;if(!l.dOpen&&!l.amtT)l.amt='';S.open['sp-'+l.id]=true;render();return}
+ if(a==='lbulk'&&l&&!v.bought){l.bulk=t.checked;save();return}
+ if(a==='cdd'){const p=t.dataset.p,n=+t.value;S.cd[S.cid]=S.cd[S.cid]||{};const o=S.cd[S.cid][p]||{};if(t.value===''){delete S.cd[S.cid][p]}else if(Number.isInteger(n)&&n>0&&n<=3650){S.cd[S.cid][p]={...o,d:n,by:'責任者（架空）',date:T,ver:(o.ver||0)+1};aud('利用者別の確認周期を設定',C().n+' '+PRO(p).n,o.d?o.d+'日':'なし',n+'日',o.freq||'—')}else S.msg='確認周期は1〜3650の整数で入力してください。';S.open['set-due']=true;render();return}
+ if(a==='cdf'){const o=(S.cd[S.cid]||{})[t.dataset.p];if(o)o.freq=t.value.slice(0,40);else if(t.value)S.msg='先に確認周期（日）を入力してください。';S.open['set-due']=true;render();return}
+ if(a==='std'){const p=t.dataset.p,n=t.value===''?null:(/^\d+$/.test(t.value)&&+t.value>=1&&+t.value<=999999?+t.value:undefined);
+  if(n===undefined){S.msg='標準参考価格は1〜999,999の整数円で入力してください（空欄で未登録に戻ります）。'}else{const o=stdOf('*',p);S.std=S.std.filter(x=>!(x.pr===p&&x.st==='*'));if(n!==null)S.std.push({pr:p,st:'*',price:n,basis:'責任者設定（架空）',by:'責任者（架空）',date:T,ver:(o?o.ver:0)+1});aud('標準参考価格を改訂',tn(PRO(p)),o?yen(o.price):'未登録',n===null?'未登録':yen(n),'責任者設定');Object.values(S.v).forEach(w=>{if(!w.bought)w.gen=null});S.msg=tn(PRO(p))+'の標準参考価格を'+(n===null?'未登録に戻しました。':yen(n)+'にしました。過去の見積りは変わりません。')}
+  S.open['set-std']=true;render();return}
+ if(a==='psrc'){S.psrc=t.value==='hist'?'hist':'stat';Object.values(S.v).forEach(w=>{if(!w.bought)w.gen=null});S.msg='概算に使う価格を変更しました（保存済みの見積りは変わりません）。';S.open['set-stat']=true;render();return}
+ if(a==='stp'){const n=+t.value;if(/^\d+$/.test(t.value)&&n<=999999){const s=S.stat.find(x=>x.id===t.dataset.s),o=s.price;s.price=n;aud('統計価格を更新（試験用）',s.name,yen(o),yen(n),'管理者');Object.values(S.v).forEach(w=>{if(!w.bought)w.gen=null})}else S.msg='統計価格は0〜999,999の整数円で入力してください。';S.open['set-stat']=true;render();return}
+ if(a==='smap'){const p=t.dataset.p;if(t.value===''){delete S.map[p]}else{const o=S.map[p]||{};S.map[p]={sid:t.value,amt:o.amt||1,ok:false}}S.open['set-stat']=true;render();return}
+ if(a==='samt'){const p=t.dataset.p,n=+t.value;if(S.map[p]&&n>0&&n<=100000){S.map[p].amt=n;S.map[p].ok=false;S.msg='購入単位の量を変えたため、「対応を確認済み」を外しました。確認してください。'}else S.msg='購入単位の量は0より大きい数で、先に統計品目を選んでから入力してください。';S.open['set-stat']=true;render();return}
+ if(a==='sok'){const p=t.dataset.p;if(S.map[p]){S.map[p].ok=t.checked;aud('統計品目との対応を'+(t.checked?'確認':'取消'),tn(PRO(p)),'—',S.map[p].sid,'管理者');Object.values(S.v).forEach(w=>{if(!w.bought)w.gen=null})}S.open['set-stat']=true;render();return}
+ if(a==='staff'){S.staff=t.value.split(/\n/).map(x=>x.trim()).filter(Boolean).slice(0,30);if(!S.staff.length)S.staff=['事務職員A'];if(!S.staff.includes(S.op))S.op=S.staff[0];S.msg='入力者名を更新しました。';render();return}
+ if(a==='bud'){const k=t.dataset.k,n=+t.value;if(/^\d+$/.test(t.value)&&(k==='U'?n>=1&&n<=100000:n<=100000)){S.bud[k]=n;S.msg='予算設定を変更しました。保存済みの見積りは変わりません。'}else S.msg=(k==='U'?'丸め単位は1〜100,000の整数円':'予備額は0〜100,000の整数円')+'で入力してください。';S.open['set-bud']=true;render();return}
+ if(a==='cons-keep'){return}
+ if(a==='base'){S.base=t.value==='purchase'?'purchase':'entry';S.open.due=true;render();return}
+ if(a==='cons'){const n=+t.value;if(t.value===''){delete S.cons[t.dataset.p]}else if(Number.isInteger(n)&&n>0&&n<=3650)S.cons[t.dataset.p]=n;else S.msg='目安日数は1〜3650の整数で入力してください。';render();return}
+ if(a==='thr'){const n=+t.value;if(Number.isInteger(n)&&n>=0&&n<=14){S.thr=n;Object.values(S.v).forEach(w=>{if(!w.bought)w.gen=null});S.msg='期限が近い食材の判定を'+n+'日以内に変更しました。提案を再生成してください。'}else S.msg='0〜14の整数で入力してください。';render();return}});
+document.addEventListener('input',e=>{const t=e.target,a=t.dataset.a,v=V();if(!a)return;
+
+ if(a==='txe'){const k=t.dataset.k;v.txt[k]=t.value;v.copied[k]=false;const s=document.getElementById('tc-'+k);if(s){s.textContent=t.value.length+' / '+TXL[k];s.className='tag '+(t.value.length>TXL[k]?'e':'')}const cb=document.querySelector('[data-a=txcopy][data-k='+k+']');if(cb)cb.disabled=!t.value||t.value.length>TXL[k];save();return}
+ if(a==='cln'&&CL){CL.n=t.value;return}
+ if(a==='clt'&&CL){CL.maxT=t.value;return}
+ if(a==='clp'&&CL){CL.pref=t.value;return}
+ if(a==='clm'&&CL){CL.memo=t.value;return}
+
+ if(a==='rdn'&&RK.draft){RK.draft.n=t.value;return}
+ if(a==='rdt'&&RK.draft){RK.draft.t=t.value;return}
+ if(a==='rdq'&&RK.draft){RK.draft.ing[+t.dataset.k][1]=+t.value||0;return}
+ const l=v.lines.find(x=>x.id===t.dataset.l);
+ if(a==='dlr'){S.dlr._=t.value;save();return}
+ if(a==='catq'){S.q=t.value;const e2=$('#catlist');if(e2)e2.innerHTML=catList();save();return}
+ if(a==='fq'){S.fq[t.dataset.k]=t.value;const e2=$('#fqres');if(e2)e2.textContent=fqCalc();save();return}
+ if(a==='lq'&&l&&!v.bought){l.qty=t.value;prefill(l,v);const rf=ref(v.sid,lkey(l)),x=lc(l);if(l.cp&&x.q!==null){l.amt=String(l.cp*x.q);const e2=$('#amt-'+l.id);if(e2)e2.value=l.amt}else if(l.same&&rf&&x.q!==null){l.amt=String(rf.price*x.q);const e2=$('#amt-'+l.id);if(e2)e2.value=l.amt}else autoAmt(l);payRefresh();return}
+ if(a==='amt'&&l&&!v.bought){l.cp=null;l.amt=t.value;l.amtT=true;l.same=false;payRefresh();return}
+ if((a==='dU'||a==='dv')&&l&&!v.bought){if(a==='dU')l.U=t.value;else l.val=t.value;autoAmt(l);payRefresh();return}
+ if(a==='dep'){v.dep[+t.dataset.i]=t.value;payRefresh();return}
+ if(a==='adjr'){v.adj[+t.dataset.i].r=t.value;payRefresh();return}
+ if(a==='adja'){v.adj[+t.dataset.i].a=t.value;payRefresh();return}
+ if(a==='rcpt'){v.rcpt=t.value;payRefresh();return}
+ if(a==='txt'){v.txt[t.dataset.k]=t.value;const o=$('#c-'+t.dataset.k);if(o)o.outerHTML=cntHtml(t.dataset.k);const cb=document.querySelector('button[data-a=copy][data-k="'+t.dataset.k+'"]');if(cb)cb.disabled=!okc(t.dataset.k)}save()});
+render();
+</script>
+<script>
+// 献立・買い物支援のネット版：納品物の画面（app.html）はそのまま使い、もとの /api/… を
+// 週間予定表と同じ保存先（Googleドライブ＝GAS）へつなぐ。合言葉は週間予定表と同じ（同じ住所なので入れ直し不要）
+(async () => {
+  const GAS = 'https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec';
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const show = t => { const m = document.getElementById('m'); if (m) m.innerHTML = '<div class="card" style="margin:16px">' + t + '</div>'; };
+  const lsGet = k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
+  const lsSet = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) {} };
+  let pass = lsGet('smilewan_pass').trim();
+  if (!pass) { pass = (prompt('合言葉を入れてください（週間予定表と同じ合言葉です）') || '').trim(); if (!pass) { show('合言葉を入れると開けます。画面を再読み込みしてください。'); return; } }
+  // 保存先へ送る。返事が途中で消えたとき・通信が一瞬切れたときは少し待って試し直す
+  const call = async body => {
+    for (let k = 0; ; k++) {
+      let t;
+      try { const r = await fetch(GAS, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ pass, ...body }) }); t = await r.text(); }
+      catch (e) { if (k < 4) { await sleep(3000 * (k + 1)); continue; } throw e; }
+      let j; try { j = JSON.parse(t); } catch (e) { if (k < 2) { await sleep(3000); continue; } throw new Error('保存先の返事が読めませんでした'); }
+      if (j.ok && j.app) { if (k < 5) { await sleep(1500 * (k + 1)); continue; } throw new Error('保存先の返事が届きませんでした'); }
+      return j;
+    }
+  };
+  show('読み込んでいます…');
+  let rc, ch, st;
+  try { [rc, ch, st] = await Promise.all([fetch('recipes.json', { cache: 'no-store' }).then(r => r.json()), fetch('choices.json', { cache: 'no-store' }).then(r => r.json()).catch(() => ({})), call({ op: 'kget' })]); }
+  catch (e) { show('保存先につながりませんでした。時間をおいて再読み込みしてください。（' + (e && e.message || e) + '）'); return; }
+  if (!st.ok) { if (/passcode/.test(st.error || '')) { lsSet('smilewan_pass', ''); show('合言葉が違います。再読み込みして、もう一度入れてください。'); } else show('保存先のエラー：' + st.error); return; }
+  lsSet('smilewan_pass', pass);
+  // 日付が変わった訪問（買い物を保存した物・献立だけ選んで買い物の無い物）は履歴に移し、次の訪問を新しく始められるようにする
+  //   （納品物は利用者ごとに「今回の訪問」1件だけを持ち、翌日に進めるのはデモ用のボタンだけだったため）。履歴は週間予定表の記録にも使う
+  const T0 = new Date(Date.now() + 9 * 36e5).toISOString().slice(0, 10), S0 = st.state; let moved = 0;
+  if (S0 && S0.v) {
+    S0.hist = S0.hist || []; const seen = new Set(S0.hist.map(h => h.reqId));
+    Object.entries(S0.v).forEach(([c, v]) => {
+      if (!v || !c) return;
+      const done = v.bought && String(v.bought.pdate || '') < T0, menuOnly = !v.bought && !(v.lines || []).length && v.plan && String(v.pd || '') < T0;
+      if (!done && !menuOnly) return;
+      if (!seen.has(v.reqId)) S0.hist.push({ reqId: v.reqId, c, n: (S0.cl && S0.cl[c] && S0.cl[c].n) || '', pd: v.pd || '', plan: v.plan ? { r: v.plan.r, rn: v.plan.rn } : null,
+        bought: v.bought ? { id: v.bought.id, pdate: v.bought.pdate, pur: v.bought.pur, dsum: v.bought.dsum, chg: v.bought.chg, items: (v.bought.items || []).map(i => ({ pr: i.pr, tn: i.tn, n: i.n, qty: i.qty, amt: i.amt })) } : null });
+      delete S0.v[c]; moved++;
+    });
+  }
+  window.__INIT = S0; window.__REV = st.rev || 0; window.__RECIPES = rc; window.__CHOICES = ch;
+  // もとの /api/… をここで受ける
+  let srvRev = st.rev || 0, lastH = 0;
+  const of = window.fetch.bind(window), res = (code, o) => new Response(JSON.stringify(o), { status: code, headers: { 'Content-Type': 'application/json' } });
+  const hdr = (o, k) => { const h = (o && o.headers) || {}; return h[k] != null ? h[k] : h[k.toLowerCase()]; };
+  window.fetch = async (u, o) => {
+    const url = typeof u === 'string' ? u : (u && u.url) || '';
+    if (!url.startsWith('/api/')) return of(u, o);
+    try {
+      // 他のPCの更新の確認：もとは8秒ごと。保存先の負担を抑えるため1分に1回だけ問い合わせる
+      if (url === '/api/health') { if (Date.now() - lastH >= 60000) { lastH = Date.now(); const j = await call({ op: 'khealth' }); if (j.ok) srvRev = j.rev; } return res(200, { ok: true, rev: srvRev }); }
+      if (url === '/api/state' && (!o || !o.method || o.method === 'GET')) { const j = await call({ op: 'kget' }); if (!j.ok) return res(500, { error: j.error }); srvRev = j.rev; return res(200, { rev: j.rev, state: j.state }); }
+      if (url === '/api/state' && o.method === 'PUT') {
+        let by = ''; try { by = decodeURIComponent(hdr(o, 'X-Operator') || ''); } catch (e) {}
+        const j = await call({ op: 'kput', rev: Number(hdr(o, 'X-Rev') || 0), state: JSON.parse(o.body), by });
+        if (j.conflict) { srvRev = j.rev; return res(409, { error: 'conflict', rev: j.rev }); }
+        if (!j.ok) return res(400, { error: j.error || 'bad_request' });
+        srvRev = j.rev; return res(200, { ok: true, rev: j.rev });
+      }
+      if (url === '/api/estat/refresh') {
+        let by = ''; try { by = decodeURIComponent(hdr(o, 'X-Operator') || ''); } catch (e) {}
+        let j = await call({ op: 'kestat', by });
+        if (!j.ok && j.needAppId) { const id = (prompt('e-StatのアプリケーションIDを貼り付けてください（e-Statのマイページ→API機能で発行した物）') || '').trim(); if (id) { await call({ op: 'ksetappid', appId: id }); j = await call({ op: 'kestat', by }); } }
+        if (!j.ok) return res(500, { error: j.error });
+        srvRev = j.rev; return res(200, j);
+      }
+      return res(404, { error: 'not_found' });
+    } catch (e) { return res(503, { error: String(e && e.message || e) }); }
+  };
+  // 納品物の画面を動かす
+  const s = document.createElement('script'); s.textContent = document.getElementById('appsrc').textContent; document.body.appendChild(s);
+  if (moved) setTimeout(() => { try { save(); } catch (e) {} }, 800); // 履歴に移した分を保存
+  // 統計価格の月1回の更新（もとはサーバーが行っていた）：前回から27日以上たっていれば裏で更新する（IDが未設定なら何もしない）
+  try { const f = S0 && S0.fetched; if (f && (Date.now() - Date.parse(f + 'T00:00:00+09:00')) / 864e5 >= 27) call({ op: 'kestat', by: '自動更新' }).catch(() => {}); } catch (e) {}
+})();
+</script></body></html>
