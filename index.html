@@ -761,7 +761,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261025135728';
+const APP_VER = '20261029095826';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -782,9 +782,12 @@ function supaOn() { return !!GAS.url && !(window.claude && typeof window.claude.
 // 保存先（GAS）への1回の問い合わせ。text/plain で送る（ブラウザの事前確認が要らない形）
 async function gasCall(body) {
   // Googleの返事が途中で消えると、保存先の案内（app/folder だけ）が返る。空の結果と取り違えないよう、そのときは試し直す
-  for (let k = 0; ; k++) {
-    const r = await fetch(GAS.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
-    const t = await r.text(); let j;
+  // 通信が一瞬切れた（Failed to fetch）ときも少し待って試し直す（同じ内容の書き込みは何度送っても同じ結果）
+  for (let k = 0, net = 0; ; k++) {
+    let t;
+    try { const r = await fetch(GAS.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' }); t = await r.text(); }
+    catch (e) { if (++net <= 4 && navigator.onLine !== false) { await new Promise(res => setTimeout(res, 3000 * net)); k--; continue; } throw e; }
+    let j;
     try { j = JSON.parse(t); } catch { const e = new Error('保存先の返事が読めませんでした'); e.code = /Authorization|承認|ログイン|Sign in/i.test(t) ? 'noauth' : 'badresp'; throw e; }
     if (j.ok && j.app && body.op !== 'ping') { if (k < 5) { await new Promise(res => setTimeout(res, 1500 * (k + 1))); continue; } const e = new Error('保存先の返事が届きませんでした（時間をおいてもう一度）'); e.code = 'lost'; throw e; }
     if (!j.ok) { const e = new Error(j.error || 'error'); if (/passcode/.test(j.error || '')) e.code = 'badpass'; throw e; }
@@ -1489,7 +1492,8 @@ async function saveRecords(opt = {}) {
     rs.forEach(r => { const x = { date: ymd(r.date), start: r.e.start || '', end: r.e.end || '', type: r.e.type || '', detail: r.e.detail || '', staff: r.staff || '', kind: r.kind, text: r.text || '', flag: r.flag || '', kp: kpOf(r), kpText: kpAll(r).filter(k => !kpOf(r).includes(k)), vin: r.vin || {}, kpOff: r.kpOff || [], kpOn: r.kpOn || [], sick: !!r.sick, sickNext: !!r.sickNext, sickDay: !!r.sickDay, vinText: r.vinText || null, v: vOf(r) }; map.set(x.date + ' ' + x.start, x); n++; });
     // 前に保存した行のうち、今の行と同じ日・同じ時刻の物（時刻欄が空だった古い行など）は外す（同じ訪問が二重にならないように）
     { const eff = x => x.start || entryTime({ ...emptyEntry(), type: x.type, start: x.start, end: x.end, detail: x.detail }).s || '', cur = new Set(rs.map(r => ymd(r.date) + ' ' + (r.e.start || '')));
-      [...map.entries()].forEach(([k, x]) => { if (cur.has(k)) return; const t = eff(x); if (t && rs.some(r => ymd(r.date) === x.date && (entryTime(r.e).s || '') === t)) map.delete(k); }); }
+      [...map.entries()].forEach(([k, x]) => { if (cur.has(k)) return; const t = eff(x); if (!t) return; const xs = hm(t), xe = hm(x.end) || xs + 30;
+        if (rs.some(r => { if (ymd(r.date) !== x.date) return false; const rt = entryTime(r.e); if ((rt.s || '') === t) return true; const s2 = hm(rt.s), e2 = hm(rt.e) || (s2 + 30); return s2 != null && r.kind === x.kind && Math.abs(s2 - xs) <= 30 && s2 < xe && xs < e2; })) map.delete(k); }); } // 予定表の時刻を変えて作り直したときの古い時刻の行も外す
     const list = [...map.values()].sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
     ok = (await putDoc('records', id, { name, month, rows: list, updatedAt: new Date().toISOString() })) && ok;
   }
@@ -1594,7 +1598,7 @@ function parseProcedures(pages) {
     rows.sort((a, b) => a.y - b.y).forEach(r => r.ws.sort((a, b) => a.x - b.x));
     const heads = rows.filter(r => r.ws.some(w => /所要時間/.test(w.s)) && r.ws.some(w => /手順/.test(w.s)));
     heads.forEach((h, hi) => {
-      const hx = re => (h.ws.find(w => re.test(w.s)) || {}).x, cL = (hx(/サービスの内容/) ?? 124) - 15, cT = (hx(/手順/) ?? 248) - 50, cP = (hx(/本人/) ?? 437) - 10;
+      const hx = re => (h.ws.find(w => re.test(w.s)) || {}).x, cL = (hx(/サービスの内容/) ?? 124) - 15, cT = (hx(/手順/) ?? 248) - 50, hP = hx(/本人/) ?? 437, cP = hP - (hP - (hx(/手順/) ?? 248)) * 0.2; // 右端「本人・家族にやっていただくこと」の欄は見出しより左(約27pt)から書かれている→見出しの位置そのままだと手順に混ざっていた
       const next = heads[hi + 1] ? heads[hi + 1].y : 1e9;
       const typeRows = rows.filter(r => r.y > h.y && r.y < next && /[■□](身体介護|家事援助|重度訪問介護|通院|行動援護|同行援護)/.test(r.ws.map(w => w.s).join('')));
       const typeRow = typeRows.find(r => r.ws.some(w => /■/.test(w.s)));
@@ -1603,6 +1607,7 @@ function parseProcedures(pages) {
         const items = r.ws.filter(w => w.x > 45 && !/^(サ|｜|ビ|ス|\d|種|類|等)$/.test(w.s));
         const min = items.find(w => w.x < cL && /^\d+分$/.test(w.s));
         if (min) steps.push({ min: parseInt(min.s, 10), label: '', text: '', self: '' });
+        if (!steps.length && items.some(w => w !== min && w.x >= cL && w.x < cP)) steps.push({ min: 0, label: '', text: '', self: '' }); // 所要時間が書いていない手順（0時間のサービスなど）も読む
         const st = steps[steps.length - 1]; if (!st) return;
         items.forEach(w => { if (w === min) return; if (w.x >= cP) st.self += w.s; else if (w.x >= cT) st.text += w.s; else if (w.x >= cL) st.label += w.s; });
       });
@@ -2591,7 +2596,9 @@ function vOf(r) { const a = vAuto(r), m = r.vin || {}, v = { ...a, ...m }, t = t
   if (t) { const dow = r.date.getDay(), on = k => !(t.dayOnly || {})[k] || t.dayOnly[k].includes(dow);
     if (t.kaoiro && !m.顔色 && !r.sick) v.顔色 = t.kaoiro; if (t.hakkan && !m.発汗) v.発汗 = t.hakkan; if (t.henkou && !m.変更) v.変更 = t.henkou;
     if (!m.整容) v.整容 = on('身体整容|整容') ? (t.seiyo || []) : [];
-    if (!m.部分浴 && (t.bubunyoku || []).length) v.部分浴 = t.bubunyoku[0]; if (!m.清拭 && (t.seishiki || []).length && !r.sick) v.清拭 = t.seishiki[0]; if (!m.摂食 && t.sesshoku) v.摂食 = t.sesshoku; } v.その他 = ['環境整備', '相談援助', '情報収集・提供', '記録']; return v; } // その他は毎回4つとも（事業所の決まり）
+    if (!m.部分浴 && (t.bubunyoku || []).length) v.部分浴 = t.bubunyoku[0]; if (!m.清拭 && (t.seishiki || []).length && !r.sick) v.清拭 = t.seishiki[0]; if (!m.摂食 && t.sesshoku) v.摂食 = t.sesshoku; }
+  { const sb = seiyoBathOf(), kp = kpAll(r); if (sb && !m.整容 && !(v.整容 || []).length && kp.includes('身体整容|整容') && kp.some(k => /^入浴・清拭\|(入浴介助|シャワー浴)$/.test(k))) v.整容 = [...sb]; } // お風呂のときの整容（利用者情報）
+  v.その他 = ['環境整備', '相談援助', '情報収集・提供', '記録']; return v; } // その他は毎回4つとも（事業所の決まり）
 function shopGuess(r, v) {
   let seed = 0; for (const ch of (state.name || '') + ymd(r.date) + (r.e.start || '')) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
   const rnd = n => { seed = (seed * 1103515245 + 12345) >>> 0; return seed % n; };
@@ -2965,10 +2972,13 @@ function sickFix(r, out) {
   return o;
 }
 // 完食のチェックは付けない（事業所の決まり・手で付けた時だけ）
+const seiyoBathOf = () => { const c = (getColl('clients') || {})[docId((state.name || '').trim() || ' ')]; return c && Array.isArray(c.seiyoBath) && c.seiyoBath.length ? c.seiyoBath : null; };
 function kpAll(r) {
   const o = sickFix(r, kpAll0(r)).filter(k => k !== '食事|完食' || (r.kpOn || []).includes(k));
   // 家事の訪問で清掃があるときは、居室も必ず付ける（事業所の決まり・手で外したときだけ外す）
   if (r.kind === '家事援助' && o.some(k => k.startsWith('清掃|')) && !o.includes('清掃|居室') && !(r.kpOff || []).includes('清掃|居室')) o.push('清掃|居室');
+  // 利用者情報の「お風呂のときの整容」（例：髭）がある人は、入浴（シャワー浴）の訪問に整容を付ける
+  if (seiyoBathOf() && o.some(k => /^入浴・清拭\|(入浴介助|シャワー浴)$/.test(k)) && !o.includes('身体整容|整容') && !(r.kpOff || []).includes('身体整容|整容')) o.push('身体整容|整容');
   return o;
 }
 function kpAll0(r) {
@@ -4236,14 +4246,17 @@ const MENTION_NOT = [
   [['入浴・清拭|洗髪'], /洗髪/],
   [['服薬・医療|服薬介助・確認', '服薬・医療|見守り', '自立支援|服薬', '服薬・医療|薬の塗布', '服薬・医療|点眼'], /服薬|眠前薬|飲み忘れ/],
   [['洗濯|洗濯', '自立支援|洗濯'], /洗濯/],
+  [['衣類・寝具|衣類の整理', '衣類・寝具|被服の補修', '自立支援|衣類の整理・被服の補修'], /衣類の整理|衣類を整理|衣類整理|被服|タンス|衣替え/], // 更衣の「衣類の着脱」「衣類を準備」は入れない
   [['買物等|日常品等の買物', '自立支援|買い物・薬の受け取り', '移動|買物介助'], /買い物代行|買物代行|代行で買い物|購入品/],
   [['排泄|トイレ介助', '排泄|おむつ交換', '排泄|パッド交換', '排泄|ポータブルトイレ介助', '排泄|陰部清潔介助', '自立支援|排泄・食事'], /排泄介助|排泄の(状態|様子)|おむつ|パッド交換|陰部/],
 ];
+// 体調不良の日（シャワー浴）は、入浴の決まりだけ当てはめない（入浴をやめた日の文があるため）。ほかの決まりは同じ
+const mnRules = r => r && r.sick ? MENTION_NOT.filter(([keys]) => !keys.some(k => /^入浴・清拭\|/.test(k))) : MENTION_NOT;
 function mentionNotFix(r) {
-  if (!r || !r.text || r.on === false || r.sick) return;
-  const kp = kpAll(r), keep = sickKeep();
+  if (!r || !r.text || r.on === false) return;
+  const kp = kpAll(r), keep = sickKeep(), rules = mnRules(r);
   const ss = String(r.text).split(/(?<=。)/).filter(x => x.trim());
-  const out = ss.filter(x => keep(x.trim()) || LINK_RE.test(x) || !MENTION_NOT.some(([keys, re]) => re.test(x) && !keys.some(k => kp.includes(k))));
+  const out = ss.filter(x => keep(x.trim()) || LINK_RE.test(x) || !rules.some(([keys, re]) => re.test(x) && !keys.some(k => kp.includes(k))));
   if (out.length && out.length !== ss.length) r.text = out.join('');
 }
 function mentionFix(r, i) {
@@ -4294,7 +4307,9 @@ function orderFlow(r) {
   while (head < ss.length && /体調|過ごされ|表情|顔色|挨拶/.test(ss[head]) && rk(ss[head]) == null) head++;
   let end = ss.length; while (end > head && (LINK_RE.test(ss[end - 1]) || CLOSE_RE.test(ss[end - 1]) || /「/.test(ss[end - 1]))) end--;
   // 様子・配慮・会話などの文は、支援の文の後（退室の前）にまとめる
-  const mid = ss.slice(head, end).map((x, i) => { const v = rk(x); return { x, v: v != null ? v : /^(体調|本人の起床状況|利用者様の起床状況)|体調を(確認|伺|確か|お聞き|尋ね)|体調面/.test(x) ? 0 : 50, i }; });
+  const mid = ss.slice(head, end).map((x, i) => { const v = rk(x); return { x, v: v != null ? v : /^(体調|本人の起床状況|利用者様の起床状況)|体調を(確認|伺|確か|お聞き|尋ね)|体調面/.test(x) ? 0 : 50, i, sup: v != null || (/代行|購入|掃除|清掃|洗濯|調理|配膳|入浴|洗髪|更衣|着替え|服薬/.test(x) && !LINK_RE.test(x) && !/「/.test(x)) }; }); // 支援の文の見分けは点検（締めの文の後に支援の文）と同じ
+  // 途中にある締めの文（退室・次回の予定など）の後に支援の文があるときは、締めの文を支援の文より後ろへ
+  mid.forEach((m, j) => { if (CLOSE_RE.test(m.x) && !LINK_RE.test(m.x) && mid.slice(j + 1).some(n => n.sup)) m.v = 99; });
   mid.sort((a, b) => (a.v - b.v) || (a.i - b.i));
   r.text = [...ss.slice(0, head), ...mid.map(m => m.x), ...ss.slice(end)].join('');
 }
@@ -4454,7 +4469,7 @@ window.qaCheckRows = function (name) {
     const tNoLink = t.split(/(?<=。)/).filter(x => !LINK_RE.test(x)).join('');
     [['入浴・清拭|入浴介助', /入浴介助を行|浴槽への出入り|浴槽に/], ['入浴・清拭|洗髪', /洗髪/], ['起床・就寝|起床介助', /起床介助|起き上がり/], ['起床・就寝|就寝介助', /就寝介助|就寝の準備を手伝/]].forEach(([k, re]) => {
       if (!kp.includes(k) && re.test(tNoLink) && !r.sick) add(r, '文章とチェック', `文章に「${tNoLink.match(re)[0]}」があるのに「${k.split('|')[1]}」にチェックが無い`); });
-    if (!r.sick && typeof MENTION_NOT !== 'undefined') t.split(/(?<=。)/).filter(x => x.trim() && !LINK_RE.test(x)).forEach(x => MENTION_NOT.forEach(([keys, re]) => { if (re.test(x) && !keys.some(k => kp.includes(k))) add(r, '文章とチェック', `チェックが無いのに文章に「${x.match(re)[0]}」：${x.slice(0, 30)}`); }));
+    if (typeof MENTION_NOT !== 'undefined') { const keepS = typeof sickKeep === 'function' ? sickKeep() : () => false, rules = typeof mnRules === 'function' ? mnRules(r) : (r.sick ? [] : MENTION_NOT); t.split(/(?<=。)/).filter(x => x.trim() && !LINK_RE.test(x) && !keepS(x.trim())).forEach(x => rules.forEach(([keys, re]) => { if (re.test(x) && !keys.some(k => kp.includes(k))) add(r, '文章とチェック', `チェックが無いのに文章に「${x.match(re)[0]}」：${x.slice(0, 30)}`); })); }
     // 3. NG・完食
     NG.forEach(w => { if (w && t.includes(w)) add(r, 'NG表現', `「${w}」`); });
     if (kp.includes('食事|完食') && !(r.kpOn || []).includes('食事|完食')) add(r, '完食', '完食にチェック');
@@ -4499,6 +4514,9 @@ window.qaCheckRows = function (name) {
   // 12. 同じ日・同じ時刻の訪問が2つ（時刻欄が空の古い行と、時刻の入った行）
   { const g = new Map(); rows.forEach(r => { const s = entryTime(r.e).s; if (!s) return; const k = ymd(r.date) + ' ' + s; g.set(k, [...(g.get(k) || []), r]); });
     g.forEach(v => { if (v.length > 1 && v.some(r => r.e.start)) v.filter(r => !r.e.start).forEach(r => add(r, '二重の訪問', '同じ日・同じ時刻に訪問が2つ（時刻欄が空の古い行）')); }); }
+  // 13. 同じ日に時間の重なる同じ種類の訪問（予定表の時刻を変えたときの古い行など）。どちらが正しいかは人が決める
+  { const bd = new Map(); rows.forEach(r => { const s = hm(entryTime(r.e).s); if (s == null || !r.e.start) return; const k = ymd(r.date); bd.set(k, [...(bd.get(k) || []), r]); });
+    bd.forEach(v => { v.sort((a, b) => hm(entryTime(a.e).s) - hm(entryTime(b.e).s)); for (let i = 1; i < v.length; i++) { const a = v[i - 1], b = v[i], as = hm(entryTime(a.e).s), ae = hm(entryTime(a.e).e) || as + 30, bs = hm(entryTime(b.e).s); if (a.kind === b.kind && bs - as <= 30 && bs < ae) add(b, '重なる訪問', `同じ日に時間の重なる訪問が2つ（${entryTime(a.e).s}〜${entryTime(a.e).e}と${entryTime(b.e).s}〜${entryTime(b.e).e}）。シフトと合う方を残して、もう片方は外してください`); } }); }
   // 11. 体調不良の日と共に行う日
   const togDays = new Set(rows.filter(r => r.kind !== '家事援助' && visTogether(r.e)).map(r => ymd(r.date)));
   rows.filter(r => r.sick && togDays.has(ymd(r.date))).forEach(r => add(r, '体調不良', '共に行う日に体調不良'));
