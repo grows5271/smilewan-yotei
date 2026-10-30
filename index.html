@@ -407,6 +407,7 @@
         <label>この月に入った利用者（押すとその人の記録を開きます）</label>
         <div id="staffClients" class="staff-clients"><p class="hint">担当者を選ぶと出ます。</p></div>
         <div class="toolbar" style="margin-top:8px">
+          <button class="primary" id="staffDocxBtn" onclick="exportStaffDocx()">📄 Wordに書き出し</button>
           <button onclick="copyStaffMonth(this)">📋 文章とチェックをコピー</button>
         </div>
         <div class="hint">右に、その担当者がこの月に入った訪問を全員分まとめて出します（ここでは見るだけ）。直すときは利用者を押して、その人の記録を開いてください。<br>担当者は、保存した記録の担当者欄（シフトから入った名前）で探します。</div>
@@ -598,7 +599,7 @@
       <p><b>用紙に無い曜日・時刻の訪問</b>：同じ人の、同じ種類（身体／家事／入浴／共に）で時刻が一番近い用紙（90分以内）を使う（例：土曜19:30の入浴→20:00の入浴の用紙）。通院は使わない。</p>
       <p><b>見本（記録用紙）の書き込み</b>：■と赤ペンの✓は付ける、赤の×は外す、丸囲みは「ときどき」（予定表のその訪問の内容に書いてあるときだけ付ける。例：買物に丸→予定に「代行」とあれば付ける）。「どちらか」は訪問ごとに交互に1つ。家事の訪問は必ずゴミ出し、清掃があるときは居室も必ず付ける。献立欄の「3品」などは献立の品数。買い物代行の日は預り・購入・お釣・内訳をだいたいの金額で入れる（手で入れた値が優先）。</p>
       <p><b>同じ文を書かない</b>：同じ利用者・同じ月の中で一度使った文は、2回目からは意味を変えずに言い回しを変える（例：「退室前に戸締まりや火の元を確認し、安全を確かめた」→「帰る前に火の元や戸締まりを確認し、危険がないことを確かめた」）。言い回しが尽きた様子・会話などの付け足しの文は、同じ種類のまだ使っていない文に替える。</p>
-      <p><b>訪問記録タブの選び方</b>：いちばん上で「👤 利用者から選ぶ」か「🧑 担当者から選ぶ」を選ぶ（前回の選び方を覚えておく）。利用者から選ぶ＝利用者と保存した月を選んで記録を開く。担当者から選ぶ＝担当者と月を選ぶと、その月に入った利用者が回数つきで並び、右にその人の訪問が全員分出る（見るだけ）。利用者を押すとその人の記録が開き、「← 担当者の一覧に戻る」で戻れる。</p>
+      <p><b>訪問記録タブの選び方</b>：いちばん上で「👤 利用者から選ぶ」か「🧑 担当者から選ぶ」を選ぶ（前回の選び方を覚えておく）。利用者から選ぶ＝利用者と保存した月を選んで記録を開く。担当者から選ぶ＝担当者と月を選ぶと、その月に入った利用者が回数つきで並び、右にその人の訪問が全員分出る（見るだけ）。「📄 Wordに書き出し」で、その担当者の1か月分を1訪問1ページのWordにできる（日付・時刻の順、利用者の書き出しと同じ形）。利用者を押すとその人の記録が開き、「← 担当者の一覧に戻る」で戻れる。</p>
       <p><b>担当者で絞り込み（予定表タブ）</b>：予定表タブの「担当者」で選ぶと、その人が訪問記録の担当者に入っている利用者だけが、予定表タブの保存済み利用者の一覧に出る（訪問記録タブでは「🧑 担当者から選ぶ」を使う）（介護／障害の絞り込みと一緒に使える）。</p>
       <p><b>毎朝の点検</b>：毎朝6:30に事業所のMacで全員・全月を点検して直す。Macが動いていなかった日は、7:30以降に最初にツールを開いた人の画面の裏（見えない枠）で同じ点検をする（その人の操作には影響しない）。</p>
       <p><b>予定表の確認</b>：記録を作ったとき、予定表の時刻欄が空・時刻なし・種別が空や不明・シフトにあって予定表に無い訪問・予定表にあってシフトに無い予定・似た名前を「⚠ 予定表の確認」に出す（作るのは止めない）。</p>
@@ -766,7 +767,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261030123403';
+const APP_VER = '20261030125550';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -5273,6 +5274,41 @@ function docxCheckTable(D, r, FONT, avail) {
   rows.push(new D.TableRow({ cantSplit: true, height: { value: minH, rule: D.HeightRule.ATLEAST }, children: [cell([t('特記事項', { bold: true })], LW, 1), cell([t(text, { size: sz })], VW, 0, TL)] }));
   return new D.Table({ rows, width: { size: LW + VW, type: D.WidthType.DXA }, columnWidths: [LW, VW], layout: D.TableLayoutType.FIXED });
 }
+// Word：1訪問を1ページにぎっしり（見出し2行＋表。表の最後の「特記事項」の欄をページの下まで伸ばす。次の訪問は次のページから）
+const DOCX_PAGE = { H: 16838, TOP: 850, BOT: 850, HL: 330 };
+function docxVisit(D, r, i, flat, kubun, FONT) {
+  const { H, TOP, BOT, HL } = DOCX_PAGE, run = (text, bold) => new D.TextRun({ text, bold, font: { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, size: 22 });
+  const head = `${r.date.getMonth() + 1}月${r.date.getDate()}日（${DAYS[r.date.getDay()]}）　${flat}${kubun === '介護' ? '　介護' : ''}`;
+  const head2 = `【${recLabel(r)}】${docxTime(r)}　${docxKind(r)}`;
+  const hLines = 1 + Math.max(1, Math.ceil([...head2].length / 42));
+  return [new D.Paragraph({ pageBreakBefore: i > 0, keepNext: true, spacing: { before: 0, after: 40, line: HL, lineRule: D.LineRuleType.EXACT }, children: [run(head, true)] }),
+    new D.Paragraph({ keepNext: true, spacing: { before: 0, after: 100, line: HL, lineRule: D.LineRuleType.EXACT }, children: [run(head2, true)] }), // 文章は表の一番下の「特記事項」に入れる（カイポケと同じ並び）
+    docxCheckTable(D, r, FONT, H - TOP - BOT - hLines * HL - 140)];
+}
+function docxDoc(D, children, FONT) {
+  return new D.Document({
+    styles: { default: { document: { run: { font: { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, size: 21 } } } },
+    sections: [{ properties: { page: { size: { width: 11906, height: DOCX_PAGE.H }, margin: { top: DOCX_PAGE.TOP, right: 1000, bottom: DOCX_PAGE.BOT, left: 1000, header: 450, footer: 450 } } }, children }],
+  });
+}
+// 担当者から選ぶ：その担当者がその月に入った訪問を、全員分まとめてWordに（日付・時刻の順、1訪問1ページ。利用者の書き出しと同じ形）
+async function exportStaffDocx() {
+  const M = staffMonthData; if (!M || !M.items.length) { alert('先に担当者と月を選んでください（その月に入った訪問があるときに書き出せます）'); return; }
+  const btn = document.getElementById('staffDocxBtn'), label = btn.textContent, keep = state.name, k = nmz(M.st);
+  btn.disabled = true; btn.textContent = 'Word作成中…';
+  try {
+    await loadLib('docx'); const D = window.docx, FONT = window._docxFont || '游明朝';
+    const list = [];
+    [...new Set(M.items.map(it => it.c))].forEach(c => { const d = Object.values(getColl('records')).find(x => x.name === c && x.month === M.ym); if (d) d.rows.filter(x => x.on !== false && splitStaff(x.staff).includes(k)).forEach(x => list.push({ c, x })); });
+    list.sort((a, b) => a.x.date.localeCompare(b.x.date) || String(a.x.start || '').localeCompare(String(b.x.start || '')) || a.c.localeCompare(b.c, 'ja'));
+    const children = [];
+    list.forEach(({ c, x }, i) => { state.name = c; children.push(...docxVisit(D, savedRowToRec(x), i, c.replace(/[\s　]+/g, ''), kubunOf(c), FONT)); }); // 見本・区分などはその利用者の物で
+    state.name = keep;
+    const blob = await D.Packer.toBlob(docxDoc(D, children, FONT));
+    await download(blob, `${M.st.replace(/[\s　]+/g, '')}　${+M.ym.slice(5)}月担当分特記事項.docx`);
+  } catch (e) { alert('Wordを作成できませんでした: ' + ((e && e.message) || e)); }
+  finally { state.name = keep; btn.disabled = false; btn.textContent = label; }
+}
 async function exportRecordsDocx() {
   const rows = recRows.filter(r => r.on);
   if (!rows.length) { alert('出力する行がありません'); return; }
@@ -5286,24 +5322,11 @@ async function exportRecordsDocx() {
     const name = (state.name || '').trim(), flat = name.replace(/[\s　]+/g, '');
     const kubun = document.getElementById('recKubun').value;
     const FONT = window._docxFont || '游明朝';
-    const run = (text, bold) => new D.TextRun({ text, bold, font: { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, size: 22 });
-    // 日付の早い順、同じ日は時刻順
+    // 日付の早い順、同じ日は時刻順。1訪問を1ページに（docxVisit）
     const sorted = [...rows].sort((a, b) => (a.date - b.date) || (a.e.start || '').localeCompare(b.e.start || ''));
-    // 1訪問を1ページにぎっしり（見出し2行＋表。表の最後の「特記事項」の欄をページの下まで伸ばす。次の訪問は次のページから）
-    const PAGE_H = 16838, M_TOP = 850, M_BOT = 850, HL = 330;
     const children = [];
-    sorted.forEach((r, i) => {
-      const head = `${r.date.getMonth() + 1}月${r.date.getDate()}日（${DAYS[r.date.getDay()]}）　${flat}${kubun === '介護' ? '　介護' : ''}`;
-      const head2 = `【${recLabel(r)}】${docxTime(r)}　${docxKind(r)}`;
-      const hLines = 1 + Math.max(1, Math.ceil([...head2].length / 42));
-      children.push(new D.Paragraph({ pageBreakBefore: i > 0, keepNext: true, spacing: { before: 0, after: 40, line: HL, lineRule: D.LineRuleType.EXACT }, children: [run(head, true)] }));
-      children.push(new D.Paragraph({ keepNext: true, spacing: { before: 0, after: 100, line: HL, lineRule: D.LineRuleType.EXACT }, children: [run(head2, true)] })); // 文章は表の一番下の「特記事項」に入れる（カイポケと同じ並び）
-      children.push(docxCheckTable(D, r, FONT, PAGE_H - M_TOP - M_BOT - hLines * HL - 140));
-    });
-    const doc = new D.Document({
-      styles: { default: { document: { run: { font: { eastAsia: FONT, ascii: FONT, hAnsi: FONT }, size: 21 } } } },
-      sections: [{ properties: { page: { size: { width: 11906, height: PAGE_H }, margin: { top: M_TOP, right: 1000, bottom: M_BOT, left: 1000, header: 450, footer: 450 } } }, children }],
-    });
+    sorted.forEach((r, i) => children.push(...docxVisit(D, r, i, flat, kubun, FONT)));
+    const doc = docxDoc(D, children, FONT);
     const blob = await D.Packer.toBlob(doc);
     const m = sorted[0].date.getMonth() + 1;
     await download(blob, `${kubun === '介護' ? '介護　' : ''}${flat}${m}月特記事項.docx`);
