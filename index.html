@@ -767,7 +767,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261030133653';
+const APP_VER = '20261030140635';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1301,7 +1301,7 @@ const DISH = {
     ['卵スープ', ['卵', '長ねぎ'], '簡'], ['すまし汁', ['豆腐', '三つ葉'], '簡'],
   ],
 };
-const DISH_NAMES = new Set([...Object.values(DISH).flat().map(d => d[0]), 'ご飯', 'ヨーグルト', 'バナナ', 'りんご', 'みかん', 'キウイ']);
+const DISH_NAMES = new Set([...Object.values(DISH).flat().map(d => d[0]), 'ご飯', 'ヨーグルト', 'バナナ', 'りんご', 'みかん', 'キウイ', '牛乳']);
 const SHOP_CAT = [['肉・魚', /肉|ロース|鮭|さば|たら|ぶり|かれい|えび|ハム|ツナ|あじ|ほっけ|しらす|ちくわ|ウインナー|ベーコン|はんぺん|さわら|いわし|さんま|かじき|ささみ|しじみ|あさり/], ['卵・乳・豆腐', /卵|牛乳|豆腐|納豆|油揚げ|厚揚げ|ヨーグルト|チーズ|おから|大豆/], ['野菜・きのこ', /玉ねぎ|にんじん|じゃがいも|キャベツ|もやし|ピーマン|大根|白菜|長ねぎ|ほうれん草|小松菜|かぼちゃ|ごぼう|きゅうり|トマト|なす|ブロッコリー|冬瓜|しめじ|なめこ|しょうが|オクラ|れんこん|しいたけ|たけのこ|ゴーヤ|レタス|いんげん|春菊|里いも|さつまいも|三つ葉|コーン|バナナ|りんご|みかん|キウイ|もずく/], ['乾物・その他', /./]];
 // 1人分の量の目安（[量, 単位]）。載っていない物は調味料・乾物として「在庫を確認」
 const QTY = {
@@ -1564,7 +1564,9 @@ function planMenu(row, meal, plain) {
   const xs = [...new Set(st.match(PLAN_FOOD).map(x => x === '食パン' || x === 'トースト' ? 'パン' : x === 'みそ汁' ? '味噌汁' : x === 'おかゆ' ? 'お粥' : x))]; if (plain) return xs.join('・');
   let seed = 0; for (const ch of (state.name || '') + ymd(row.date) + meal) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0; seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
   const kinds = /買ってきた|買った|菓子パン/.test(st) ? BREAD_BUY : BREAD;
-  return xs.map(x => x === 'パン' ? kinds[(seed >>> 8) % kinds.length] : x).join('・');
+  const out = xs.map(x => x === 'パン' ? kinds[(seed >>> 8) % kinds.length] : x);
+  if (meal === '朝食' && out.length < 2) { const side = ['ヨーグルト', 'バナナ', '牛乳', 'りんご', 'みかん']; seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; out.push(side[(seed >>> 8) % side.length]); } // 朝食は2品以上（パンだけの手順書にはヨーグルト・果物などを添える）
+  return out.join('・');
 }
 // 記録の「調理」の文に、その曜日・食事の献立を入れる（献立アプリで選んだ料理 → 手順書のメニュー → 🛒の献立表 → その日に決まった献立 の順）
 function menuFor(row, meal) {
@@ -1588,13 +1590,12 @@ function breakfastPick(R, rnd, n) {
   const lowSalt = !!(R && R.avoid && R.avoid.has && R.avoid.has('塩')); // 減塩：味噌汁は付けない
   const get = k => k === '味噌汁' ? (lowSalt ? null : one(DISH['汁物'].filter(d => d[1].includes('味噌')))) : k === '卵' ? one(DISH['朝'].filter(d => BF_EGG.includes(d[0])))
     : k === 'パン' ? one(BREAD.map(b => [b, ['パン'], '簡'])) : k === '果物' ? one(BF_FRUIT) : (BF_ITEM[k] && ok(BF_ITEM[k]) ? BF_ITEM[k] : null);
-  const pats = BF_PAT.filter(([, base]) => !(lowSalt && base.includes('味噌汁')) && (n !== 1 || base.includes('卵') || base.includes('味噌汁'))), tot = pats.reduce((a, x) => a + x[0], 0); // 1品の人は卵料理か味噌汁（用意する物）
+  const pats = BF_PAT.filter(([, base]) => !(lowSalt && base.includes('味噌汁'))), tot = pats.reduce((a, x) => a + x[0], 0);
   for (let k = 0; k < 10; k++) {
     let w = rnd(tot), p = pats[0]; for (const x of pats) { if (w < x[0]) { p = x; break; } w -= x[0]; }
     const base = p[1].map(get); if (base.some(x => !x)) continue; // 食べられない物が入る組み合わせは選ばない
-    const want = n || (rnd(2) ? 3 : 2); let out = base;
+    const want = n ? Math.max(2, n) : (rnd(2) ? 3 : 2); let out = base; // 朝食は2品以上（10/30 ユーザー指示。見本が1品の人も2品に）
     if (want >= 3) { const ex = p[2].map(get).filter(Boolean), f = ex.length ? ex[rnd(ex.length)] : get('果物'); if (f) out = [...base, f]; }
-    if (want === 1) out = base.filter(d => d[0] !== 'ご飯' && !BREAD_BUY.includes(d[0]) && !['ヨーグルト', '納豆'].includes(d[0])).slice(0, 1);
     return out;
   }
   return [];
@@ -3828,9 +3829,11 @@ function shiftStaffFor(rows, name, date, start) {
   return [...new Set(cand.filter(r => diff(r) === best).map(r => r.h))].join('・');
 }
 async function fillStaffFromShift(force) {
-  const name = (state.name || '').trim(), info = document.getElementById('shiftInfo'); if (!name || !recRows.length) return;
+  const name = (state.name || '').trim(), info = document.getElementById('shiftInfo'), rows0 = recRows; if (!name || !recRows.length || window._bulkQa) return; // 全件点検の間は入れ直さない
   const yms = [...new Set(recRows.map(r => ymd(r.date).slice(0, 7)))];
   const by = {}; for (const ym of yms) by[ym] = await loadShift(ym);
+  // シフトを読む間に別の利用者を開いたときは何もしない（前は、前の利用者のシフトの担当者が次の利用者の記録に入っていた：10/24 鷲尾9月など）
+  if ((state.name || '').trim() !== name || recRows !== rows0) return;
   let n = 0, miss = 0;
   recRows.forEach(r => {
     if (!force && r.staffEdited && !r.staffFromShift && r.staff) return; // 手で選んだ担当者はそのまま
@@ -4882,7 +4885,7 @@ async function qaAllSaved(opt = {}) {
   if (!DB || !DB.loadAllRecords) { if (!opt.auto) alert('共有に接続してから押してください'); return { error: 'not connected' }; }
   if (!opt.auto && recRows.length && !confirm('今開いている表は閉じます（保存済みの内容は消えません）。全件点検をしますか？')) return;
   const btn = document.getElementById('qaAllBtn'), label = btn.textContent; btn.disabled = true; btn.textContent = '点検中…';
-  const keepName = state.name, all = [], items = []; let fixedN = 0;
+  const keepName = state.name, all = [], items = []; let fixedN = 0; window._bulkQa = true;
   try {
     await DB.loadAllRecords(); await kdLoad(true); // 献立・買い物支援の記録も読む
     const docs = Object.values(getColl('records')).filter(d => d.rows && d.rows.length).sort((a, b) => (a.name + a.month).localeCompare(b.name + b.month, 'ja'));
@@ -4903,7 +4906,7 @@ async function qaAllSaved(opt = {}) {
     gasCall({ pass: (lsGet('smilewan_pass') || '').trim(), op: 'qa', items }).catch(() => {});
     if (opt.auto) gasCall({ pass: (lsGet('smilewan_pass') || '').trim(), op: 'log', item: { where: 'morning', ver: APP_VER, msg: `朝の点検：${items.length}か月分を点検・${fixedN}訪問を自動で直した・直せなかった所${all.length}件` } }).catch(() => {});
   } catch (e) { reportError('qaAllSaved: ' + (e && e.message || e), 'qa'); if (opt.auto) return { error: String(e && e.message || e) }; alert('点検の途中でエラーになりました：' + (e && e.message || e)); }
-  finally { btn.disabled = false; btn.textContent = label; recRows = []; renderRecordView(); }
+  finally { window._bulkQa = false; btn.disabled = false; btn.textContent = label; recRows = []; renderRecordView(); }
   if (opt.auto) return { months: items.length, fixed: fixedN, left: all.length, leftList: all.slice(0, 50).map(i => `${i.name} ${i.date} ${i.start}【${i.kind}】${i.msg}`) };
   const box = document.getElementById('recQa'); box.dataset.all = '1';
   if (!all.length) { box.style.display = ''; box.open = false; box.querySelector('summary').textContent = fixedN ? `✅ 全件点検：${fixedN} 訪問を自動で直して保存しました。残りはありません` : '✅ 全件点検：決まりと合わない所はありませんでした'; box.querySelector('ul').innerHTML = ''; return; }
