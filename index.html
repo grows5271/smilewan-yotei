@@ -767,7 +767,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261030145515';
+const APP_VER = '20261030150809';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1535,7 +1535,7 @@ function withKd(r, t) {
   const kp = kpAll(r); let ss = String(t).split(/(?<=。)/).filter(x => x.trim()); const all = () => ss.join('');
   const endAt = () => { let e = ss.length; while (e > 0 && (LINK_RE.test(ss[e - 1]) || CLOSE_RE.test(ss[e - 1]) || /「/.test(ss[e - 1]))) e--; return e; };
   // 朝食は献立欄と同じ料理名（2品以上）を文章にも必ず書く（10/30 ユーザー指示「朝食まだ反映されていない」）。昼・夕は献立アプリ・手順書のメニューがあるときだけ
-  const mn = kp.some(k => k === '調理|調理' || k === '自立支援|一般的な調理・配下膳') ? (kdMenu(r) || (mealOf(r) === '朝食' ? menuOrQuick(r, '朝食') : planMenu(r, mealOf(r), true))) : '';
+  const mn = kp.some(k => k === '調理|調理' || k === '自立支援|一般的な調理・配下膳') ? (kdMenu(r) || menuOrQuick(r, mealOf(r))) : ''; // 昼・夕も献立欄の料理名を文章に（10/30「手順書に書いてるメニューが入ってない」）
   // 文章に書いた献立（「献立に沿って〇〇を調理」「（〇〇）の準備」）が今の献立（献立欄）と違えば、文章の方を直す
   if (!mn && kp.some(k => k === '調理|調理' || k === '自立支援|一般的な調理・配下膳')) {
     const cur = menuOrQuick(r, mealOf(r)), isMenu = a => a.split('・').every(d => DISH_NAMES.has(d) || BREAD_BUY.includes(d));
@@ -1602,19 +1602,25 @@ function breakfastPick(R, rnd, n) {
   }
   return [];
 }
+// 手順書に書いてある品数（例：「3品を少し多めに調理」「2品調理」「3～4品」）。3～4品は日によって3か4
+function planDishN(row) {
+  let pr; try { pr = procedureFor(row.e, (state.name || '').trim()); } catch (e) { return 0; } if (!pr) return 0;
+  const st = pr.steps.map(x => planNorm(x.text)).find(x => /([2-4])(～([3-4]))?品/.test(x) && /調理|作/.test(x)); if (!st) return 0;
+  const m = st.match(/([2-4])(～([3-4]))?品/); return m[3] ? (row.date.getDate() % 2 ? +m[3] : +m[1]) : +m[1];
+}
 function menuOrQuick(row, meal) {
-  if (meal === '朝食' && !menuFor(row, meal)) { // 朝食は定番の組み合わせ（見本の品数があればそれに合わせる）
-    const t = tmplFor(row), dd = t ? Object.entries(t.kondateDay || {}).find(([, ds]) => ds.includes(row.date.getDay())) : null, n = t ? (dd ? +dd[0] : t.kondateN) || 0 : 0;
+  if (meal === '朝食' && !menuFor(row, meal)) { // 朝食は定番の組み合わせ（手順書・見本の品数があればそれに合わせる）
+    const t = tmplFor(row), dd = t ? Object.entries(t.kondateDay || {}).find(([, ds]) => ds.includes(row.date.getDay())) : null, n = planDishN(row) || (t ? (dd ? +dd[0] : t.kondateN) || 0 : 0);
     const name = (state.name || '').trim(); let R; try { R = menuRules(name); } catch { R = { avoid: new Set(), ng: [], easy: false }; }
     let seed = 0; for (const ch of name + ymd(row.date) + meal) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0;
     const rnd = k => { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; return (seed >>> 8) % k; };
     return breakfastPick(R, rnd, n).map(d => d[0]).join('・');
   }
-  const s = menuOrQuick0(row, meal), t = tmplFor(row); if (!s || !t || !t.kondateN || kdMenu(row) || planMenu(row, meal)) return s; // 献立アプリ・手順書のメニューは品数合わせで足さない
-  // 見本の献立欄の品数（例：3品）に合わせる（曜日で品数が違う見本は kondateDay）
-  const dd = Object.entries(t.kondateDay || {}).find(([, ds]) => ds.includes(row.date.getDay())), n = dd ? +dd[0] : t.kondateN;
+  const s = menuOrQuick0(row, meal), t = tmplFor(row), pn = planDishN(row); if (!s || (!pn && (!t || !t.kondateN)) || kdMenu(row) || planMenu(row, meal)) return s; // 献立アプリ・手順書のメニューは品数合わせで足さない
+  // 手順書の品数（例：2品調理）→ 無ければ見本の献立欄の品数（例：3品。曜日で品数が違う見本は kondateDay）に合わせる
+  const dd = t ? Object.entries(t.kondateDay || {}).find(([, ds]) => ds.includes(row.date.getDay())) : null, n = pn || (dd ? +dd[0] : t.kondateN);
   const xs = s.split('・'); let seed = 7; for (const ch of ymd(row.date) + meal) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
-  const extra = [...DISH['副菜'], ...DISH['汁物']].map(d => d[0]).filter(d => !xs.includes(d));
+  const soup = xs.some(d => DISH['汁物'].some(x => x[0] === d)), extra = [...DISH['副菜'], ...(soup ? [] : DISH['汁物'])].map(d => d[0]).filter(d => !xs.includes(d)); // 汁物が2つにならないように
   while (xs.length < n && extra.length) { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; xs.push(extra.splice((seed >>> 8) % extra.length, 1)[0]); }
   return xs.slice(0, n).join('・');
 }
