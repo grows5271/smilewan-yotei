@@ -766,7 +766,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261030121615';
+const APP_VER = '20261030123403';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -5265,9 +5265,12 @@ function docxCheckTable(D, r, FONT, avail) {
   row('調理', [...items('調理', ['調理', '下拵え', '配・下膳']), opt('献立', on('調理|調理') ? v.献立 : '')]);
   row('買物等', [...items('買物等', ['日常品等の買物', '薬の受取り']), opt('預り', v.預り && v.預り + '円'), opt('購入', v.購入 && v.購入 + '円'), opt('お釣', v.お釣 && v.お釣 + '円'), opt('内訳', v.内訳)]);
   // 特記事項（文章）：10.5pt。残りの高さいっぱいまで欄を伸ばす（文章が長くて入らないときは自然な高さ）
-  const text = String(r.text || '').replace(/\n/g, ''), TL = 330, natural = Math.max(3, Math.ceil(wlen(text) / 37)) * TL + PAD;
+  // 文章が長くて残りの高さに入らないときは、文字を少し小さくして1ページに収める（10.5pt→9.5pt→9pt→8.5pt）（10/30：手順書の文で長くなり2ページにはみ出していた）
+  const text = String(r.text || '').replace(/\n/g, ''), room = (avail || 0) - used - 300, FS = [[21, 330, 37], [19, 300, 41], [18, 280, 43], [17, 260, 46]];
+  let [sz, TL, cpl] = FS[0]; for (const f of FS) { [sz, TL, cpl] = f; if (Math.max(3, Math.ceil(wlen(text) / cpl)) * TL + PAD <= room) break; }
+  const natural = Math.max(3, Math.ceil(wlen(text) / cpl)) * TL + PAD;
   const minH = Math.max(natural, Math.floor((avail || 0) - used - 100));
-  rows.push(new D.TableRow({ cantSplit: true, height: { value: minH, rule: D.HeightRule.ATLEAST }, children: [cell([t('特記事項', { bold: true })], LW, 1), cell([t(text, { size: 21 })], VW, 0, TL)] }));
+  rows.push(new D.TableRow({ cantSplit: true, height: { value: minH, rule: D.HeightRule.ATLEAST }, children: [cell([t('特記事項', { bold: true })], LW, 1), cell([t(text, { size: sz })], VW, 0, TL)] }));
   return new D.Table({ rows, width: { size: LW + VW, type: D.WidthType.DXA }, columnWidths: [LW, VW], layout: D.TableLayoutType.FIXED });
 }
 async function exportRecordsDocx() {
