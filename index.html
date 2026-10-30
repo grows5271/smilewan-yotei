@@ -258,6 +258,11 @@
   .goods-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
   .goods-table th, .goods-table td { border: 1px solid var(--line); padding: 5px 7px; text-align: left; vertical-align: middle; }
   .goods-table small { color: var(--muted); }
+  .rec-pick { display: flex; gap: 6px; margin: 0 0 10px; }
+  .rec-pick button { flex: 1 1 0; font-size: 15px; font-weight: bold; padding: 10px 8px; border: 2px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+  .rec-pick button.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .staff-clients { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px; }
+  .staff-clients button { padding: 6px 10px; }
   .rec-steps { display: flex; gap: 4px; padding: 0; margin: 0 0 10px; list-style: none; counter-reset: st; flex-wrap: wrap; }
   .rec-steps li { counter-increment: st; flex: 1 1 0; min-width: 7em; font-size: 12px; padding: 6px 8px; border-radius: 6px; background: var(--soft, rgba(127,127,127,.08)); color: var(--muted); line-height: 1.35; }
   .rec-steps li::before { content: counter(st) ' '; font-weight: bold; }
@@ -390,23 +395,29 @@
     </div>
 
     <div id="recordPanel" style="display:none">
-      <div class="row rec-who" style="gap:14px;margin-bottom:6px;align-items:center">
-        <b>見方</b>
-        <label class="check"><input type="radio" name="recWho" value="user" checked onchange="setRecWho('user')" style="width:auto"> 利用者で見る</label>
-        <label class="check"><input type="radio" name="recWho" value="staff" onchange="setRecWho('staff')" style="width:auto"> 担当者で見る（1か月）</label>
+      <div class="rec-pick" role="tablist" aria-label="記録の選び方">
+        <button type="button" id="pickUserBtn" class="on" onclick="setRecWho('user')">👤 利用者から選ぶ</button>
+        <button type="button" id="pickStaffBtn" onclick="setRecWho('staff')">🧑 担当者から選ぶ</button>
       </div>
       <div id="recByStaff" style="display:none">
         <label>担当者</label>
-        <select id="recStaffSel"><option value="">（選んでください）</option></select>
+        <select id="recStaffSel" onchange="showStaffMonth()"><option value="">（選んでください）</option></select>
         <label>月</label>
-        <input type="month" id="recStaffMonth">
+        <input type="month" id="recStaffMonth" onchange="showStaffMonth()">
+        <label>この月に入った利用者（押すとその人の記録を開きます）</label>
+        <div id="staffClients" class="staff-clients"><p class="hint">担当者を選ぶと出ます。</p></div>
         <div class="toolbar" style="margin-top:8px">
-          <button class="primary" id="staffMonthBtn" onclick="showStaffMonth()">👤 この担当者の1か月を出す</button>
           <button onclick="copyStaffMonth(this)">📋 文章とチェックをコピー</button>
         </div>
-        <div class="hint">選んだ担当者がその月に入った訪問を、全員分まとめて右に出します（担当した利用者・回数・文章・チェック）。<br>ここでは見るだけです。直すときは、利用者名の横の「この人の記録を開く」から開いて直してください（同じ記録を2か所で直してずれるのを防ぐため）。<br>担当者は、保存した記録の担当者欄（シフトから入った名前）で探します。</div>
+        <div class="hint">右に、その担当者がこの月に入った訪問を全員分まとめて出します（ここでは見るだけ）。直すときは利用者を押して、その人の記録を開いてください。<br>担当者は、保存した記録の担当者欄（シフトから入った名前）で探します。</div>
       </div>
       <div id="recByUser">
+      <div id="recFromStaff" class="hint" style="display:none;margin:0 0 4px"></div>
+      <label>利用者</label>
+      <select id="recUser" onchange="loadSaved(this.value)"></select>
+      <div id="recAsWarn" class="hint" style="display:none;color:var(--danger);font-weight:bold"></div>
+      <label>📚 保存した訪問記録（この利用者）</label>
+      <div class="row"><select id="recSavedMonth"><option value="">（保存した記録はありません）</option></select><button class="small fixed" onclick="openSavedRecords()">開く</button></div>
       <ol class="rec-steps" id="recSteps"><li>利用者と期間を選ぶ</li><li>「📝 記録を生成」</li><li>文章を確認・直す<small>↻言い換え／＋項目／📝記録欄</small></li><li>自動で保存 → Word書き出し</li></ol>
       <div class="toolbar">
         <button class="primary" onclick="buildRecords()">📝 記録を生成</button>
@@ -423,15 +434,8 @@
       <div class="hint" style="margin:2px 0 4px">Wordは、1訪問を1ページにぎっしり書き出します（特記事項の欄をページの下まで伸ばして、空白を残しません）。チェックリストだけが欲しいときは「✅ チェックリスト」から。</div>
       <input type="file" id="paperFile" accept="application/pdf,image/*" style="display:none" onchange="importPaper(this)">
       <div id="paperStatus" class="hint" style="display:none"></div>
-      <label>担当者で絞り込み</label>
-      <select id="recStaffFilter" onchange="syncStaffFilter(this.value)"><option value="">すべて</option></select>
-      <label>利用者（保存済みから選択）</label>
-      <select id="recUser" onchange="loadSaved(this.value)"></select>
-      <div id="recAsWarn" class="hint" style="display:none;color:var(--danger);font-weight:bold"></div>
       <details id="recSchedQa" class="hint" style="display:none;color:#b26b00"><summary style="font-weight:bold;cursor:pointer"></summary><ul style="margin:4px 0 0;padding-left:18px"></ul></details>
       <details id="recQa" class="hint" style="display:none;color:var(--danger)"><summary style="font-weight:bold;cursor:pointer"></summary><ul style="margin:4px 0 0;padding-left:18px"></ul></details>
-      <label>📚 保存した訪問記録（この利用者）</label>
-      <div class="row"><select id="recSavedMonth"><option value="">（保存した記録はありません）</option></select><button class="small fixed" onclick="openSavedRecords()">開く</button></div>
       <label>期間</label>
       <div class="row">
         <input type="date" id="recFrom" style="font:inherit;padding:5px;border:1px solid var(--line);border-radius:5px">
@@ -594,8 +598,8 @@
       <p><b>用紙に無い曜日・時刻の訪問</b>：同じ人の、同じ種類（身体／家事／入浴／共に）で時刻が一番近い用紙（90分以内）を使う（例：土曜19:30の入浴→20:00の入浴の用紙）。通院は使わない。</p>
       <p><b>見本（記録用紙）の書き込み</b>：■と赤ペンの✓は付ける、赤の×は外す、丸囲みは「ときどき」（予定表のその訪問の内容に書いてあるときだけ付ける。例：買物に丸→予定に「代行」とあれば付ける）。「どちらか」は訪問ごとに交互に1つ。家事の訪問は必ずゴミ出し、清掃があるときは居室も必ず付ける。献立欄の「3品」などは献立の品数。買い物代行の日は預り・購入・お釣・内訳をだいたいの金額で入れる（手で入れた値が優先）。</p>
       <p><b>同じ文を書かない</b>：同じ利用者・同じ月の中で一度使った文は、2回目からは意味を変えずに言い回しを変える（例：「退室前に戸締まりや火の元を確認し、安全を確かめた」→「帰る前に火の元や戸締まりを確認し、危険がないことを確かめた」）。言い回しが尽きた様子・会話などの付け足しの文は、同じ種類のまだ使っていない文に替える。</p>
-      <p><b>担当者で見る（訪問記録タブ）</b>：「担当者で見る（1か月）」で担当者と月を選ぶと、その人がその月に入った訪問が全員分まとめて出る（担当した利用者・回数・時間・文章・チェック）。見るだけで、直すときは「この人の記録を開く」から。訪問記録タブの「担当者で絞り込み」は利用者の一覧を絞る（予定表タブの「担当者」と同じ）。</p>
-      <p><b>担当者で絞り込み</b>：予定表タブの「担当者」で選ぶと、その人が訪問記録の担当者に入っている利用者だけが一覧（保存済み利用者・訪問記録の利用者）に出る（介護／障害の絞り込みと一緒に使える）。</p>
+      <p><b>訪問記録タブの選び方</b>：いちばん上で「👤 利用者から選ぶ」か「🧑 担当者から選ぶ」を選ぶ（前回の選び方を覚えておく）。利用者から選ぶ＝利用者と保存した月を選んで記録を開く。担当者から選ぶ＝担当者と月を選ぶと、その月に入った利用者が回数つきで並び、右にその人の訪問が全員分出る（見るだけ）。利用者を押すとその人の記録が開き、「← 担当者の一覧に戻る」で戻れる。</p>
+      <p><b>担当者で絞り込み（予定表タブ）</b>：予定表タブの「担当者」で選ぶと、その人が訪問記録の担当者に入っている利用者だけが、予定表タブの保存済み利用者の一覧に出る（訪問記録タブでは「🧑 担当者から選ぶ」を使う）（介護／障害の絞り込みと一緒に使える）。</p>
       <p><b>毎朝の点検</b>：毎朝6:30に事業所のMacで全員・全月を点検して直す。Macが動いていなかった日は、7:30以降に最初にツールを開いた人の画面の裏（見えない枠）で同じ点検をする（その人の操作には影響しない）。</p>
       <p><b>予定表の確認</b>：記録を作ったとき、予定表の時刻欄が空・時刻なし・種別が空や不明・シフトにあって予定表に無い訪問・予定表にあってシフトに無い予定・似た名前を「⚠ 予定表の確認」に出す（作るのは止めない）。</p>
       <p><b>二重登録の注意</b>：予定表・利用者情報・訪問記録を新しい名前で保存するとき、空白や全角半角の違い・1文字違い・名字と名前の1文字目が同じ名前がすでにあれば確認を出す。名前が読めていない（記号で始まる等）ときも確認を出す。一覧では似た名前に「⚠似た名前あり」を付ける。</p>
@@ -762,7 +766,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261030114332';
+const APP_VER = '20261030121615';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -2400,7 +2404,7 @@ document.body.appendChild(dl);
 
 // ================= 訪問記録 =================
 let mode = 'sheet';
-var recWho = 'user'; // 訪問記録の見方：user=利用者で見る／staff=担当者で見る（1か月）
+var recWho = (() => { try { return localStorage.getItem('smilewan_recwho') === 'staff' ? 'staff' : 'user'; } catch (e) { return 'user'; } })(); // 訪問記録の選び方：user=利用者から選ぶ／staff=担当者から選ぶ（前回の選び方）
 let recRows = [];
 const pageStyle = document.createElement('style'); document.head.appendChild(pageStyle);
 function setMode(m) {
@@ -2410,6 +2414,8 @@ function setMode(m) {
   document.getElementById('recordPanel').style.display = m === 'record' ? '' : 'none';
   document.getElementById('recordView').style.display = m === 'record' && recWho !== 'staff' ? '' : 'none';
   document.getElementById('staffView').style.display = m === 'record' && recWho === 'staff' ? '' : 'none';
+  if (m === 'record') { [['pickUserBtn', 'recByUser', 'user'], ['pickStaffBtn', 'recByStaff', 'staff']].forEach(([b, d, w]) => { const be = document.getElementById(b), de = document.getElementById(d); if (be) be.classList.toggle('on', recWho === w); if (de) de.style.display = recWho === w ? '' : 'none'; });
+    const mi = document.getElementById('recStaffMonth'); if (mi && !mi.value) mi.value = ymd(new Date()).slice(0, 7); }
   document.getElementById('helpView').style.display = m === 'help' ? '' : 'none';
   document.getElementById('shopPanel').style.display = m === 'shop' ? '' : 'none';
   document.getElementById('shopView').style.display = m === 'shop' ? '' : 'none';
@@ -2439,7 +2445,7 @@ function setMode(m) {
 function refreshRecUsers() {
   const sel = document.getElementById('recUser');
   const f = kubunFilter();
-  const names = Object.keys(getStore()).filter(n => ((!f || kubunOf(n) === f) && staffOk(n)) || n === (state.name || '').trim()).sort((a, b) => a.localeCompare(b, 'ja'));
+  const names = Object.keys(getStore()).filter(n => (!f || kubunOf(n) === f) || n === (state.name || '').trim()).sort((a, b) => a.localeCompare(b, 'ja'));
   const cur = (state.name || '').trim();
   const opts = names.map(n => `<option value="${esc(n)}" ${n === cur ? 'selected' : ''}>［${kubunOf(n)}］${esc(n)}${assessOf(n) ? '' : '　⚠アセスなし'}</option>`);
   if (cur && !names.includes(cur)) opts.unshift(`<option value="" selected>${esc(cur)}（未保存）</option>`);
@@ -4655,17 +4661,19 @@ function dupGroups() {
 // ===== 担当者で見る（1か月）：選んだ担当者がその月に入った訪問を、全員分まとめて出す（見るだけ・保存しない） =====
 let staffMonthData = null, staffBusy = false;
 function setRecWho(w) {
-  recWho = w === 'staff' ? 'staff' : 'user';
-  document.querySelectorAll('input[name=recWho]').forEach(x => { x.checked = x.value === recWho; });
+  recWho = w === 'staff' ? 'staff' : 'user'; lsSet('smilewan_recwho', recWho); // 前回選んだ方を覚えておく
+  document.getElementById('pickUserBtn').classList.toggle('on', recWho === 'user'); document.getElementById('pickStaffBtn').classList.toggle('on', recWho === 'staff');
   document.getElementById('recByStaff').style.display = recWho === 'staff' ? '' : 'none';
   document.getElementById('recByUser').style.display = recWho === 'staff' ? 'none' : '';
   const mi = document.getElementById('recStaffMonth'); if (mi && !mi.value) mi.value = ymd(new Date()).slice(0, 7);
   refreshStaffFilter(); setMode('record');
+  if (recWho === 'staff' && document.getElementById('recStaffSel').value) showStaffMonth();
 }
 async function showStaffMonth() {
-  const out = document.getElementById('staffView'), btn = document.getElementById('staffMonthBtn');
+  const out = document.getElementById('staffView'), btn = document.getElementById('staffMonthBtn') || {}, cl = document.getElementById('staffClients');
   const st = document.getElementById('recStaffSel').value, ym = document.getElementById('recStaffMonth').value;
-  if (!st || !ym) { out.innerHTML = '<p class="hint">左で担当者と月を選んで「この担当者の1か月を出す」を押してください。</p>'; return; }
+  if (!st || !ym) { out.innerHTML = '<p class="hint">左で担当者と月を選ぶと、ここにその担当者が入った訪問が出ます。</p>'; if (cl) cl.innerHTML = '<p class="hint">担当者を選ぶと出ます。</p>'; return; }
+  if (cl) cl.innerHTML = '<p class="hint">読み込み中…</p>';
   if (!DB || !DB.loadRecords) { out.innerHTML = '<p class="hint" style="color:var(--danger)">保存先に接続してから押してください。</p>'; return; }
   if (staffBusy) return; staffBusy = true; btn.disabled = true;
   const k = nmz(st), keep = state.name;
@@ -4695,8 +4703,10 @@ async function showStaffMonth() {
 function renderStaffMonth() {
   const out = document.getElementById('staffView'), D = staffMonthData; if (!D) return;
   const [y, m] = D.ym.split('-'), hhmm = n => `${Math.floor(n / 60)}時間${n % 60 ? (n % 60) + '分' : ''}`;
-  if (!D.items.length) { out.innerHTML = `<h2>${esc(D.st)} さん　${+y}年${+m}月</h2><p class="hint">この月に ${esc(D.st)} さんが担当した保存済みの記録はありません（記録をまだ作っていない利用者や、担当者欄が空の記録は出ません）。</p>`; return; }
+  const cl = document.getElementById('staffClients');
+  if (!D.items.length) { out.innerHTML = `<h2>${esc(D.st)} さん　${+y}年${+m}月</h2><p class="hint">この月に ${esc(D.st)} さんが担当した保存済みの記録はありません（記録をまだ作っていない利用者や、担当者欄が空の記録は出ません）。</p>`; if (cl) cl.innerHTML = '<p class="hint">この月に入った利用者はいません。</p>'; return; }
   const by = new Map(); D.items.forEach(it => { const g = by.get(it.c) || { n: 0, min: 0, kub: it.kub }; g.n++; g.min += it.min; by.set(it.c, g); });
+  if (cl) cl.innerHTML = [...by.entries()].map(([c, g]) => `<button class="small" data-c="${esc(c)}" onclick="openStaffUser(this.dataset.c)">${esc(c)}　${g.n}回</button>`).join('');
   const total = D.items.reduce((a, it) => a + it.min, 0);
   const sum = `<table class="cl-table" style="margin:6px 0 12px"><tr><th>利用者</th><th>区分</th><th>回数</th><th>時間</th><th></th></tr>` +
     [...by.entries()].map(([c, g]) => `<tr><td>${esc(c)}</td><td>${esc(g.kub)}</td><td style="text-align:right">${g.n}回</td><td style="text-align:right">${hhmm(g.min)}</td><td><button class="small" data-c="${esc(c)}" onclick="openStaffUser(this.dataset.c)">この人の記録を開く</button></td></tr>`).join('') +
@@ -4719,7 +4729,9 @@ function copyStaffMonth(btn) { const t = staffMonthText(); if (!t) { alert('先�
 async function openStaffUser(c) {
   const ym = staffMonthData && staffMonthData.ym; if (!c) return;
   if (recRows.length && !confirm('今開いている記録の表を閉じて、' + c + ' 様の記録を開きますか？（保存済みの内容は消えません）')) return;
+  const st = staffMonthData && staffMonthData.st;
   setRecWho('user'); recRows = []; loadSaved(c);
+  const fb = document.getElementById('recFromStaff'); if (fb && st) { fb.style.display = ''; fb.innerHTML = `🧑 ${esc(st)} さんの担当から開きました　<button class="small" onclick="setRecWho('staff');this.parentNode.style.display='none'">← 担当者の一覧に戻る</button>`; }
   try { await DB.loadRecords(c); } catch (e) {}
   refreshSavedMonths(); refreshRecUsers();
   const sel = document.getElementById('recSavedMonth'); if (ym) sel.value = ym;
