@@ -767,7 +767,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261030143305';
+const APP_VER = '20261030145515';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -3814,7 +3814,8 @@ async function loadShift(ym) {
   let rows = (getSetting('shift_' + ym, 'smilewan_shift_' + ym, []) || []).map(a => ({ h: a[0], d: +a[1], c: a[2], s: a[3], e: a[4] || '', v: a[5] || '' }));
   const src = (getSetting('shiftSource', 'smilewan_shift_src', []) || [])[0];
   let ok = true;
-  if (src) { ok = false; for (let k = 0; k < 2 && !ok; k++) { try { const j = await (await fetch(src + '?json=1&run=shiftcsv&ym=' + ym)).json(); if (j && j.ok) { ok = true; if (j.csv) rows = rows.concat(parseShiftCsv(j.csv)); } } catch {} } }
+  // 業務日誌（カイポケのシフト）とこのツールに取り込んだCSVの両方にある枠（利用者・日・開始時刻）は、業務日誌を正とする（10/30 ユーザー回答：9月に188枠食い違っていた）
+  if (src) { ok = false; for (let k = 0; k < 2 && !ok; k++) { try { const j = await (await fetch(src + '?json=1&run=shiftcsv&ym=' + ym)).json(); if (j && j.ok) { ok = true; if (j.csv) { const g = parseShiftCsv(j.csv), key = r => normName(r.c) + '|' + r.d + '|' + r.s, gk = new Set(g.map(key)); rows = rows.filter(r => !gk.has(key(r))).concat(g); } } } catch {} } }
   if (ok) shiftCache[ym] = rows; // 読めなかったときは覚えず、次に作るときに読み直す
   return rows;
 }
