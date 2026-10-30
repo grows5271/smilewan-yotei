@@ -762,7 +762,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261030102926';
+const APP_VER = '20261030111537';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1483,17 +1483,17 @@ function kdBuy(row) {
 }
 // 文章に料理名・買った品物を入れる（調理・買い物のチェックがある訪問だけ）
 function withKd(r, t) {
-  if (!r || r.on === false || r.sick || !t || !_kd) return t;
+  if (!r || r.on === false || r.sick || !t) return t;
   const kp = kpAll(r); let ss = String(t).split(/(?<=。)/).filter(x => x.trim()); const all = () => ss.join('');
   const endAt = () => { let e = ss.length; while (e > 0 && (LINK_RE.test(ss[e - 1]) || CLOSE_RE.test(ss[e - 1]) || /「/.test(ss[e - 1]))) e--; return e; };
-  const mn = kp.some(k => k === '調理|調理' || k === '自立支援|一般的な調理・配下膳') ? kdMenu(r) : '';
+  const mn = kp.some(k => k === '調理|調理' || k === '自立支援|一般的な調理・配下膳') ? (kdMenu(r) || planMenu(r, mealOf(r))) : '';
   if (mn && !mn.split('・').every(x => all().includes(x))) {
     const meal = mealOf(r); let done = false;
     ss = ss.map(x => { if (done) return x; let y = x.replace(/献立に沿って(.+?)を調理/, `献立に沿って${mn}を調理`);
       if (y === x) y = x.replace(/（[^）]+）の(準備|調理)/, (m0, a) => `（${mn}）の${a}`);
       if (y === x && x.includes(meal) && /調理|作|準備/.test(x) && !LINK_RE.test(x)) y = x.replace(meal, `${meal}（${mn}）`);
       if (y !== x) done = true; return y; });
-    if (!done) ss.splice(endAt(), 0, `${meal}は${mn}を作った。`);
+    if (!done) ss.splice(endAt(), 0, /^(パン|コーヒー|紅茶|牛乳|ヨーグルト|バナナ|果物|シリアル|納豆|ご飯)(・(パン|コーヒー|紅茶|牛乳|ヨーグルト|バナナ|果物|シリアル|納豆|ご飯))*$/.test(mn) ? `${meal}に${mn.replace(/・/g, 'と')}を用意した。` : `${meal}は${mn}を作った。`);
   }
   const kb = kp.includes('買物等|日常品等の買物') || kp.includes('自立支援|買い物・薬の受け取り') ? kdBuy(r) : null;
   if (kb && kb.items.length && !kb.items.every(x => all().includes(x))) {
@@ -1502,15 +1502,23 @@ function withKd(r, t) {
   }
   return ss.join('');
 }
-// 記録の「調理」の文に、その曜日・食事の献立を入れる（献立アプリで選んだ料理があればそれ）
+// 手順書に書かれた食事のメニュー（例：高畑「朝食の準備（パン・コーヒー）」・藤崎「食パンか買ってきたパン」）。その食事の訪問の献立にする（10/30）
+const PLAN_FOOD = /食パン|パン|トースト|コーヒー|紅茶|牛乳|ヨーグルト|バナナ|果物|シリアル|お粥|おかゆ|おにぎり|納豆|ご飯|味噌汁|みそ汁/g;
+function planMenu(row, meal) {
+  if (!row || !row.e || !meal) return ''; let pr; try { pr = procedureFor(row.e, (state.name || '').trim()); } catch (e) { return ''; } if (!pr) return '';
+  const st = pr.steps.map(x => planNorm(x.text)).find(x => x.includes(meal) && /準備|用意|作る|調理|温め/.test(x) && (x.match(PLAN_FOOD) || []).length); if (!st) return '';
+  return [...new Set(st.match(PLAN_FOOD).map(x => x === '食パン' || x === 'トースト' ? 'パン' : x === 'みそ汁' ? '味噌汁' : x === 'おかゆ' ? 'お粥' : x))].join('・');
+}
+// 記録の「調理」の文に、その曜日・食事の献立を入れる（献立アプリで選んだ料理 → 手順書のメニュー → 🛒の献立表 → その日に決まった献立 の順）
 function menuFor(row, meal) {
   { const kd = kdMenu(row); if (kd) return kd; }
+  { const pm = planMenu(row, meal); if (pm) return pm; }
   const m = getColl('clients')[docId((state.name || '').trim())]?.menu; if (!m) return '';
   const p = m.plan.find(x => x.dow === row.date.getDay() && x.meal === meal); return p ? p.dishes.filter(d => d !== 'ご飯').join('・') : '';
 }
 // 調理にチェックがある訪問の献立：献立表にあればそれ、無ければその日・その食事で決まった献立を作る（NG・配慮は献立表と同じ決まり。同じ日なら毎回同じ）
 function menuOrQuick(row, meal) {
-  const s = menuOrQuick0(row, meal), t = tmplFor(row); if (!s || !t || !t.kondateN || kdMenu(row)) return s;
+  const s = menuOrQuick0(row, meal), t = tmplFor(row); if (!s || !t || !t.kondateN || kdMenu(row) || planMenu(row, meal)) return s; // 献立アプリ・手順書のメニューは品数合わせで足さない
   // 見本の献立欄の品数（例：3品）に合わせる（曜日で品数が違う見本は kondateDay）
   const dd = Object.entries(t.kondateDay || {}).find(([, ds]) => ds.includes(row.date.getDay())), n = dd ? +dd[0] : t.kondateN;
   const xs = s.split('・'); let seed = 7; for (const ch of ymd(row.date) + meal) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
@@ -4717,7 +4725,7 @@ window.qaCheckRows = function (name) {
     if (typeof planCands === 'function' && !r.sick) { const c = planCands(r, t), n = c.length; if (n > 0 && c.filter(x => x.present).length < n) add(r, '計画書', `計画書の手順の文が足りない（例：${c.find(x => !x.present).says[0].slice(0, 24)}）`); }
     if (typeof planDedupe === 'function' && planDedupe(r, t) !== t) add(r, '計画書', '手順書の文と同じ意味の決まった文が残っている');
     // 8.6 献立・買い物支援で選んだ料理・保存した買い物の品物が文章にあるか
-    if (typeof withKd === 'function' && !r.sick && withKd(r, t) !== t) add(r, '献立アプリ', '献立・買い物支援で選んだ料理・買った品物が文章に無い');
+    if (typeof withKd === 'function' && !r.sick && withKd(r, t) !== t) add(r, '献立アプリ', '献立（献立アプリ・手順書のメニュー）や買った品物が文章に無い');
     // 9. 同じ文が2回（同じ訪問の中）・空の文
     const ss = t.split(/(?<=。)/).filter(x => x.trim()); const inRow = new Set();
     ss.forEach(x => { sents++; if (inRow.has(x)) add(r, '重複', `同じ訪問に同じ文：${x.slice(0, 30)}`); inRow.add(x); if (seen.has(x)) dup++; seen.add(x); });
