@@ -762,7 +762,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261030112650';
+const APP_VER = '20261030114332';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1296,8 +1296,8 @@ const DISH = {
     ['卵スープ', ['卵', '長ねぎ'], '簡'], ['すまし汁', ['豆腐', '三つ葉'], '簡'],
   ],
 };
-const DISH_NAMES = new Set(Object.values(DISH).flat().map(d => d[0]));
-const SHOP_CAT = [['肉・魚', /肉|ロース|鮭|さば|たら|ぶり|かれい|えび|ハム|ツナ|あじ|ほっけ|しらす|ちくわ|ウインナー|ベーコン|はんぺん|さわら|いわし|さんま|かじき|ささみ|しじみ|あさり/], ['卵・乳・豆腐', /卵|牛乳|豆腐|納豆|油揚げ|厚揚げ|ヨーグルト|チーズ|おから|大豆/], ['野菜・きのこ', /玉ねぎ|にんじん|じゃがいも|キャベツ|もやし|ピーマン|大根|白菜|長ねぎ|ほうれん草|小松菜|かぼちゃ|ごぼう|きゅうり|トマト|なす|ブロッコリー|冬瓜|しめじ|なめこ|しょうが|オクラ|れんこん|しいたけ|たけのこ|ゴーヤ|レタス|いんげん|春菊|里いも|さつまいも|三つ葉|コーン|バナナ|りんご|もずく/], ['乾物・その他', /./]];
+const DISH_NAMES = new Set([...Object.values(DISH).flat().map(d => d[0]), 'ご飯', 'ヨーグルト', 'バナナ', 'りんご', 'みかん', 'キウイ']);
+const SHOP_CAT = [['肉・魚', /肉|ロース|鮭|さば|たら|ぶり|かれい|えび|ハム|ツナ|あじ|ほっけ|しらす|ちくわ|ウインナー|ベーコン|はんぺん|さわら|いわし|さんま|かじき|ささみ|しじみ|あさり/], ['卵・乳・豆腐', /卵|牛乳|豆腐|納豆|油揚げ|厚揚げ|ヨーグルト|チーズ|おから|大豆/], ['野菜・きのこ', /玉ねぎ|にんじん|じゃがいも|キャベツ|もやし|ピーマン|大根|白菜|長ねぎ|ほうれん草|小松菜|かぼちゃ|ごぼう|きゅうり|トマト|なす|ブロッコリー|冬瓜|しめじ|なめこ|しょうが|オクラ|れんこん|しいたけ|たけのこ|ゴーヤ|レタス|いんげん|春菊|里いも|さつまいも|三つ葉|コーン|バナナ|りんご|みかん|キウイ|もずく/], ['乾物・その他', /./]];
 // 1人分の量の目安（[量, 単位]）。載っていない物は調味料・乾物として「在庫を確認」
 const QTY = {
   豚肉: [80, 'g'], 豚ロース: [80, 'g'], 牛肉: [70, 'g'], 鶏もも肉: [100, 'g'], 鶏むね肉: [100, 'g'], 合いびき肉: [80, 'g'], 豚ひき肉: [60, 'g'], 鶏ひき肉: [80, 'g'],
@@ -1311,6 +1311,7 @@ const QTY = {
   ヨーグルト: [1, '個'], バナナ: [1, '本'], りんご: [0.5, '個'], もずく: [1, 'パック'], おから: [50, 'g'], 大豆: [50, 'g'],
   オクラ: [3, '本'], れんこん: [50, 'g'], こんにゃく: [0.25, '枚'], しいたけ: [2, '枚'], たけのこ: [50, 'g'], ゴーヤ: [0.25, '本'], レタス: [2, '枚'], いんげん: [4, '本'],
   春菊: [0.25, '束'], 焼きそば麺: [1, '玉'], 里いも: [2, '個'], さつまいも: [0.5, '本'], 三つ葉: [0.25, '束'], コーン: [50, 'g'],
+  パン: [1, '個'], みかん: [1, '個'], キウイ: [1, '個'],
 };
 const fracTxt = x => { const r = Math.round(x * 6) / 6, w = Math.floor(r + 1e-9), f = r - w, F = [[1 / 6, '1/6'], [1 / 4, '1/4'], [1 / 3, '1/3'], [1 / 2, '1/2'], [2 / 3, '2/3'], [3 / 4, '3/4'], [5 / 6, '5/6']].reduce((b, c) => Math.abs(c[0] - f) < Math.abs(b[0] - f) ? c : b, [0, '']); return f < 0.08 ? String(w || 1) : (w ? w + 'と' : '') + F[1]; };
 const qtyTxt = (x, u) => u === 'g' || u === 'ml' ? Math.round(x / 10) * 10 + u : fracTxt(x) + u;
@@ -1405,8 +1406,10 @@ function makeMenu() {
   const used = { 主菜: [], 朝: [], 副菜: [], 汁物: [] };
   const take = (k, ban) => { const p = pool(k); const d = p.find(x => !used[k].includes(x[0]) && !(ban || []).some(b => x[1].includes(b))) || p.find(x => !used[k].includes(x[0])) || p[0]; if (d) { used[k].push(d[0]); if (used[k].length >= p.length) used[k] = []; } return d; };
   const plan0 = [];
+  const amt0 = d => d[1].filter(x => QTY[x] && !R.ng.some(w => x.includes(w))).map(x => x + qtyTxt(QTY[x][0] * R.factor, QTY[x][1])).join('・'), riceTxt = `ご飯（${R.factor < 1 ? '軽く' : ''}1膳 約${Math.round(150 * R.factor)}g）`;
   const plan = slots.map(sl => {
-    const main = take(sl.meal === '朝食' ? '朝' : '主菜'); const mainIng = main ? main[1] : [];
+    if (sl.meal === '朝食') { const ds = breakfastPick(R, k => Math.floor(Math.random() * k), 0); return { ...sl, dishes: ds.map(d => d[0]), amounts: ds.map(d => d[0] === 'ご飯' ? riceTxt : `${d[0]}（${amt0(d) || '調味料のみ'}）`), ing: ds.filter(d => d[0] !== 'ご飯').flatMap(d => d[1]) }; } // 朝食は定番の組み合わせ
+    const main = take('主菜'); const mainIng = main ? main[1] : [];
     const side = take('副菜', mainIng);
     const lowSalt = R.avoid.has('塩'), soupToday = lowSalt && plan0.some(x => x.dow === sl.dow && x.soup);
     const soup = lowSalt && (sl.meal === '朝食' || soupToday) ? null : take('汁物', lowSalt ? [...mainIng, '味噌'] : mainIng);
@@ -1420,8 +1423,8 @@ function makeMenu() {
   const list = {}; SHOP_CAT.forEach(([c]) => { list[c] = []; });
   Object.entries(cnt).forEach(([x, n]) => { const c = SHOP_CAT.find(([, re]) => re.test(x))[0]; const u = QTY[x][1], buy = u === 'g' || u === 'ml' ? qtyTxt(Math.ceil(tot[x] / 10) * 10, u) : Math.ceil(tot[x] - 0.05) + u;  // 買うときは切り上げ
     list[c].push(`${x} ${buy}${n > 1 ? `（${n}回分）` : ''}`); });
-  const rice = plan.length * 150 * R.factor; // 炊いたご飯150g ≒ 米0.45合
-  list['乾物・その他'].push(`米 約${(Math.ceil(rice / 330 * 2) / 2).toFixed(1).replace('.0', '')}合（${plan.length}食分・残りを確認）`, ...[...stock].map(x => x + '（在庫を確認）'));
+  const nRice = plan.filter(p => p.dishes.includes('ご飯')).length, rice = nRice * 150 * R.factor; // 炊いたご飯150g ≒ 米0.45合（パンの朝食は数えない）
+  list['乾物・その他'].push(`米 約${(Math.ceil(rice / 330 * 2) / 2).toFixed(1).replace('.0', '')}合（${nRice}食分・残りを確認）`, ...[...stock].map(x => x + '（在庫を確認）'));
   Object.keys(list).forEach(c => { if (!list[c].length) delete list[c]; });
   if (R.avoid.has('塩')) R.notes.push('汁物は1日1回まで（減塩）');
   const doc = getColl('clients')[docId(name)] || { name };
@@ -1565,10 +1568,40 @@ function menuFor(row, meal) {
   const m = getColl('clients')[docId((state.name || '').trim())]?.menu; if (!m) return '';
   // 🛒の献立表は作った日から1週間分（前は何か月分の記録にも同じ曜日の献立が使われていた）
   if (m.created) { const c0 = new Date(ymd(new Date(Date.parse(m.created) + 9 * 36e5)) + 'T00:00:00'), dd = (row.date - c0) / 864e5; if (dd < 0 || dd >= 7) return ''; }
-  const p = m.plan.find(x => x.dow === row.date.getDay() && x.meal === meal); return p ? p.dishes.filter(d => d !== 'ご飯').join('・') : '';
+  const p = m.plan.find(x => x.dow === row.date.getDay() && x.meal === meal); return p ? p.dishes.filter(d => d !== 'ご飯' || meal === '朝食').join('・') : '';
 }
 // 調理にチェックがある訪問の献立：献立表にあればそれ、無ければその日・その食事で決まった献立を作る（NG・配慮は献立表と同じ決まり。同じ日なら毎回同じ）
+// 朝食の定番の組み合わせ（10/30 ユーザー指示「基本は朝食はこんな感じに」）
+//   Rank+ 1,000人調査の上位5つ：①ご飯＋味噌汁 ②ご飯＋卵料理 ③パン＋ヨーグルト ④ご飯＋納豆 ⑤パン＋卵料理（順位どおりの割合で選ぶ）
+//   よく食べる食材（ビズヒッツ調べ）：パン・米・ヨーグルト・卵料理・果物 → 3品の日は、ご飯の組には味噌汁・卵料理・納豆、パンの組にはヨーグルト・果物を足す
+const BF_EGG = ['卵焼き', 'だし巻き卵', '目玉焼き', 'スクランブルエッグ', 'ゆで卵', '温泉卵', 'オムレツ', 'ハムエッグ', 'ベーコンエッグ', 'ほうれん草入り卵焼き'];
+const BF_ITEM = { ご飯: ['ご飯', ['米'], '簡'], 納豆: ['納豆', ['納豆'], '簡'], ヨーグルト: ['ヨーグルト', ['ヨーグルト'], '簡'] };
+const BF_FRUIT = [['バナナ', ['バナナ'], '簡'], ['りんご', ['りんご'], '簡硬'], ['みかん', ['みかん'], '簡'], ['キウイ', ['キウイ'], '簡']];
+const BF_PAT = [[30, ['ご飯', '味噌汁'], ['卵', '納豆']], [25, ['ご飯', '卵'], ['味噌汁']], [20, ['パン', 'ヨーグルト'], ['果物']], [15, ['ご飯', '納豆'], ['味噌汁']], [10, ['パン', '卵'], ['ヨーグルト', '果物']]];
+function breakfastPick(R, rnd, n) {
+  const ok = d => { try { return dishOk(d, R); } catch (e) { return true; } }, one = a => { const b = a.filter(ok); return b.length ? b[rnd(b.length)] : null; };
+  const lowSalt = !!(R && R.avoid && R.avoid.has && R.avoid.has('塩')); // 減塩：味噌汁は付けない
+  const get = k => k === '味噌汁' ? (lowSalt ? null : one(DISH['汁物'].filter(d => d[1].includes('味噌')))) : k === '卵' ? one(DISH['朝'].filter(d => BF_EGG.includes(d[0])))
+    : k === 'パン' ? one(BREAD.map(b => [b, ['パン'], '簡'])) : k === '果物' ? one(BF_FRUIT) : (BF_ITEM[k] && ok(BF_ITEM[k]) ? BF_ITEM[k] : null);
+  const pats = BF_PAT.filter(([, base]) => !(lowSalt && base.includes('味噌汁')) && (n !== 1 || base.includes('卵') || base.includes('味噌汁'))), tot = pats.reduce((a, x) => a + x[0], 0); // 1品の人は卵料理か味噌汁（用意する物）
+  for (let k = 0; k < 10; k++) {
+    let w = rnd(tot), p = pats[0]; for (const x of pats) { if (w < x[0]) { p = x; break; } w -= x[0]; }
+    const base = p[1].map(get); if (base.some(x => !x)) continue; // 食べられない物が入る組み合わせは選ばない
+    const want = n || (rnd(2) ? 3 : 2); let out = base;
+    if (want >= 3) { const ex = p[2].map(get).filter(Boolean), f = ex.length ? ex[rnd(ex.length)] : get('果物'); if (f) out = [...base, f]; }
+    if (want === 1) out = base.filter(d => d[0] !== 'ご飯' && !BREAD_BUY.includes(d[0]) && !['ヨーグルト', '納豆'].includes(d[0])).slice(0, 1);
+    return out;
+  }
+  return [];
+}
 function menuOrQuick(row, meal) {
+  if (meal === '朝食' && !menuFor(row, meal)) { // 朝食は定番の組み合わせ（見本の品数があればそれに合わせる）
+    const t = tmplFor(row), dd = t ? Object.entries(t.kondateDay || {}).find(([, ds]) => ds.includes(row.date.getDay())) : null, n = t ? (dd ? +dd[0] : t.kondateN) || 0 : 0;
+    const name = (state.name || '').trim(); let R; try { R = menuRules(name); } catch { R = { avoid: new Set(), ng: [], easy: false }; }
+    let seed = 0; for (const ch of name + ymd(row.date) + meal) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0;
+    const rnd = k => { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; return (seed >>> 8) % k; };
+    return breakfastPick(R, rnd, n).map(d => d[0]).join('・');
+  }
   const s = menuOrQuick0(row, meal), t = tmplFor(row); if (!s || !t || !t.kondateN || kdMenu(row) || planMenu(row, meal)) return s; // 献立アプリ・手順書のメニューは品数合わせで足さない
   // 見本の献立欄の品数（例：3品）に合わせる（曜日で品数が違う見本は kondateDay）
   const dd = Object.entries(t.kondateDay || {}).find(([, ds]) => ds.includes(row.date.getDay())), n = dd ? +dd[0] : t.kondateN;
