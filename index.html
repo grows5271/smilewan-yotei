@@ -767,7 +767,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261031160504';
+const APP_VER = '20261031163345';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1543,7 +1543,7 @@ function withKd(r, t) {
   }
   // 手順書の食事が作らない物だけ（高畑「パン・コーヒー」・藤崎「食パンか買ってきたパン」）：品を足さず、「調理」「下拵え」とも書かず、手順書どおり「用意し、配膳した」の1文にする（10/31）
   if (mn && !kdMenu(r) && mn === planMenu(r, mealOf(r)) && mn.split('・').every(x => NO_COOK.has(x))) {
-    const meal = mealOf(r), want = `${meal}に${mn.split('・').length === 2 ? mn.split('・').join('と') : mn}を用意し、配膳した。`, old = x => x !== want && (new RegExp(`${meal}(は献立に沿って|（)`).test(x) || new RegExp(`^${meal}に[^。]*を用意した。$`).test(x) || /下拵え/.test(x));
+    const meal = mealOf(r), want = `${meal}に${mn.split('・').length === 2 ? mn.split('・').join('と') : mn}を用意し、配膳した。`, old = x => x !== want && (new RegExp(`${meal}(は献立に沿って|（)`).test(x) || new RegExp(`^${meal}に[^。]*を用意(した|し、配膳した)。$`).test(x) || /下拵え/.test(x));
     let at = -1; const kept = []; ss.forEach(x => { if (old(x)) { if (at < 0) at = kept.length; } else kept.push(x); }); ss = kept;
     if (!ss.includes(want)) ss.splice(at >= 0 ? at : endAt(), 0, want);
   }
@@ -2286,13 +2286,14 @@ const PLAN_PHRASES = [
     say: (st, r, kp) => (kp.includes('入浴・清拭|シャワー浴') && !kp.includes('入浴・清拭|入浴介助')) ? [`シャワー浴で、洗身${kp.includes('入浴・清拭|洗髪') ? '・洗髪' : ''}を声掛けしながら行った。`] : [`洗身${kp.includes('入浴・清拭|洗髪') ? '・洗髪' : ''}は、声掛けしながら本人のペースで行った。`] },
   { re: /お風呂場の片付け/, ctx: 'bath', has: /お風呂場の片付け/, say: ['入浴後、お風呂場の片付けを本人と一緒に行った。'] },
   // 家事の訪問の「お薬の準備・服薬の確認」：家事では服薬のチェックを付けられないので文章だけ（10/30 ユーザー選択「手順書にある物は必ず入れる」）
-  { re: /薬の(準備|確認|セット)|服薬(の)?(セット|確認|声掛け|介助)|薬(を)?セット/, ctx: 'house', has: /薬/, say: st => /薬の(準備|セット)|薬(を)?セット|服薬(の)?セット/.test(st) ? ['お薬の準備を行った。', 'お薬を準備し、飲む時間を本人と確認した。'] : ['お薬を飲まれたか、本人と確認した。'] },
+  { re: /薬の(準備|セット)|服薬(の)?セット|薬(を)?セット/, ctx: 'house', has: /薬/, say: ['お薬の準備を行った。', 'お薬を準備し、飲む時間を本人と確認した。'] },
+  { re: /薬の確認|服薬(の)?(確認|声掛け|介助)/, ctx: 'house', has: /薬[^。]*(確認|確かめ|飲まれ|飲め)|服薬[^。]*(確認|声掛け)/, swap: /^お薬(の準備|を準備)/, swapAll: true, swapIfNot: /薬の(準備|セット)|服薬(の)?セット|薬(を)?セット/, say: ['お薬を飲まれたか、本人と確認した。'] },
   // 10/31 朝の業務手順書（新・14人分）の言い回し
-  { re: /朝の薬(を)?飲んだか確認/, ctx: 'body', has: /朝の(お)?薬/, say: ['朝の薬を飲まれたか確認した。', '朝のお薬を飲まれたか本人に確認した。'] },
+  { re: /朝の薬(を)?飲んだか確認/, ctx: 'body', dedupe: true, has: /朝の(お)?薬/, say: ['朝の薬を飲まれたか確認した。', '朝のお薬を飲まれたか本人に確認した。'] },
   { re: /服薬前に何か食べて/, ctx: 'body', need: PB_MED, grp: 'meal', has: /(朝食|何か)[^。]*(食べ|済ま)[^。]*(服薬|薬)/, say: ['朝食を食べられたことを確認してから、服薬を確認した。', '朝食が済んでいることを確かめてから、服薬を確認した。'] },
   { re: /少し食事して(頂|いただ)き/, ctx: 'body', need: PB_MED, grp: 'meal', has: /少し[^。]*(食べ|食事)|朝食[^。]*(食べ|済ま)[^。]*(服薬|薬)/, say: ['朝食を少し食べていただき、朝食後の薬を確認した。'] },
-  { re: /朝食の確認/, ctx: 'body', has: /朝食[^。]*(確認|済ま|食べ)/, say: ['朝食を食べられたか確認した。'] },
-  { re: /声掛けにて起床を促/, ctx: 'body', has: /起床を促|起床の(声掛け|促し)/, say: ['声掛けで起床を促した。'] },
+  { re: /朝食の確認/, ctx: 'body', dedupe: true, has: /朝食[^。]*(確認|済ま|食べ)/, say: ['朝食を食べられたか確認した。'] },
+  { re: /声掛けにて起床を促/, ctx: 'body', dedupe: true, has: /起床を促|起床の(声掛け|促し)|起床は[^。]*促/, say: ['声掛けで起床を促した。'] },
   { re: /何を着るか確認/, ctx: 'body', need: ['身体整容|更衣介助'], has: /何を着る|着る服を[^。]*(確認|伺|決め)/, say: ['着替えは、何を着るか本人に確認して準備した。'] },
   { re: /精神安定剤/, ctx: 'body', need: PB_MED, has: /精神安定剤/, say: ['精神安定剤の服薬の声掛けを行った。'] },
   { re: /パンなどあるもの(を)?用意/, ctx: 'body', has: /パン/, say: ['パンなど家にある物を用意し、朝食を食べていただいた。'] },
@@ -2300,7 +2301,7 @@ const PLAN_PHRASES = [
   { re: /ジャム/, ctx: 'house', need: PB_COOK, has: /ジャム/, say: ['パンに塗るジャムなどは本人に確認した。'] },
   { re: /飲み物(も|を)?決め/, ctx: 'house', need: PB_COOK, has: /飲み物[^。]*(決め|確認|伺)/, say: ['飲み物は本人に決めていただいた。'] },
   { re: /メニューは本人(様)?に確認/, ctx: 'house', need: PB_COOK, has: /メニュー[^。]*(本人に確認|確認した)/, swap: /^(本人(に|へ)献立を伝え|献立を本人に伝え)/, say: ['朝食のメニューは本人に確認した。'] },
-  { re: /体調を見ながら/, ctx: 'body', has: /体調/, say: ['体調を見ながら、更衣や洗面の声掛けを行った。'] },
+  { re: /体調を見ながら/, ctx: 'body', dedupe: true, has: /体調/, say: ['体調を見ながら、更衣や洗面の声掛けを行った。'] },
   { re: /衣類整理|衣類の整理|衣服の整理/, need: PB_CLOTH, has: /衣類|衣服|タンス/, say: (st, r, kp, tog) => tog ? ['衣類の整理を本人と一緒に行った。'] : ['衣類の整理を行った。'] },
 ];
 const planHour = r => Math.floor((hm(entryTime(r.e).s) || 720) / 60);
@@ -2332,7 +2333,13 @@ function planCands(r, cur) {
 // 手順書の文があるのに、同じ意味の決まった文（言い換えで言い回しが変わった物も）が残っていれば、決まった文を外す
 function planDedupe(r, t) {
   if (!r || !t || r.sick) return t; const ss = String(t).split(/(?<=。)/).filter(x => x.trim()), drop = new Set();
-  PLAN_PHRASES.forEach(p => { if (!p.swap || !ss.some(x => p.has.test(x))) return; ss.forEach((x, i) => { const y = x.replace(/。\s*$/, ''); if (p.swap.test(y) && !p.has.test(x)) drop.add(i); }); });
+  let pr; const steps = () => { if (pr === undefined) { try { pr = procedureFor(r.e, (state.name || '').trim()); } catch (e) { pr = null; } } return pr ? pr.steps.map(s => planNorm(s.text)) : []; };
+  PLAN_PHRASES.forEach(p => { if (!p.swap || !ss.some(x => p.has.test(x))) return;
+    if (p.swapIfNot && (!steps().some(x => p.re.test(x)) || steps().some(x => p.swapIfNot.test(x)))) return; // その訪問の手順書に当たる時だけ（準備の手順もあれば外さない）
+    ss.forEach((x, i) => { const y = x.replace(/。\s*$/, ''); if (p.swap.test(y) && (p.swapAll || !p.has.test(x))) drop.add(i); }); }); // swapAll：手順書に無い準備の文は、確認の言葉があっても外す（確認の文は withPlan が足す）
+  // dedupe：手順書から足した決まった文と同じ意味の文がほかにもあれば、足した方を外す（10/31 新しい手順書の文が重ならないように）
+  PLAN_PHRASES.forEach(p => { if (!p.dedupe || !Array.isArray(p.say)) return; const mine = ss.map((x, i) => p.say.some(y => y === x.trim() || y.replace(/本人/g, '利用者様') === x.trim()) ? i : -1).filter(i => i >= 0);
+    if (mine.length && ss.some((x, i) => !mine.includes(i) && !drop.has(i) && p.has.test(x))) mine.forEach(i => drop.add(i)); });
   return drop.size ? ss.filter((x, i) => !drop.has(i)).join('') : t;
 }
 // 1回の訪問に入れる手順書の文の数（30分以下は2つ・それより長い訪問は3つ）。点検ではこれより1つ少なくてもよい
