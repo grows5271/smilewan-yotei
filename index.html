@@ -767,7 +767,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261031113842';
+const APP_VER = '20261031122800';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1603,11 +1603,57 @@ function withMedNext(r, t) {
 const BROKEN_FIX = [[/と発言ありる/g, 'と話される'], [/との言葉がありる/g, 'と話される']]; // 10/31 までの言い換えで崩れた言い回し
 const TEXT_MAX = 500;
 const FILLER_RE = /様子|穏やか|落ち着|表情|顔色|声の調子|話を|話され|話題|お話|近況|相づち|傾聴|耳を傾|「|安全|転倒|つまず|ペース|急か|急が|配慮|丁寧|意向|了承|了解|分かりやすい|安心|気持ち|迷わない|一つずつ|戸締ま|火の元|手の届く|過ごしやすい|室温|温度|空気の入れ替え|困りの|お困り|希望を聞き|次回の/;
+// その訪問の文章を x にしたときの点検の指摘（その訪問と前後の日の行だけで点検する。文字数は数えない）
+function rowIssues(r, name, x) {
+  const key = ymd(r.date) + ' ' + (r.e.start || entryTime(r.e).s || ''), all = recRows, o = r.text;
+  r.text = x; recRows = recRows.filter(y => y === r || Math.abs(y.date - r.date) <= 1.5 * 864e5);
+  try { return new Set(qaCheckRows(name).out.filter(i => i.date + ' ' + i.start === key && i.kind !== '文字数').map(i => i.kind + '｜' + i.msg)); } finally { r.text = o; recRows = all; }
+}
+// 文を少しずつ短くする（10/31 ユーザー指示「少しずつ文を短くしてほしい」→全部の記録で）：文は消さず、意味の同じ短い言い回しにする
+//   チェックの読み取り（kpFromText）や点検の結果が変わる文は元のまま。入力欄から入れた文（スタッフの入力）は変えない
+const SH_END = { 'い、': 'し、', 'った。': 'した。', 'いながら': 'しながら' };
+const SHORTEN = [
+  [/を実施(し、|した。|しながら)/g, (m, e) => 'を行' + { 'し、': 'い、', 'した。': 'った。', 'しながら': 'いながら' }[e]], // 「を実施し」は「を行い」とそろえてから短くする
+  // 「〜について声掛けを行い」→「〜の声掛けをし」、「〜についても声掛けを行い」→「〜も声掛けし」
+  [/についても声掛け・確認を行った。/g, 'も声掛け・確認をした。'], [/についても声掛けを行(い、|った。)/g, (m, e) => 'も声掛け' + SH_END[e]], [/についても(声掛けし|声を掛け)/g, 'も$1'],
+  [/について声掛けを行(い、|った。)/g, (m, e) => 'の声掛けを' + SH_END[e]], [/について声掛け(し、|した。|すると)/g, 'の声掛けを$1'],
+  [/の声掛けを行(い、|った。|いながら)/g, (m, e) => 'の声掛けを' + SH_END[e]], [/声掛けを行(い、|った。|いながら)/g, (m, e) => '声掛け' + SH_END[e]],
+  [/見守り・声掛けを行いながら/g, '見守り・声掛けしながら'], [/見守りを行った。/g, '見守った。'], [/見守りを行い、/g, '見守り、'],
+  // 「台所の清掃を行い」→「台所を清掃し」、「洗濯を行った」→「洗濯した」（漢字の名詞だけ）
+  [/(台所|トイレ|浴室|居室|玄関|洗面所|部屋|室内|寝室|食卓|テーブル|キッチン|シンク|冷蔵庫|ベランダ|服薬|朝食|昼食|夕食|衣類|洗濯物|ゴミ|お薬)の([一-龥]{2,4})を行(い、|った。|いながら)/g, (m, a, b, e) => a + 'を' + b + SH_END[e]],
+  [/([のとや])([一-龥]{2,4})を行(い、|った。)/g, (m, p, b, e) => p + b + 'を' + SH_END[e]], // 「清掃と整理を行った」→「清掃と整理をした」
+  [/(?<=^|[はがでにへもてし]|よう|ながら)((?:[一-龥]{2,4}・)*[一-龥]{2,4})を行(い、|った。|いながら)/g, (m, b, e) => b === '家事' ? m : b + SH_END[e]],
+  // 「訪問した際、」→「訪問時、」など
+  [/(朝|昼|夕方|夜)に?(訪問した|伺った)際、/g, '$1の訪問時、'], [/訪問した際、|伺った際、|訪問の際、/g, '訪問時、'], [/(脱衣|入浴|移動|更衣|移乗|洗身・洗髪|退室)の際(は|に)/g, '$1時$2'], [/(退室|入浴|外出|就寝)する前に/g, '$1前に'],
+  [/尋ねたところ、/g, '尋ねると、'], [/伺ったところ、/g, '伺うと、'], [/(お聞き|確認|声掛け)したところ、/g, '$1すると、'], [/聞いたところ、/g, '聞くと、'],
+  // 「〜を確認し、危険がないことを確かめた」→「〜を確認し、安全を確かめた」など
+  [/を確認し、(危険がない|安全である)ことを(確かめ|確認し)た。/g, 'を確認し、安全を確かめた。'], [/を確認し、過ごしやすい(環境|室内)であることを確かめた。/g, 'を確認し、過ごしやすい$1であった。'],
+  [/を確認し、過ごしやすい状態に整っていることを確かめた。/g, 'を確認し、過ごしやすい状態であった。'], [/を確認し、変わりがないことを確かめた。/g, 'を確認し、変わりはなかった。'], [/を確認し、熱っぽさやだるさがないことを確かめた。/g, 'を確認し、熱っぽさやだるさはなかった。'],
+  // よく出る文
+  [/^まず体調を伺ってから/, '体調を伺ってから'], [/ゴミをまとめ、ゴミ出しを行った。/, 'ゴミをまとめて出した。'], [/(テーブル|食卓)の上を/g, '$1を'],
+  [/浴槽につかって温まっていただき、のぼせがないよう様子を確認した。/, '浴槽につかっていただき、のぼせがないか確認した。'], // 「浴槽に」は入浴介助の読み取りに使うので残す [/は本人ができる所は自身で洗っていただき/, 'はできる所を本人に洗っていただき'],
+  [/所を一部お手伝いした。/, '所を手伝った。'], [/お手伝いした。/g, '手伝った。'], [/入浴前に、お風呂上がりの着替えを用意した。/, '入浴前に、着替えを用意した。'], [/たことを確認してから、/g, 'たことを確認後、'],
+  [/困っていることがないか/g, '困りごとがないか'], [/最近(の出来事|あったこと)について話があり/g, '最近$1の話があり'], [/食後の片付けや洗い物を行った。/, '食後の片付けと洗い物をした。'],
+  [/、(相づちを打ちながら|うなずきながら)(話を)?(聞いた|伺った|傾聴した)。/g, '、傾聴した。'], [/支援(を始める|に入る)前に/g, '支援前に'], [/(の有無|がないか)を?(本人|利用者様)に(確認|確かめ)/g, '$1を$3'],
+  [/会話を楽しまれた/g, '会話された'], [/を支援を行った。/g, 'を支援した。'],
+  // そのほか
+  [/(本人|利用者様)と一緒に(確認|見て)/g, '$1と$2'], [/落ち着いた様子で(?![あいす])/g, '落ち着いて'], [/(起き上がり|立ち上がり|歩行|移動|着替え|更衣)の様子を見守/g, '$1を見守'],
+  [/(る|ない|すい|れる|せる)ように(?![しすな])/g, '$1よう'], [/声掛けにて/g, '声掛けで'], [/しっかり(と)?拭き取/g, '拭き取'], [/伝え、本人の了承を得た/g, '伝え、了承を得た'], [/本人に了承していただいた/g, '了承いただいた'],
+];
+function shortSent(x) { let y = x; for (let k = 0; k < 3; k++) { const z = SHORTEN.reduce((a, [re, to]) => a.replace(re, to), y); if (z === y) break; y = z; } return y; }
+function shortenText(r, name) {
+  const t = String(r.text || ''); if (!t || r.on === false) return t;
+  const vin = r.vinText ? (r.vinText.head || '') + (r.vinText.tail || '') : '', ss = t.split(/(?<=。)/), s2 = ss.map(x => vin && vin.includes(x.trim()) ? x : shortSent(x));
+  if (s2.every((x, i) => x === ss[i])) return t;
+  const kpOfText = x => { const tmp = { ...r, text: x, kp: [], kpOff: r.kpOff || [] }; kpFromText(tmp); return (tmp.kpText || []).slice().sort().join(','); };
+  const base = rowIssues(r, name, t), k0 = kpOfText(t), ok = x => kpOfText(x) === k0 && [...rowIssues(r, name, x)].every(k => base.has(k));
+  if (ok(s2.join(''))) return s2.join('');
+  let cur = ss.slice(); s2.forEach((x, i) => { if (x === ss[i]) return; const c = cur.slice(); c[i] = x; if (ok(c.join(''))) cur = c; }); // 1文ずつ試す
+  return cur.join('');
+}
 function fitLen(r, name) {
   let t = String(r.text || ''); if (t.length <= TEXT_MAX || r.on === false) return t;
-  const key = ymd(r.date) + ' ' + (r.e.start || entryTime(r.e).s || ''), all = recRows, near = recRows.filter(x => x === r || Math.abs(x.date - r.date) <= 1.5 * 864e5);
-  const issues = x => { const o = r.text; r.text = x; recRows = near; try { return new Set(qaCheckRows(name).out.filter(i => i.date + ' ' + i.start === key && i.kind !== '文字数').map(i => i.kind + '｜' + i.msg)); } finally { r.text = o; recRows = all; } };
-  const base = issues(t), vin = r.vinText ? (r.vinText.head || '') + (r.vinText.tail || '') : '';
+  const issues = x => rowIssues(r, name, x), base = issues(t), vin = r.vinText ? (r.vinText.head || '') + (r.vinText.tail || '') : '';
   const big = x => { const a = new Set(); for (let i = 0; i < x.length - 1; i++) a.add(x.slice(i, i + 2)); return a; };
   const sim = (a, b) => { const A = big(a), B = big(b); let n = 0; A.forEach(x => { if (B.has(x)) n++; }); return n / Math.max(1, Math.min(A.size, B.size)); };
   for (let round = 0; round < 40 && t.length > TEXT_MAX; round++) {
@@ -3852,7 +3898,8 @@ async function buildRecords() {
   varyRecRows(recRows, name);
   // 言い換えで言葉が変わると順番の判定も変わるので、最後にもう一度並べる
   recRows.forEach(r => orderFlow(r));
-  // 1訪問500字まで
+  // 文を少しずつ短く → 1訪問500字まで
+  recRows.forEach(r => { if (r.on && r.text) r.text = shortenText(r, name); });
   recRows.forEach(r => { if (r.on && r.text && r.text.length > TEXT_MAX) r.text = fitLen(r, name); });
   // 出力しない行（シフトに無い予定）は文章を作っておく（チェックを入れたら使えるように）
   recRows.filter(r => !r.on && !r.text).forEach(r => { r.text = uniqueText(r, recRows.filter(x => x.on)); });
@@ -4969,6 +5016,7 @@ async function qaAllSaved(opt = {}) {
       const stored = new Map(d.rows.map(x => [x.date + ' ' + (x.start || ''), [x.text, (x.kpOn || []).join(','), (x.kpOff || []).join(','), x.on === false ? 0 : 1].join('\u0001')]));
       const c = window.confirm; window.confirm = () => true; try { openSavedRecords(); } finally { window.confirm = c; } // 開いた時点で自動で直る
       clearTimeout(recTimer); const rp = autoRepair(d.name);
+      recRows.forEach(r => { if (r.on && r.text) { r.text = shortenText(r, d.name); if (r.text.length > TEXT_MAX) r.text = fitLen(r, d.name); } }); // 文を少しずつ短く（10/31〜）
       const ch = recRows.filter(r => { const k = ymd(r.date) + ' ' + (r.e.start || ''); return stored.has(k) && stored.get(k) !== [r.text, (r.kpOn || []).join(','), (r.kpOff || []).join(','), r.on === false ? 0 : 1].join('\u0001'); }).length;
       if (ch) { await saveRecords({ quiet: true }); clearTimeout(recTimer); fixedN += ch; }
       const q = qaCheckRows(d.name); q.out.forEach(i => all.push({ ...i, name: d.name })); items.push(...qaItemsFor(d.name).filter(x => x.month === d.month));
@@ -5022,6 +5070,7 @@ function autoRepair(name) {
   [...textRows, ...orderRows, ...planRows].forEach(r => orderFlow(r));
   if (needVary) varyRecRows(recRows, name);
   [...textRows].forEach((r, i) => mentionFix(r, i));
+  recRows.forEach(r => { if (r.on && r.text && before.get(r) !== sig(r)) r.text = shortenText(r, name); }); // 直した訪問の文も短い言い回しに
   recRows.forEach(r => { if (r.on && r.text && r.text.length > TEXT_MAX) r.text = fitLen(r, name); }); // 1訪問500字まで（直した結果で超えた分も）
   const changed = recRows.filter(r => before.get(r) !== sig(r)).length;
   const left = qaCheckRows(name).out;
