@@ -56,6 +56,7 @@ window.qaCheckRows = function (name) {
     // 8.5 計画書（業務手順書）の手順の言い回し：その訪問に当たる手順の文が文章にあるか（チェックの無い支援・本人がやることは数えない）
     if (typeof planCands === 'function' && !r.sick) { const c = planCands(r, t), n = c.length; if (n > 0 && c.filter(x => x.present).length < n) add(r, '計画書', `計画書の手順の文が足りない（例：${c.find(x => !x.present).says[0].slice(0, 24)}）`); }
     if (typeof planDedupe === 'function' && planDedupe(r, t) !== t) add(r, '計画書', '手順書の文と同じ意味の決まった文が残っている');
+    if (typeof withMedNext === 'function' && withMedNext(r, t) !== t) add(r, '眠前薬', '前の夜の眠前薬を、朝の記録で確認していない');
     // 8.6 献立・買い物支援で選んだ料理・保存した買い物の品物が文章にあるか
     if (typeof withKd === 'function' && !r.sick && withKd(r, t) !== t) add(r, '献立アプリ', '献立（献立アプリ・手順書のメニュー）や買った品物が文章に無い');
     // 9. 同じ文が2回（同じ訪問の中）・空の文
