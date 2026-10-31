@@ -767,7 +767,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261031135027';
+const APP_VER = '20261031143909';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1571,7 +1571,7 @@ function planMenu(row, meal, plain) {
   return out.join('・');
 }
 // 前の夜に眠前薬（夜の服薬）がある日は、次の日のいちばん初めの朝の訪問（12時まで）で、飲まれたかを確認したことを書く（10/31 ユーザー指示）
-const MINZEN_DONE = /眠前薬|前夜の(お)?薬|昨夜の(お)?薬|夜のお薬/, NIGHT_MED = /眠前薬|寝る前の(お)?薬|就寝前の(お)?薬/, MED_SENT_RE = /[^。]*(前夜|昨夜)[^。]*(眠前薬|お薬)[^。]*。/; // MED_SENT_RE＝朝に書いた確認の文
+const MINZEN_DONE = /眠前薬|前夜の(お)?薬|昨夜の(お)?薬|夜のお薬/, NIGHT_MED = /眠前薬|寝る前の(お)?薬|就寝前の(お)?薬/, MED_SENT_RE = /(?<=^|。)(前夜|昨夜)[^。]*(眠前薬|お薬)[^。]*。/; // MED_SENT_RE＝朝に書いた確認の文（「前夜」「昨夜」で始まる文）
 function nightMedBefore(r) {
   if (!r || !r.date || !r.e || planHour(r) >= 12) return false;
   const d = ymd(r.date), st = entryTime(r.e).s || '';
@@ -1595,17 +1595,18 @@ function refreshMedNext(i) {
 }
 function withMedNext(r, t) {
   if (!r || r.on === false || r.sick || !t) return t;
-  const pv = nightMedBefore(r); if (!pv) return t;
+  const pv = nightMedBefore(r), m = String(t).match(MED_SENT_RE);
+  // 前の夜の訪問が無い（シフトに無くて外した等）・前の夜の担当者が分からない時は、確認の文を入れない（10/31 ユーザー指示「ない場合は外しておいて」）
+  if (!pv || !String(pv.staff || '').trim()) return m ? String(t).replace(m[0], '') : t;
   const K = kubunOf((state.name || '').trim()) === '介護', med = r.kind !== '家事援助' && kpAll(r).some(k => /^服薬・医療\|/.test(k) || k === '自立支援|服薬');
-  const w = String(pv.staff || '').replace(/\s+/g, ''); // 前の夜に眠前薬を確認した担当者を文の中に入れる（担当者欄が空なら名前なしの文）
+  const w = String(pv.staff || '').replace(/\s+/g, ''); // 前の夜に眠前薬を確認した担当者を文の中に入れる
   const sayFor = rest => {
-    const say = med ? (w ? [`前夜に担当の${w}が確認した眠前薬を飲まれたか確かめ、飲み忘れがないことを確認した。`, `昨夜担当の${w}が確認した眠前薬が飲まれていることを、本人と確認した。`] : ['前夜の眠前薬を飲まれたか確認し、飲み忘れがないことを確かめた。', '昨夜の眠前薬が飲まれていることを本人と確認した。'])
-      : (w ? [`前夜に担当の${w}が確認したお薬は、飲めたと本人から伺った。`, `昨夜担当の${w}が確認したお薬は、きちんと飲めたと本人から伺った。`] : ['前夜のお薬は飲めたと本人から伺った。', '昨夜のお薬はきちんと飲めたと本人から伺った。']); // 家事援助は服薬の介助をしないので、本人から伺ったことだけ（服薬のチェックが無いので「眠前薬」の語は使わない）
+    const say = med ? [`前夜に担当の${w}が確認した眠前薬を飲まれたか確かめ、飲み忘れがないことを確認した。`, `昨夜担当の${w}が確認した眠前薬が飲まれていることを、本人と確認した。`]
+      : [`前夜に担当の${w}が確認したお薬は、飲めたと本人から伺った。`, `昨夜担当の${w}が確認したお薬は、きちんと飲めたと本人から伺った。`]; // 家事援助は服薬の介助をしないので、本人から伺ったことだけ（服薬のチェックが無いので「眠前薬」の語は使わない）
     const x = /飲み忘れ/.test(rest) ? say[1] : say[r.date.getDate() % say.length]; return K ? x.replace(/本人/g, '利用者様') : x; // 「飲み忘れ」が2回続かないように
   };
-  const m = String(t).match(MED_SENT_RE);
   if (m) { // もう確認の文がある：前の夜の担当者の名前が合っていなければ、文を入れ替える
-    if (w ? m[0].includes('担当の' + w) || m[0].includes(w + 'が確認') : !/担当の?[^。]*が確認/.test(m[0])) return t;
+    if (m[0].includes('担当の' + w) || m[0].includes(w + 'が確認')) return t;
     return String(t).replace(m[0], sayFor(String(t).replace(m[0], '')));
   }
   if (MINZEN_DONE.test(t)) return t;
