@@ -767,7 +767,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261031143909';
+const APP_VER = '20261031150238';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1541,14 +1541,19 @@ function withKd(r, t) {
     const cur = menuOrQuick(r, mealOf(r)), isMenu = a => a.split('・').every(d => DISH_NAMES.has(d) || BREAD_BUY.includes(d));
     if (cur) ss = ss.map(x => x.replace(/献立に沿って(.+?)を調理/, (m0, a) => isMenu(a) && a !== cur ? `献立に沿って${cur}を調理` : m0).replace(/（([^）]+)）の(準備|調理)/, (m0, a, b) => isMenu(a) && a !== cur ? `（${cur}）の${b}` : m0));
   }
+  // 手順書の食事が作らない物だけ（高畑「パン・コーヒー」・藤崎「食パンか買ってきたパン」）：品を足さず、「調理」「下拵え」とも書かず、手順書どおり「用意し、配膳した」の1文にする（10/31）
+  if (mn && !kdMenu(r) && mn === planMenu(r, mealOf(r)) && mn.split('・').every(x => NO_COOK.has(x))) {
+    const meal = mealOf(r), want = `${meal}に${mn.split('・').join('と')}を用意し、配膳した。`, old = x => x !== want && (new RegExp(`${meal}(は献立に沿って|（)`).test(x) || new RegExp(`^${meal}に[^。]*を用意した。$`).test(x) || /下拵え/.test(x));
+    let at = -1; const kept = []; ss.forEach(x => { if (old(x)) { if (at < 0) at = kept.length; } else kept.push(x); }); ss = kept;
+    if (!ss.includes(want)) ss.splice(at >= 0 ? at : endAt(), 0, want);
+  }
   if (mn && !mn.split('・').every(x => all().includes(x))) {
     const meal = mealOf(r); let done = false;
-    ss = ss.map(x => { if (done) return x; let y = x.replace(/献立に沿って(.+?)を調理/, `献立に沿って${mn}を調理`);
-      if (y === x) y = x.replace(/（[^）]+）の(準備|調理)/, (m0, a) => `（${mn}）の${a}`);
+    ss = ss.map(x => { if (done) return x; let y = x.replace(/(朝食|昼食|夕食)?(は)?献立に沿って(.+?)を調理/, (m0, ml, ha) => `${ml ? meal : ''}${ha || ''}献立に沿って${mn}を調理`); // 食事名も今の食事にそろえる（川瀬10:00 朝食→昼食など）
+      if (y === x) y = x.replace(/(朝食|昼食|夕食)?（([^）]+)）(の|を)(準備|調理|支度|作)/, (m0, ml, a, p, v) => ml || a.split('・').every(d => DISH_NAMES.has(d) || NO_COOK.has(d)) ? `${ml ? meal : ''}（${mn}）${p}${v}` : m0); // 「朝食（…）を準備し」「（…）の支度」も
       if (y === x && x.includes(meal) && /調理|作|準備|用意/.test(x) && !LINK_RE.test(x)) y = x.replace(new RegExp(meal + '(準備)?'), (m0, p1) => p1 ? `${meal}（${mn}）の準備` : `${meal}（${mn}）`);
       if (y !== x) done = true; return y; });
-    const noCook = new Set([...BREAD_BUY, 'パン', 'コーヒー', '紅茶', '牛乳', 'ヨーグルト', 'バナナ', 'りんご', 'みかん', 'キウイ', '果物', 'シリアル', '納豆', 'ご飯']); // 作らない物だけのときは「用意した」
-    if (!done) ss.splice(endAt(), 0, mn.split('・').every(x => noCook.has(x)) ? `${meal}に${mn}を用意した。` : `${meal}は${mn}を作った。`);
+    if (!done) ss.splice(endAt(), 0, mn.split('・').every(x => NO_COOK.has(x)) ? `${meal}に${mn}を用意した。` : `${meal}は${mn}を作った。`);
   }
   const kb = kp.includes('買物等|日常品等の買物') || kp.includes('自立支援|買い物・薬の受け取り') ? kdBuy(r) : null;
   if (kb && kb.items.length && !kb.items.every(x => all().includes(x))) {
@@ -1560,15 +1565,17 @@ function withKd(r, t) {
 // 手順書に書かれた食事のメニュー（例：高畑「朝食の準備（パン・コーヒー）」・藤崎「食パンか買ってきたパン」）。その食事の訪問の献立にする（10/30）
 const PLAN_FOOD = /食パン|パン|トースト|コーヒー|紅茶|牛乳|ヨーグルト|バナナ|果物|シリアル|お粥|おかゆ|おにぎり|納豆|ご飯|味噌汁|みそ汁/g;
 const BREAD = ['トースト', 'ロールパン', '食パン', 'バターロール', 'クロワッサン', 'イングリッシュマフィン'], BREAD_BUY = [...BREAD, 'メロンパン', 'あんパン', 'クリームパン', 'カレーパン', 'サンドイッチ', 'ぶどうパン'];
+const NO_COOK = new Set([...BREAD_BUY, 'パン', '買ってきたパン', 'コーヒー', '紅茶', '牛乳', 'ヨーグルト', 'バナナ', 'りんご', 'みかん', 'キウイ', '果物', 'シリアル', '納豆', 'ご飯']); // 作らない物だけのときは「用意した」
 function planMenu(row, meal, plain) {
   if (!row || !row.e || !meal) return ''; let pr; try { pr = procedureFor(row.e, (state.name || '').trim()); } catch (e) { return ''; } if (!pr) return '';
   const st = pr.steps.map(x => planNorm(x.text)).find(x => x.includes(meal) && /準備|用意|作る|調理|温め/.test(x) && (x.match(PLAN_FOOD) || []).length); if (!st) return '';
-  const xs = [...new Set(st.match(PLAN_FOOD).map(x => x === '食パン' || x === 'トースト' ? 'パン' : x === 'みそ汁' ? '味噌汁' : x === 'おかゆ' ? 'お粥' : x))]; if (plain) return xs.join('・');
+  // 手順書に書いてあるとおりにする（10/31 ユーザー指示「作業手順書通りの朝食にして」：パンの種類を変えたり、品を足したりしない）
+  const alt = st.match(/(食パン|パン|トースト)か(買ってきた|買った)(パン)/); // 「食パンか買ってきたパン」は日によってどちらか
   let seed = 0; for (const ch of (state.name || '') + ymd(row.date) + meal) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0; seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
-  const kinds = /買ってきた|買った|菓子パン/.test(st) ? BREAD_BUY : BREAD;
-  const out = xs.map(x => x === 'パン' ? kinds[(seed >>> 8) % kinds.length] : x);
-  if (meal === '朝食' && out.length < 2) { const side = ['ヨーグルト', 'バナナ', '牛乳', 'りんご', 'みかん']; seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; out.push(side[(seed >>> 8) % side.length]); } // 朝食は2品以上（パンだけの手順書にはヨーグルト・果物などを添える）
-  return out.join('・');
+  const xs = [...new Set(st.match(PLAN_FOOD).map(x => x === 'みそ汁' ? '味噌汁' : x === 'おかゆ' ? 'お粥' : x))];
+  if (!alt) return xs.join('・');
+  const bread = plain ? alt[1] : [alt[1], alt[2] + alt[3]][(seed >>> 8) % 2];
+  return [bread, ...xs.filter(x => !/パン|トースト/.test(x))].join('・');
 }
 // 前の夜に眠前薬（夜の服薬）がある日は、次の日のいちばん初めの朝の訪問（12時まで）で、飲まれたかを確認したことを書く（10/31 ユーザー指示）
 const MINZEN_DONE = /眠前薬|前夜の(お)?薬|昨夜の(お)?薬|夜のお薬/, NIGHT_MED = /眠前薬|寝る前の(お)?薬|就寝前の(お)?薬/, MED_SENT_RE = /(?<=^|。)(前夜|昨夜)[^。]*(眠前薬|お薬)[^。]*。/; // MED_SENT_RE＝朝に書いた確認の文（「前夜」「昨夜」で始まる文）
@@ -3612,7 +3619,14 @@ function assessHints(row, who) {
   return H;
 }
 // ---- 1日の流れ：同じ日のそれより前の訪問を見て、書き出しや起床の文を合わせる ----
-function mealOf(r) { const h = parseInt(r.e.start || '12', 10); return ((r.e.detail || '').match(/朝食|昼食|夕食/) || [h >= 5 && h < 11 ? '朝食' : h >= 11 && h < 16 ? '昼食' : '夕食'])[0]; }
+function mealOf(r) {
+  const h = parseInt(r.e.start || '12', 10), d = (r.e.detail || '').match(/朝食|昼食|夕食/); if (d) return d[0];
+  const base = h >= 5 && h < 11 ? '朝食' : h >= 11 && h < 16 ? '昼食' : '夕食'; if (base !== '朝食') return base;
+  // 朝の時間でも、手順書の調理の手順が昼食・夕食の分ならその食事（例：川瀬10:00「3品を少し多めに調理…昼食分はテーブルに準備」）（10/31「作業手順書通りの朝食」）
+  let pr = null; try { pr = procedureFor(r.e, (state.name || '').trim()); } catch (e) {}
+  const st = pr && pr.steps.map(x => x.text || '').find(x => /調理|作る|作り/.test(x)), m = st && !/朝食/.test(st) && st.match(/昼食|夕食/);
+  return m ? m[0] : base;
+}
 function prevSum(r) {
   const kp = kpOf(r), c = x => kp.some(k => k.startsWith(x + '|')), parts = [];
   if (/入浴/.test(r.e.type || '') || c('入浴・清拭')) return '入浴の支援';
@@ -4687,7 +4701,7 @@ const MENTION = [
   ['衣類・寝具|布団干し', /布団/, ['布団を干した。', '布団を干して湿気を取った。']],
   ['衣類・寝具|衣類の整理', /衣類|衣服|洋服/, ['衣類を整理し、引き出しにしまった。', '衣類をたたんで整理した。', '衣類を種類ごとに整理した。']],
   ['衣類・寝具|被服の補修', /補修|繕|ほつれ|ボタン/, ['ほつれた衣類を繕った。', '取れかけたボタンを付け直した。']],
-  ['調理|調理', /調理|作り|作った/, ['食事を調理した。', '献立に沿って調理した。']],
+  ['調理|調理', /調理|作り|作った|食に[^。]{1,20}を用意し/, ['食事を調理した。', '献立に沿って調理した。']], // 「朝食にパンとコーヒーを用意し」も調理に数える（手順書の朝食が作らない物だけの時：10/31）
   ['調理|下拵え', /下拵え|下ごしらえ|切っ|切り/, ['野菜を洗って切り、下拵えをした。', '食材を切るなど下拵えをした。']],
   ['調理|配・下膳', /配膳|下膳/, ['食事を配膳し、食後に下膳した。', '配膳と下膳を行った。']],
   ['自立支援|掃除', /(一緒|共に)[^。]*(掃除|清掃|片付|拭)|(掃除|清掃|片付|拭)[^。]*(一緒|共に|取り組|分担)/, ['掃除を本人と一緒に行い、できる所は本人に取り組んでいただいた。', '本人と一緒に掃除をし、拭き掃除は本人に行っていただいた。']],
