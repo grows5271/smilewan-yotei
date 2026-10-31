@@ -571,7 +571,7 @@
             <li><b>📝記録欄</b>：カイポケの欄（顔色・発汗・体温・血圧・排尿／排便の回数・量・食事量・水分cc・部分浴・清拭・整容・買物の金額と内訳・その他・予定の変更・加算）。入れた数字は文章に自動で書き足され、消すと文章からも消える。文章に書いた体温・血圧・排尿／排便・食事量・水分cc・清拭・整容・金額なども自動で欄に入る（点線。文章を打っている途中でも反映）。押せば選び直せる</li>
             <li><b>🛒 買い物タブ</b>：利用者を選んで「🍱 献立と買い物リストを作る」。買い物リストはチェックしながら使える（チェックは保存され、他の端末でも同じ）。日用品にチェックすると「今日買った」になる。周期の設定は下の「⚙ 日用品の買う周期」を開く。「LINE用にコピー」「印刷」もある。</li>
             <li><b>🍱 献立・買い物リスト</b>：予定表の調理の曜日・食事ごとに献立を作り、材料をまとめた買い物リストも作る。アセスメントの病名（高血圧→減塩、糖尿病→糖質控えめ）・義歯（やわらかい料理）・調理の力（障害→簡単な料理）と、「食べられない物」欄・NGの言葉を外して作る。献立には1人分の量（例：豚肉80g・玉ねぎ1/2個、ご飯1膳150g）が付き、買い物リストは1週間の合計量（買う単位に切り上げ）と米の合数、生活に必要な日用品（予定表の支援・アセスメントから：洗剤・トイレットペーパー・おむつ・入れ歯洗浄剤など）も出る。作った献立は記録の「調理」の文に入る。日用品は「買う周期（日）」と「前回買った日」を利用者ごとに持ち、今週買う時期の物だけ買い物リストに入る（周期の初期値は1人暮らしの目安。「✓今日買った」か、記録に「購入品：トイレットペーパー」などと書いて保存すると前回買った日が更新される）</li>
-            <li><b>記録の文章</b>：直接書き換えられる。「↻」で別の言い回し</li>
+            <li><b>記録の文章</b>：直接書き換えられる。「↻」で別の言い回し。<b>1訪問500字まで</b>（超えた訪問は、チェック・手順書・献立・眠前薬・入力欄の文を残して、様子・会話などの決まり文句から削る。手で書き足して超えたら ⚠ が出る）</li>
             <li><b>様子</b>：「😊様子」で一文を足す（★はアセスメントからのおすすめ）</li>
             <li>出力しない行は左のチェックを外す</li>
           </ul>
@@ -767,7 +767,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261031111540';
+const APP_VER = '20261031113842';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1596,6 +1596,33 @@ function withMedNext(r, t) {
   if (e < 0) { const i = ss.findIndex(y => /体調/.test(y)); if (i >= 0) e = i + 1; }
   if (e < 0) { e = ss.length; while (e > 0 && (LINK_RE.test(ss[e - 1]) || CLOSE_RE.test(ss[e - 1]) || /「/.test(ss[e - 1]))) e--; }
   ss.splice(e, 0, x); return ss.join('');
+}
+// 記録の文章は1訪問500字まで（10/31 ユーザー指示）。超えた訪問は、点検で新しい指摘が出ない文だけを削って収める
+//   削る順：様子・会話・安全への配慮などの決まり文句（長い文から）→ ほかの文と言い回しが似た文 → そのほかの文（後ろから）
+//   削らない文：最初の文・入力欄から入れた文（スタッフが入れた内容）・前後の訪問とのつなぎの文。チェック・手順書・献立・眠前薬の文は点検が守る
+const BROKEN_FIX = [[/と発言ありる/g, 'と話される'], [/との言葉がありる/g, 'と話される']]; // 10/31 までの言い換えで崩れた言い回し
+const TEXT_MAX = 500;
+const FILLER_RE = /様子|穏やか|落ち着|表情|顔色|声の調子|話を|話され|話題|お話|近況|相づち|傾聴|耳を傾|「|安全|転倒|つまず|ペース|急か|急が|配慮|丁寧|意向|了承|了解|分かりやすい|安心|気持ち|迷わない|一つずつ|戸締ま|火の元|手の届く|過ごしやすい|室温|温度|空気の入れ替え|困りの|お困り|希望を聞き|次回の/;
+function fitLen(r, name) {
+  let t = String(r.text || ''); if (t.length <= TEXT_MAX || r.on === false) return t;
+  const key = ymd(r.date) + ' ' + (r.e.start || entryTime(r.e).s || ''), all = recRows, near = recRows.filter(x => x === r || Math.abs(x.date - r.date) <= 1.5 * 864e5);
+  const issues = x => { const o = r.text; r.text = x; recRows = near; try { return new Set(qaCheckRows(name).out.filter(i => i.date + ' ' + i.start === key && i.kind !== '文字数').map(i => i.kind + '｜' + i.msg)); } finally { r.text = o; recRows = all; } };
+  const base = issues(t), vin = r.vinText ? (r.vinText.head || '') + (r.vinText.tail || '') : '';
+  const big = x => { const a = new Set(); for (let i = 0; i < x.length - 1; i++) a.add(x.slice(i, i + 2)); return a; };
+  const sim = (a, b) => { const A = big(a), B = big(b); let n = 0; A.forEach(x => { if (B.has(x)) n++; }); return n / Math.max(1, Math.min(A.size, B.size)); };
+  for (let round = 0; round < 40 && t.length > TEXT_MAX; round++) {
+    const ss = t.split(/(?<=。)/).filter(x => x.trim());
+    const cand = ss.map((x, i) => ({ x, i })).filter(({ x, i }) => i > 0 && !(vin && vin.includes(x)) && !LINK_RE.test(x));
+    const rank = ({ x, i }) => FILLER_RE.test(x) && !/体調/.test(x) ? 3000 + x.length : Math.max(...ss.map((y, j) => j === i ? 0 : sim(x, y))) >= 0.5 ? 2000 + x.length : 1000 + i;
+    cand.sort((a, b) => rank(b) - rank(a));
+    let done = false;
+    for (const c of cand) {
+      const t2 = ss.filter((_, j) => j !== c.i).join(''), got = issues(t2);
+      if ([...got].every(k => base.has(k))) { t = t2; done = true; break; }
+    }
+    if (!done) break; // これ以上は点検の指摘が出るので削らない（点検の「文字数」に残る）
+  }
+  return t;
 }
 // 記録の「調理」の文に、その曜日・食事の献立を入れる（献立アプリで選んだ料理 → 手順書のメニュー → 🛒の献立表 → その日に決まった献立 の順）
 function menuFor(row, meal) {
@@ -3375,12 +3402,13 @@ function vSummary(r) {
 let vPopRow = -1;
 function liveV(i, ta) {  // 入力中にまとめ・記録欄を更新（文章欄はそのまま）
   const f = document.getElementById('kpf' + i); if (f) f.innerHTML = kpFieldsLine(recRows[i]);
+  const w = document.getElementById('lenw' + i); if (w && ta) { const n = ta.value.length; w.style.display = n > TEXT_MAX ? '' : 'none'; w.textContent = `⚠ ${n}字（${TEXT_MAX}字まで）`; } // 500字を超えたら知らせる
   if (vPopRow === i) renderVPop(i);
 }
 function setVin(i, k, val) {
   const r = recRows[i]; r.vin = r.vin || {};
   if (val === '' || val == null || (Array.isArray(val) && !val.length)) delete r.vin[k]; else r.vin[k] = val;
-  r.text = withVin(r, r.text || ''); kpFromText(r);
+  r.text = withVin(r, r.text || ''); if (r.text.length > TEXT_MAX) r.text = fitLen(r, (state.name || '').trim()); kpFromText(r);
   renderRecordView(); markRecDirty(); renderVPop(i);
 }
 function toggleVArr(i, k, item) { const v = vOf(recRows[i]); const a = new Set(v[k] || []); a.has(item) ? a.delete(item) : a.add(item); setVin(i, k, [...a]); }
@@ -3824,6 +3852,8 @@ async function buildRecords() {
   varyRecRows(recRows, name);
   // 言い換えで言葉が変わると順番の判定も変わるので、最後にもう一度並べる
   recRows.forEach(r => orderFlow(r));
+  // 1訪問500字まで
+  recRows.forEach(r => { if (r.on && r.text && r.text.length > TEXT_MAX) r.text = fitLen(r, name); });
   // 出力しない行（シフトに無い予定）は文章を作っておく（チェックを入れたら使えるように）
   recRows.filter(r => !r.on && !r.text).forEach(r => { r.text = uniqueText(r, recRows.filter(x => x.on)); });
   recRows.sort((a, b) => (b.date - a.date) || ((b.e.start || '') > (a.e.start || '') ? 1 : -1));
@@ -4304,7 +4334,7 @@ const VARY = [
   ['続けて', '引き続き'], ['の支援に続けて、', 'の支援を終え、続けて', 'の支援の後、'], ['そのまま家事援助に入った', '続けて家事援助に入った', 'そのまま家事援助へ移った'],
   ['この後、', 'このあと、', 'この後は'],
   // 語尾（最後に使う）
-  ['と話があった。', 'とのお話があった。', 'との話があった。'], ['と話されていた。', 'と話された。', 'とおっしゃっていた。', 'と話しておられた。'], ['と発言あり', 'と話され', 'との言葉があり'],
+  ['と話があった。', 'とのお話があった。', 'との話があった。'], ['と話されていた。', 'と話された。', 'とおっしゃっていた。', 'と話しておられた。'], ['と発言あり、', 'と話され、', 'との言葉があり、'], // 「と話される場面」の「と話され」を入れ替えると「と発言ありる」に崩れるので、読点まで含めて入れ替える
   ['を確認した。', 'を確かめた。'], ['を行った。', 'を実施した。'], ['を実施した。', 'を行った。'], ['見守った。', 'そばで見守った。', '見守りを行った。'],
   ['支援した。', '支援を行った。'], ['整えた。', 'きれいに整えた。'], ['伝えた。', 'お伝えした。'], ['配慮した。', '気を配った。', '留意した。'], ['心掛けた。', '気を付けた。'],
   ['を行い、', 'を実施し、'], ['確認し、', '確かめ、'],
@@ -4880,11 +4910,13 @@ window.qaCheckRows = function (name) {
     if (typeof withMedNext === 'function' && withMedNext(r, t) !== t) add(r, '眠前薬', '前の夜の眠前薬を、朝の記録で確認していない');
     // 8.6 献立・買い物支援で選んだ料理・保存した買い物の品物が文章にあるか
     if (typeof withKd === 'function' && !r.sick && withKd(r, t) !== t) add(r, '献立アプリ', '献立（献立アプリ・手順書のメニュー）や買った品物が文章に無い');
+    { const mx = typeof TEXT_MAX !== 'undefined' ? TEXT_MAX : 500; if (t.length > mx) add(r, '文字数', `文章が${t.length}字（${mx}字まで）`); }
     // 9. 同じ文が2回（同じ訪問の中）・空の文
     const ss = t.split(/(?<=。)/).filter(x => x.trim()); const inRow = new Set();
     ss.forEach(x => { sents++; if (inRow.has(x)) add(r, '重複', `同じ訪問に同じ文：${x.slice(0, 30)}`); inRow.add(x); if (seen.has(x)) dup++; seen.add(x); });
     if (!ss.length) add(r, '文章', '文章が空');
     if (/。。|、。|、、/.test(t)) add(r, '文章', '句読点の重なり');
+    if (typeof BROKEN_FIX !== 'undefined' && BROKEN_FIX.some(([re]) => { re.lastIndex = 0; return re.test(t); })) add(r, '文章', '言い回しの崩れ（「と発言ありる」など）');
     // 10. 家事の訪問はゴミ出し
     if (r.kind === '家事援助' && tm && !kp.includes('清掃|ゴミ出し')) add(r, 'ゴミ出し', '家事なのにゴミ出しが無い');
     if (r.kind === '家事援助' && kp.some(k => k.startsWith('清掃|')) && !kp.includes('清掃|居室') && !(r.kpOff || []).includes('清掃|居室')) add(r, '居室', '家事の清掃なのに居室が無い');
@@ -4974,6 +5006,7 @@ function autoRepair(name) {
     else if (i.kind === '体調不良' && /家事の訪問にシャワー浴/.test(i.msg)) { r.sick = false; r.kpOff = [...new Set([...(r.kpOff || []), '入浴・清拭|シャワー浴'])]; r.kpOn = (r.kpOn || []).filter(x => x !== '入浴・清拭|シャワー浴'); r.text = String(r.text).split(/(?<=。)/).filter(x => !/シャワー浴|入浴は(控え|見合わせ)/.test(x)).join('') || uniqueText(r, recRows.filter(x => x !== r && x.on)); needSick = true; }
     else if (i.kind === '体調不良') { if (/文章に清拭/.test(i.msg)) r.text = String(r.text).split(/(?<=。)/).filter(x => !/清拭/.test(x)).join(''); else needSick = true; }
     else if (i.kind === '重複') { const seen = new Set(); r.text = String(r.text).split(/(?<=。)/).filter(x => { if (!x.trim() || seen.has(x)) return false; seen.add(x); return true; }).join(''); }
+    else if (i.kind === '文章' && /崩れ/.test(i.msg)) BROKEN_FIX.forEach(([re, to]) => { r.text = String(r.text).replace(re, to); });
     else if (i.kind === '文章' && /句読点/.test(i.msg)) r.text = String(r.text).replace(/。。+/g, '。').replace(/、。/g, '。').replace(/、、+/g, '、');
     else if (i.kind === '文章' && /空/.test(i.msg)) r.text = uniqueText(r, recRows.filter(x => x !== r && x.on));
     else if (i.kind === 'チェックと文章' || i.kind === '文章とチェック') textRows.add(r);
@@ -4989,6 +5022,7 @@ function autoRepair(name) {
   [...textRows, ...orderRows, ...planRows].forEach(r => orderFlow(r));
   if (needVary) varyRecRows(recRows, name);
   [...textRows].forEach((r, i) => mentionFix(r, i));
+  recRows.forEach(r => { if (r.on && r.text && r.text.length > TEXT_MAX) r.text = fitLen(r, name); }); // 1訪問500字まで（直した結果で超えた分も）
   const changed = recRows.filter(r => before.get(r) !== sig(r)).length;
   const left = qaCheckRows(name).out;
   return { found: q.out.length, fixed: Math.max(0, q.out.length - left.length), changed, left };
@@ -5054,7 +5088,7 @@ function renderRecordView() {
       ${r.flag ? `<span class="flag">${esc(r.flag)}</span>` : ''}</td>
     <td class="staff"><select onchange="recRows[${i}].staff=this.value;recRows[${i}].staffEdited=true;recRows[${i}].staffFromShift=false;markRecDirty()">${staffOptions(r.staff)}</select></td>
     <td class="kind">${r.kind}<br><small style="color:var(--muted)">${esc(r.e.type)}</small></td>
-    <td class="txt">${ngIdx.has(i) ? ngHits(r.text).map(w => `<span class="ng-badge">NG「${esc(w)}」</span>`).join('') : ''}${dupIdx.has(i) ? `<span class="dup-badge">⚠ 同じ文章（${dupIdx.get(i)}）</span>` : ''}<textarea oninput="recRows[${i}].text=this.value;liveV(${i},this)" onchange="kpFromText(recRows[${i}]);renderRecordView();markRecDirty()">${esc(r.text)}</textarea></td>
+    <td class="txt">${ngIdx.has(i) ? ngHits(r.text).map(w => `<span class="ng-badge">NG「${esc(w)}」</span>`).join('') : ''}${dupIdx.has(i) ? `<span class="dup-badge">⚠ 同じ文章（${dupIdx.get(i)}）</span>` : ''}<span class="ng-badge" id="lenw${i}" style="${String(r.text || '').length > TEXT_MAX ? '' : 'display:none'}">⚠ ${String(r.text || '').length}字（${TEXT_MAX}字まで）</span><textarea oninput="recRows[${i}].text=this.value;liveV(${i},this)" onchange="kpFromText(recRows[${i}]);renderRecordView();markRecDirty()">${esc(r.text)}</textarea></td>
     ${recCheckCell(r, i)}
     <td class="act"><button class="small" title="別の言い回し" onclick="recRows[${i}].text=uniqueText(recRows[${i}],recRows.filter((_,j)=>j!==${i}));renderRecordView()">↻</button>
       <button class="small" title="文章をコピー" onclick="copyText(recRows[${i}].text,this)">📋</button><br>
