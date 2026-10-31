@@ -59,11 +59,13 @@ window.qaCheckRows = function (name) {
     if (typeof withMedNext === 'function' && withMedNext(r, t) !== t) add(r, '眠前薬', '前の夜の眠前薬を、朝の記録で確認していない');
     // 8.6 献立・買い物支援で選んだ料理・保存した買い物の品物が文章にあるか
     if (typeof withKd === 'function' && !r.sick && withKd(r, t) !== t) add(r, '献立アプリ', '献立（献立アプリ・手順書のメニュー）や買った品物が文章に無い');
+    { const mx = typeof TEXT_MAX !== 'undefined' ? TEXT_MAX : 500; if (t.length > mx) add(r, '文字数', `文章が${t.length}字（${mx}字まで）`); }
     // 9. 同じ文が2回（同じ訪問の中）・空の文
     const ss = t.split(/(?<=。)/).filter(x => x.trim()); const inRow = new Set();
     ss.forEach(x => { sents++; if (inRow.has(x)) add(r, '重複', `同じ訪問に同じ文：${x.slice(0, 30)}`); inRow.add(x); if (seen.has(x)) dup++; seen.add(x); });
     if (!ss.length) add(r, '文章', '文章が空');
     if (/。。|、。|、、/.test(t)) add(r, '文章', '句読点の重なり');
+    if (typeof BROKEN_FIX !== 'undefined' && BROKEN_FIX.some(([re]) => { re.lastIndex = 0; return re.test(t); })) add(r, '文章', '言い回しの崩れ（「と発言ありる」など）');
     // 10. 家事の訪問はゴミ出し
     if (r.kind === '家事援助' && tm && !kp.includes('清掃|ゴミ出し')) add(r, 'ゴミ出し', '家事なのにゴミ出しが無い');
     if (r.kind === '家事援助' && kp.some(k => k.startsWith('清掃|')) && !kp.includes('清掃|居室') && !(r.kpOff || []).includes('清掃|居室')) add(r, '居室', '家事の清掃なのに居室が無い');
