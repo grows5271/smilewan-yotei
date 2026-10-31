@@ -767,7 +767,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261031122800';
+const APP_VER = '20261031135027';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1571,7 +1571,7 @@ function planMenu(row, meal, plain) {
   return out.join('・');
 }
 // 前の夜に眠前薬（夜の服薬）がある日は、次の日のいちばん初めの朝の訪問（12時まで）で、飲まれたかを確認したことを書く（10/31 ユーザー指示）
-const MINZEN_DONE = /眠前薬|前夜の(お)?薬|昨夜の(お)?薬|夜のお薬/, NIGHT_MED = /眠前薬|寝る前の(お)?薬|就寝前の(お)?薬/;
+const MINZEN_DONE = /眠前薬|前夜の(お)?薬|昨夜の(お)?薬|夜のお薬/, NIGHT_MED = /眠前薬|寝る前の(お)?薬|就寝前の(お)?薬/, MED_SENT_RE = /[^。]*(前夜|昨夜)[^。]*(眠前薬|お薬)[^。]*。/; // MED_SENT_RE＝朝に書いた確認の文
 function nightMedBefore(r) {
   if (!r || !r.date || !r.e || planHour(r) >= 12) return false;
   const d = ymd(r.date), st = entryTime(r.e).s || '';
@@ -1581,15 +1581,35 @@ function nightMedBefore(r) {
   if (!prev.length && p.slice(0, 7) !== d.slice(0, 7)) { const doc = getColl('records')[docId((state.name || '').trim()) + '_' + p.slice(0, 7)]; prev = doc ? doc.rows.filter(x => x.date === p && x.on !== false).map(savedRowToRec) : []; }
   // 前の日の訪問の文章・予定表の内容・手順書のどれかに眠前薬がある日だけ（朝に書いた「前夜の眠前薬を確認」の文は数えない。夕食後の薬は眠前薬ではないので数えない）
   const name = (state.name || '').trim();
-  return prev.some(x => { if (!x.text) return false; const t = x.text.split(/(?<=。)/).filter(y => !/(前夜|昨夜)の(眠前薬|お薬)/.test(y)).join('');
+  // 当てはまる前の日の訪問（いちばん遅い時刻の物）を返す。担当者の名前を朝の文に入れるため（10/31 ユーザー指示「確認した主を」）
+  const hit = prev.filter(x => { if (!x.text) return false; const t = x.text.split(/(?<=。)/).filter(y => !/(前夜|昨夜)[^。]*(眠前薬|お薬)/.test(y)).join('');
     if (NIGHT_MED.test(t) || NIGHT_MED.test((x.e && x.e.detail) || '')) return true;
     const pr = planHour(x) >= 15 ? procedureFor(x.e, name) : null; return !!pr && pr.steps.some(y => NIGHT_MED.test((y.label || '') + (y.text || ''))); });
+  return hit.sort((a, b) => (entryTime(b.e).s || '').localeCompare(entryTime(a.e).s || ''))[0] || null;
+}
+// 担当者を変えた訪問の次の日の朝の文（前日担当の名前）をそろえる
+function refreshMedNext(i) {
+  const r = recRows[i]; if (!r) return; const nd = new Date(r.date); nd.setDate(nd.getDate() + 1); const d = ymd(nd); let n = 0;
+  recRows.forEach(x => { if (x.on && x.text && ymd(x.date) === d) { const t = withMedNext(x, x.text); if (t !== x.text) { x.text = t; n++; } } });
+  if (n) renderRecordView();
 }
 function withMedNext(r, t) {
-  if (!r || r.on === false || r.sick || !t || MINZEN_DONE.test(t) || !nightMedBefore(r)) return t;
+  if (!r || r.on === false || r.sick || !t) return t;
+  const pv = nightMedBefore(r); if (!pv) return t;
   const K = kubunOf((state.name || '').trim()) === '介護', med = r.kind !== '家事援助' && kpAll(r).some(k => /^服薬・医療\|/.test(k) || k === '自立支援|服薬');
-  const say = med ? ['前夜の眠前薬を飲まれたか確認し、飲み忘れがないことを確かめた。', '昨夜の眠前薬が飲まれていることを本人と確認した。'] : ['前夜のお薬は飲めたと本人から伺った。', '昨夜のお薬はきちんと飲めたと本人から伺った。']; // 家事援助の訪問は服薬の介助をしないので、本人から伺ったことだけ書く（服薬のチェックが無いので「眠前薬」の語は使わない）
-  let x = /飲み忘れ/.test(t) ? say[1] : say[r.date.getDate() % say.length]; if (K) x = x.replace(/本人/g, '利用者様'); // 「飲み忘れ」が2回続かないように
+  const w = String(pv.staff || '').replace(/\s+/g, ''); // 前の夜に眠前薬を確認した担当者を文の中に入れる（担当者欄が空なら名前なしの文）
+  const sayFor = rest => {
+    const say = med ? (w ? [`前夜に担当の${w}が確認した眠前薬を飲まれたか確かめ、飲み忘れがないことを確認した。`, `昨夜担当の${w}が確認した眠前薬が飲まれていることを、本人と確認した。`] : ['前夜の眠前薬を飲まれたか確認し、飲み忘れがないことを確かめた。', '昨夜の眠前薬が飲まれていることを本人と確認した。'])
+      : (w ? [`前夜に担当の${w}が確認したお薬は、飲めたと本人から伺った。`, `昨夜担当の${w}が確認したお薬は、きちんと飲めたと本人から伺った。`] : ['前夜のお薬は飲めたと本人から伺った。', '昨夜のお薬はきちんと飲めたと本人から伺った。']); // 家事援助は服薬の介助をしないので、本人から伺ったことだけ（服薬のチェックが無いので「眠前薬」の語は使わない）
+    const x = /飲み忘れ/.test(rest) ? say[1] : say[r.date.getDate() % say.length]; return K ? x.replace(/本人/g, '利用者様') : x; // 「飲み忘れ」が2回続かないように
+  };
+  const m = String(t).match(MED_SENT_RE);
+  if (m) { // もう確認の文がある：前の夜の担当者の名前が合っていなければ、文を入れ替える
+    if (w ? m[0].includes('担当の' + w) || m[0].includes(w + 'が確認') : !/担当の?[^。]*が確認/.test(m[0])) return t;
+    return String(t).replace(m[0], sayFor(String(t).replace(m[0], '')));
+  }
+  if (MINZEN_DONE.test(t)) return t;
+  const x = sayFor(t);
   // 入れる場所：薬の文の後 → 体調を伺った文の後 → 締めの文の前
   const ss = String(t).split(/(?<=。)/).filter(y => y.trim()); let e = -1;
   ss.forEach((y, i) => { if (/薬/.test(y) && !LINK_RE.test(y) && !CLOSE_RE.test(y)) e = i + 1; });
@@ -3957,7 +3977,7 @@ async function fillStaffFromShift(force) {
   });
   const have = yms.filter(ym => recRows.some(r => ymd(r.date).startsWith(ym) && shiftStaffFor(by[ym], name, r.date, r.e.start)));
   if (info) info.textContent = have.length ? `シフトから担当者を入れました（${recRows.length - miss}件／${recRows.length}件）。${miss ? `シフトに無い${miss}件は下の担当者が入ります。` : ''}` : `この利用者の${yms.map(x => +x.slice(5) + '月').join('・')}のシフトがありません。業務日誌ツールに取り込むか「📋 シフトCSVを取り込む」で入れてください。`;
-  if (n) { renderRecordView(); markRecDirty(); }
+  if (n) { recRows.forEach(x => { if (x.on && x.text) x.text = withMedNext(x, x.text); }); renderRecordView(); markRecDirty(); } // 担当者が入ったら、朝の眠前薬の文の前日担当もそろえる
 }
 async function importShiftCsv(input) {
   const f = input.files[0]; input.value = ''; if (!f) return;
@@ -5135,7 +5155,7 @@ function renderRecordView() {
     <td class="dt">${String(r.date.getMonth() + 1).padStart(2, '0')} / ${String(r.date.getDate()).padStart(2, '0')}（${DAYS[r.date.getDay()]}）<br>
       <input type="time" value="${esc(r.e.start)}" onchange="recRows[${i}].e.start=this.value"> - <input type="time" value="${esc(r.e.end)}" onchange="recRows[${i}].e.end=this.value">
       ${r.flag ? `<span class="flag">${esc(r.flag)}</span>` : ''}</td>
-    <td class="staff"><select onchange="recRows[${i}].staff=this.value;recRows[${i}].staffEdited=true;recRows[${i}].staffFromShift=false;markRecDirty()">${staffOptions(r.staff)}</select></td>
+    <td class="staff"><select onchange="recRows[${i}].staff=this.value;recRows[${i}].staffEdited=true;recRows[${i}].staffFromShift=false;refreshMedNext(${i});markRecDirty()">${staffOptions(r.staff)}</select></td>
     <td class="kind">${r.kind}<br><small style="color:var(--muted)">${esc(r.e.type)}</small></td>
     <td class="txt">${ngIdx.has(i) ? ngHits(r.text).map(w => `<span class="ng-badge">NG「${esc(w)}」</span>`).join('') : ''}${dupIdx.has(i) ? `<span class="dup-badge">⚠ 同じ文章（${dupIdx.get(i)}）</span>` : ''}<span class="ng-badge" id="lenw${i}" style="${String(r.text || '').length > TEXT_MAX ? '' : 'display:none'}">⚠ ${String(r.text || '').length}字（${TEXT_MAX}字まで）</span><textarea oninput="recRows[${i}].text=this.value;liveV(${i},this)" onchange="kpFromText(recRows[${i}]);renderRecordView();markRecDirty()">${esc(r.text)}</textarea></td>
     ${recCheckCell(r, i)}
