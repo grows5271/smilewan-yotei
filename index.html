@@ -767,7 +767,7 @@ async function setSetting(key, localKey, list, opt = {}) {
 const SUPA = { url: '', key: '' }; // 旧（使わない）
 const GAS = {"url": "https://script.google.com/macros/s/AKfycbxKEAUthQx9wiZKncHZR43jbSKjPfO2lYhlc2K5yXWJNXI_zA8wChdQTFlINEhLTDQO/exec"};           // 保存先（Googleドライブに保存するGAS）。build-site.sh が入れる
 // 版の確認：公開版が新しくなったら知らせ、古い版のままでは記録を保存しない（古い決まりで上書きしないため）
-const APP_VER = '20261030150809';
+const APP_VER = '20261031111540';
 let appOutdated = false;
 async function checkVer() {
   if (APP_VER === 'dev' || appOutdated) return appOutdated;
@@ -1569,6 +1569,33 @@ function planMenu(row, meal, plain) {
   const out = xs.map(x => x === 'パン' ? kinds[(seed >>> 8) % kinds.length] : x);
   if (meal === '朝食' && out.length < 2) { const side = ['ヨーグルト', 'バナナ', '牛乳', 'りんご', 'みかん']; seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; out.push(side[(seed >>> 8) % side.length]); } // 朝食は2品以上（パンだけの手順書にはヨーグルト・果物などを添える）
   return out.join('・');
+}
+// 前の夜に眠前薬（夜の服薬）がある日は、次の日のいちばん初めの朝の訪問（12時まで）で、飲まれたかを確認したことを書く（10/31 ユーザー指示）
+const MINZEN_DONE = /眠前薬|前夜の(お)?薬|昨夜の(お)?薬|夜のお薬/, NIGHT_MED = /眠前薬|寝る前の(お)?薬|就寝前の(お)?薬/;
+function nightMedBefore(r) {
+  if (!r || !r.date || !r.e || planHour(r) >= 12) return false;
+  const d = ymd(r.date), st = entryTime(r.e).s || '';
+  if (recRows.some(x => x !== r && x.on !== false && ymd(x.date) === d && (entryTime(x.e).s || '99') < st)) return false; // その日の最初の訪問だけ
+  const pd = new Date(r.date); pd.setDate(pd.getDate() - 1); const p = ymd(pd);
+  let prev = recRows.filter(x => x.on !== false && ymd(x.date) === p);
+  if (!prev.length && p.slice(0, 7) !== d.slice(0, 7)) { const doc = getColl('records')[docId((state.name || '').trim()) + '_' + p.slice(0, 7)]; prev = doc ? doc.rows.filter(x => x.date === p && x.on !== false).map(savedRowToRec) : []; }
+  // 前の日の訪問の文章・予定表の内容・手順書のどれかに眠前薬がある日だけ（朝に書いた「前夜の眠前薬を確認」の文は数えない。夕食後の薬は眠前薬ではないので数えない）
+  const name = (state.name || '').trim();
+  return prev.some(x => { if (!x.text) return false; const t = x.text.split(/(?<=。)/).filter(y => !/(前夜|昨夜)の(眠前薬|お薬)/.test(y)).join('');
+    if (NIGHT_MED.test(t) || NIGHT_MED.test((x.e && x.e.detail) || '')) return true;
+    const pr = planHour(x) >= 15 ? procedureFor(x.e, name) : null; return !!pr && pr.steps.some(y => NIGHT_MED.test((y.label || '') + (y.text || ''))); });
+}
+function withMedNext(r, t) {
+  if (!r || r.on === false || r.sick || !t || MINZEN_DONE.test(t) || !nightMedBefore(r)) return t;
+  const K = kubunOf((state.name || '').trim()) === '介護', med = r.kind !== '家事援助' && kpAll(r).some(k => /^服薬・医療\|/.test(k) || k === '自立支援|服薬');
+  const say = med ? ['前夜の眠前薬を飲まれたか確認し、飲み忘れがないことを確かめた。', '昨夜の眠前薬が飲まれていることを本人と確認した。'] : ['前夜のお薬は飲めたと本人から伺った。', '昨夜のお薬はきちんと飲めたと本人から伺った。']; // 家事援助の訪問は服薬の介助をしないので、本人から伺ったことだけ書く（服薬のチェックが無いので「眠前薬」の語は使わない）
+  let x = /飲み忘れ/.test(t) ? say[1] : say[r.date.getDate() % say.length]; if (K) x = x.replace(/本人/g, '利用者様'); // 「飲み忘れ」が2回続かないように
+  // 入れる場所：薬の文の後 → 体調を伺った文の後 → 締めの文の前
+  const ss = String(t).split(/(?<=。)/).filter(y => y.trim()); let e = -1;
+  ss.forEach((y, i) => { if (/薬/.test(y) && !LINK_RE.test(y) && !CLOSE_RE.test(y)) e = i + 1; });
+  if (e < 0) { const i = ss.findIndex(y => /体調/.test(y)); if (i >= 0) e = i + 1; }
+  if (e < 0) { e = ss.length; while (e > 0 && (LINK_RE.test(ss[e - 1]) || CLOSE_RE.test(ss[e - 1]) || /「/.test(ss[e - 1]))) e--; }
+  ss.splice(e, 0, x); return ss.join('');
 }
 // 記録の「調理」の文に、その曜日・食事の献立を入れる（献立アプリで選んだ料理 → 手順書のメニュー → 🛒の献立表 → その日に決まった献立 の順）
 function menuFor(row, meal) {
@@ -3787,6 +3814,8 @@ async function buildRecords() {
   recRows.filter(r => r.on && r.text).forEach(r => { r.text = nextLink(r, r.text); });
   // 体調不良の日（月2〜3日）を決めて、入浴をシャワー浴に・次の日に体調確認の文
   [...new Set(recRows.map(r => ymd(r.date).slice(0, 7)))].forEach(ym => applySick(recRows, name, ym));
+  // 前の夜の眠前薬を、次の日の朝に確認したこと
+  recRows.forEach(r => { if (r.on && r.text) r.text = withMedNext(r, r.text); });
   // チェックした項目が文章に無ければ足す
   recRows.forEach((r, i) => mentionFix(r, i));
   // 文の順番を一日の流れにそろえる
@@ -4848,6 +4877,7 @@ window.qaCheckRows = function (name) {
     // 8.5 計画書（業務手順書）の手順の言い回し：その訪問に当たる手順の文が文章にあるか（チェックの無い支援・本人がやることは数えない）
     if (typeof planCands === 'function' && !r.sick) { const c = planCands(r, t), n = c.length; if (n > 0 && c.filter(x => x.present).length < n) add(r, '計画書', `計画書の手順の文が足りない（例：${c.find(x => !x.present).says[0].slice(0, 24)}）`); }
     if (typeof planDedupe === 'function' && planDedupe(r, t) !== t) add(r, '計画書', '手順書の文と同じ意味の決まった文が残っている');
+    if (typeof withMedNext === 'function' && withMedNext(r, t) !== t) add(r, '眠前薬', '前の夜の眠前薬を、朝の記録で確認していない');
     // 8.6 献立・買い物支援で選んだ料理・保存した買い物の品物が文章にあるか
     if (typeof withKd === 'function' && !r.sick && withKd(r, t) !== t) add(r, '献立アプリ', '献立（献立アプリ・手順書のメニュー）や買った品物が文章に無い');
     // 9. 同じ文が2回（同じ訪問の中）・空の文
@@ -4950,11 +4980,12 @@ function autoRepair(name) {
     else if (i.kind === '順番') orderRows.add(r);
     else if (i.kind === '計画書') planRows.add(r);
     else if (i.kind === '献立アプリ') planRows.add(r);
+    else if (i.kind === '眠前薬') planRows.add(r);
     else if (i.kind === 'NG表現') needVary = true;
   });
   if (needSick) [...new Set(recRows.map(r => ymd(r.date).slice(0, 7)))].forEach(ym => applySick(recRows, name, ym));
   [...textRows].forEach((r, i) => mentionFix(r, i));
-  [...planRows].forEach(r => { _curRow = r; r.text = withKd(r, withPlan(r, r.text)); });
+  [...planRows].forEach(r => { _curRow = r; r.text = withMedNext(r, withKd(r, withPlan(r, r.text))); });
   [...textRows, ...orderRows, ...planRows].forEach(r => orderFlow(r));
   if (needVary) varyRecRows(recRows, name);
   [...textRows].forEach((r, i) => mentionFix(r, i));
